@@ -67,6 +67,10 @@
     <button data-screen="exercises">Упражнения</button>
     <button data-screen="data">Данные</button>
     <button class="notif-btn" onclick="toggleNotif(event)">🔔<span id="notif-badge" class="notif-badge" style="display:none">0</span></button>
+
+    <!-- Селектор сезона -->
+    <div class="season-selector" id="season-selector"></div>
+
     <div class="sync-status" id="sync-status"><span class="dot"></span><span id="sync-text">Готово</span></div>
     <div class="user-pill">
       <span class="email" id="user-email">—</span>
@@ -74,6 +78,10 @@
     </div>
   </nav>
 </header>
+
+<!-- ПЛАШКА АРХИВНОГО СЕЗОНА -->
+<div id="archive-badge" class="archive-badge" style="display:none"></div>
+
 <div class="notif-panel" id="notif-panel"></div>
 
 <main>
@@ -160,6 +168,17 @@
     <p class="subtitle">Резервное копирование и перенос базы</p>
 
     <div class="card">
+      <h3>Сезоны</h3>
+      <p style="margin-bottom:12px;color:var(--ak-gray-dark);font-size:13px">
+        Данные сезонов изолированы. Сезон: с 1 июля по 31 мая.
+      </p>
+      <div class="btn-row" style="margin:0">
+        <button class="btn" onclick="openCreateSeasonModal()">+ Создать новый сезон</button>
+        <button class="btn btn-ghost" onclick="openManageSeasonsModal()">⚙ Управление сезонами</button>
+      </div>
+    </div>
+
+    <div class="card">
       <h3>Состояние синхронизации</h3>
       <p style="margin-bottom:12px;color:var(--ak-gray-dark);font-size:13px">
         Данные автоматически сохраняются в облако Supabase. Аккаунт: <strong id="data-email">—</strong>
@@ -227,6 +246,7 @@
 <script src="09-excel.js"></script>
 <script src="11-dashboard-calendar.js"></script>
 <script src="12-coach-report.js"></script>
+<script src="13-seasons.js"></script>
 <script src="10-init.js"></script>
 </body>
 </html>

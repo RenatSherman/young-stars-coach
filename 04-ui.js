@@ -2,9 +2,14 @@
    04-ui.js
    Навигация, бургер-меню, уведомления, рендер игроков, дашборд.
    Миграция календаря приводит старые форматы к новому с блоками.
+   + инициализация селектора сезонов и плашки архива.
    ============================================================ */
 
-function goHome() { currentPlayerId = null; currentTab = 'tech'; showScreen('players'); }
+function goHome() {
+  currentPlayerId = null;
+  currentTab = 'skills';
+  showScreen('players');
+}
 
 function showScreen(name) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
@@ -14,7 +19,6 @@ function showScreen(name) {
     b.classList.toggle('active', b.dataset.screen === name);
   });
 
-  // Вызываем рендер-функции с небольшой задержкой, чтобы DOM успел стать активным
   setTimeout(() => {
     try {
       if (name === 'players')        renderPlayers();
@@ -32,12 +36,19 @@ function showScreen(name) {
   const notifPanel = document.getElementById('notif-panel');
   if (notifPanel) notifPanel.classList.remove('active');
   window.scrollTo(0, 0);
+
+  // Плашка архива при переключении экранов (на всякий случай)
+  if (typeof updateArchiveBadge === 'function') updateArchiveBadge();
 }
 
 document.addEventListener('DOMContentLoaded', () => {
   document.querySelectorAll('nav button[data-screen]').forEach(btn => {
     btn.addEventListener('click', () => showScreen(btn.dataset.screen));
   });
+
+  // Селектор сезона — рендерим, когда DOM готов
+  if (typeof renderSeasonSelector === 'function') renderSeasonSelector();
+  if (typeof updateArchiveBadge === 'function')   updateArchiveBadge();
 });
 
 function toggleMobileNav(e) {

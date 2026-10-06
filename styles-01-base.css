@@ -2,7 +2,9 @@
    styles-01-base.css
    Токены, сброс, типографика, шапка, кнопки, карточки, вкладки,
    справочник упражнений (аккордеон),
-   дерево навыков в карточке игрока (.sk-*).
+   дерево навыков в карточке игрока (.sk-*),
+   селектор сезона (.season-*), плашка архива (.archive-*),
+   модалка управления сезонами (.ms-*, .cs-*).
    ============================================================ */
 
 :root{
@@ -134,6 +136,166 @@ nav button.active{background:var(--ak-red)}
   border:2px solid var(--ak-green-dark);
 }
 
+/* ============================================================
+   СЕЛЕКТОР СЕЗОНА
+   ============================================================ */
+.season-selector{
+  position:relative;
+  flex-shrink:0;
+  margin-left:6px;
+}
+.season-btn{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  background:rgba(255,255,255,.15);
+  border:2px solid rgba(255,255,255,.2);
+  color:#fff;
+  padding:6px 12px;
+  border-radius:20px;
+  cursor:pointer;
+  font-family:var(--font-display);
+  font-size:11px;
+  font-weight:900;
+  letter-spacing:.5px;
+  transition:.15s;
+}
+.season-btn:hover{background:rgba(255,255,255,.25)}
+.season-btn.archive{
+  background:rgba(200,16,46,.35);
+  border-color:rgba(200,16,46,.8);
+}
+.season-btn.archive:hover{background:rgba(200,16,46,.55)}
+.season-btn-label{
+  font-size:9px;
+  opacity:.7;
+  text-transform:uppercase;
+}
+.season-btn-value{
+  text-transform:uppercase;
+  letter-spacing:.5px;
+}
+.season-btn-caret{
+  font-size:10px;
+  opacity:.7;
+}
+
+.season-menu{
+  display:none;
+  position:fixed;
+  top:72px;
+  right:16px;
+  width:300px;
+  max-width:calc(100vw - 32px);
+  max-height:calc(100vh - 88px);
+  background:#fff;
+  color:var(--ak-text);
+  border-radius:12px;
+  box-shadow:0 12px 40px rgba(0,0,0,.28);
+  overflow:hidden;
+  z-index:9999;
+  border:1px solid var(--ak-gray-mid);
+  flex-direction:column;
+}
+.season-menu.active{display:flex;}
+.season-menu-head{
+  padding:10px 14px;
+  background:var(--ak-green);
+  color:#fff;
+  font-family:var(--font-display);
+  font-size:11px;
+  font-weight:900;
+  letter-spacing:1px;
+  text-transform:uppercase;
+  flex-shrink:0;
+}
+.season-menu-list{
+  max-height:280px;
+  overflow-y:auto;
+  padding:6px;
+  flex:1;
+}
+.season-menu-item{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  width:100%;
+  padding:10px 12px;
+  border:none;
+  background:transparent;
+  border-radius:8px;
+  cursor:pointer;
+  text-align:left;
+  font-family:inherit;
+  font-size:13px;
+  color:var(--ak-text);
+  transition:.12s;
+}
+.season-menu-item:hover{background:var(--ak-gray-light)}
+.season-menu-item.active{
+  background:var(--ak-green);
+  color:#fff;
+}
+.season-menu-label{
+  flex:1;
+  font-weight:700;
+  font-family:var(--font-display);
+  letter-spacing:.3px;
+  text-transform:uppercase;
+  font-size:12px;
+}
+.season-menu-count{
+  font-size:11px;
+  color:var(--ak-gray-dark);
+  font-family:var(--font-display);
+  font-weight:900;
+  padding:2px 8px;
+  border-radius:10px;
+  background:var(--ak-gray-light);
+}
+.season-menu-item.active .season-menu-count{
+  background:rgba(255,255,255,.2);
+  color:#fff;
+}
+.season-menu-check{
+  color:var(--ak-red);
+  font-size:14px;
+  font-weight:900;
+}
+.season-menu-item.active .season-menu-check{color:#fff}
+
+.season-menu-foot{
+  padding:8px;
+  border-top:1px solid var(--ak-gray-mid);
+  background:#fafbfc;
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+  flex-shrink:0;
+}
+.season-menu-action{
+  width:100%;
+  padding:10px 12px;
+  border:none;
+  background:var(--ak-green);
+  color:#fff;
+  border-radius:6px;
+  cursor:pointer;
+  font-family:var(--font-display);
+  font-size:11px;
+  font-weight:900;
+  letter-spacing:.4px;
+  text-transform:uppercase;
+  transition:.15s;
+}
+.season-menu-action:hover{background:var(--ak-green-light)}
+.season-menu-action.ghost{
+  background:transparent;
+  color:var(--ak-green);
+  border:2px solid var(--ak-green);
+}
+.season-menu-action.ghost:hover{background:var(--ak-green);color:#fff}
+
 .user-pill{
   background:rgba(255,255,255,.12);
   padding:6px 10px;
@@ -209,6 +371,41 @@ nav button.active{background:var(--ak-red)}
   flex-shrink:0;
 }
 .burger:hover{background:rgba(255,255,255,.1)}
+
+/* ============================================================
+   ПЛАШКА АРХИВНОГО СЕЗОНА
+   ============================================================ */
+.archive-badge{
+  display:none;
+  align-items:center;
+  gap:12px;
+  padding:10px 20px;
+  background:#fff4d6;
+  border-bottom:2px solid #f0c000;
+  font-size:13px;
+  color:#7a5500;
+  flex-wrap:wrap;
+  position:sticky;
+  top:64px;
+  z-index:90;
+}
+.archive-badge.editable{
+  background:#fce8ec;
+  border-bottom-color:var(--ak-red);
+  color:var(--ak-red-dark);
+}
+.archive-badge .archive-icon{
+  font-size:18px;
+  flex-shrink:0;
+}
+.archive-badge strong{
+  font-family:var(--font-display);
+  letter-spacing:.3px;
+}
+.archive-badge .btn{
+  margin-left:auto;
+  flex-shrink:0;
+}
 
 /* ===== ОБЩЕЕ ===== */
 main{max-width:1400px;margin:0 auto;padding:20px}
@@ -780,7 +977,6 @@ input.cell[type=number]{text-align:center}
   border-radius:4px;
 }
 
-/* Таблица внутри навыков */
 .sk-table-wrap{
   overflow-x:auto;
   border-radius:6px;
@@ -832,4 +1028,192 @@ input.cell[type=number]{text-align:center}
   outline:none;
   border-color:var(--ak-green);
   box-shadow:0 0 0 2px rgba(21,71,52,.12);
+}
+
+/* ============================================================
+   МОДАЛКА УПРАВЛЕНИЯ СЕЗОНАМИ (.ms-*) и СОЗДАНИЯ (.cs-*)
+   ============================================================ */
+
+/* Управление сезонами */
+.ms-list{display:flex;flex-direction:column;gap:8px;max-height:420px;overflow-y:auto}
+.ms-row{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  padding:12px 14px;
+  background:var(--ak-gray-light);
+  border-radius:8px;
+  border-left:4px solid var(--ak-green);
+  flex-wrap:wrap;
+}
+.ms-row-info{flex:1;min-width:180px}
+.ms-row-name{
+  font-family:var(--font-display);
+  font-size:13px;
+  font-weight:900;
+  color:var(--ak-green);
+  letter-spacing:.3px;
+  text-transform:uppercase;
+  display:flex;
+  align-items:center;
+  gap:8px;
+  flex-wrap:wrap;
+}
+.ms-tag{
+  font-size:9px;
+  padding:2px 8px;
+  border-radius:10px;
+  background:var(--ak-gray-mid);
+  color:var(--ak-gray-dark);
+  font-weight:900;
+  letter-spacing:.3px;
+}
+.ms-tag.current{background:var(--ak-red);color:#fff}
+.ms-row-meta{
+  font-size:12px;
+  color:var(--ak-gray-dark);
+  margin-top:2px;
+}
+.ms-row-actions{display:flex;gap:4px;flex-wrap:wrap}
+
+/* Подсказка в модалке создания */
+.cs-hint{
+  font-size:12px;
+  color:var(--ak-gray-dark);
+  margin-top:6px;
+  min-height:16px;
+}
+.cs-hint.ok{color:#1e7a3f}
+.cs-hint.error{color:var(--ak-red)}
+
+/* ============================================================
+   СПИСОК ИГРОКОВ ДЛЯ ПЕРЕНОСА
+   ============================================================ */
+
+.cs-players-list{
+  max-height:280px;
+  overflow-y:auto;
+  overflow-x:hidden;
+  border:1.5px solid var(--ak-gray-mid);
+  border-radius:6px;
+  padding:6px;
+  background:#fafbfc;
+  width:100%;
+  box-sizing:border-box;
+}
+
+.cs-player-row{
+  display:flex !important;
+  flex-direction:row !important;
+  align-items:flex-start !important;
+  justify-content:flex-start !important;
+  gap:10px;
+  padding:8px 10px;
+  border-radius:6px;
+  cursor:pointer;
+  transition:.12s;
+  width:100%;
+  min-width:0;
+  box-sizing:border-box;
+  text-align:left;
+  float:none;
+  position:static;
+}
+.cs-player-row:hover{background:#fff}
+.cs-player-row + .cs-player-row{border-top:1px solid rgba(0,0,0,.05)}
+
+.cs-player-check{
+  flex:0 0 16px !important;
+  width:16px !important;
+  height:16px !important;
+  margin:3px 0 0 0 !important;
+  padding:0;
+  cursor:pointer;
+  display:inline-block;
+}
+
+.cs-player-info{
+  display:flex !important;
+  flex-direction:column !important;
+  align-items:flex-start !important;
+  flex:1 1 auto !important;
+  min-width:0 !important;
+  max-width:100% !important;
+  text-align:left;
+  overflow:hidden;
+  box-sizing:border-box;
+}
+.cs-player-fio{
+  font-size:13px;
+  font-weight:700;
+  color:var(--ak-green);
+  line-height:1.3;
+  white-space:normal !important;
+  word-break:normal !important;
+  overflow-wrap:break-word !important;
+  max-width:100%;
+}
+.cs-player-meta{
+  font-size:11px;
+  color:var(--ak-gray-dark);
+  margin-top:2px;
+  line-height:1.3;
+  white-space:normal !important;
+  max-width:100%;
+}
+
+.cs-empty{
+  padding:16px;
+  text-align:center;
+  color:var(--ak-gray-dark);
+  font-size:12px;
+}
+
+.cs-bulk-actions{
+  display:flex;
+  gap:6px;
+  margin-top:8px;
+  flex-wrap:wrap;
+}
+
+/* ============================================================
+   ОПЦИИ «ЧТО ПЕРЕНОСИТЬ»
+   ============================================================ */
+
+.cs-copy-options{
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  margin-top:4px;
+}
+
+.cs-copy-row{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:10px 12px;
+  background:#fafbfc;
+  border:1px solid var(--ak-gray-mid);
+  border-radius:6px;
+  cursor:pointer;
+  transition:.12s;
+  width:100%;
+  text-align:left;
+  font-size:13px;
+}
+.cs-copy-row:hover{background:#fff;border-color:var(--ak-green)}
+.cs-copy-row input[type=checkbox]{
+  flex-shrink:0;
+  width:16px;
+  height:16px;
+  margin:0;
+  cursor:pointer;
+}
+.cs-copy-text{
+  flex:1;
+  min-width:0;
+  line-height:1.35;
+  color:var(--ak-text);
+  word-wrap:break-word;
 }
