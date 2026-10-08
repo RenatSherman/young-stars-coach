@@ -1,19 +1,22 @@
 /* ============================================================
    styles-03-calendar.css
-   Календари, план развития, поповер комплексов, модалки отметки.
+   Календари, план развития, поповер комплексов, панель факта,
+   блок «Повторить на другие дни».
 
-   Порядок разделов:
+   Разделы:
      1. Сводка plan-summary
-     2. Старая plan-таблица (совместимость)
+     2. Старая plan-таблица
      3. План развития (dev-plan-*)
      4. Поповер комплексов (cc-popover)
      5. Чипы (wt-chip)
-     6. МЕСЯЧНАЯ СЕТКА КАЛЕНДАРЯ (cc-*)
+     6. Месячная сетка календаря (cc-*)
      7. Модалка дня (cc-sess-*)
-     8. Редактор блока
-     9. Календарь игрока (player-cal-*)
-    10. Модалка дня игрока (pde-*)
-    11. Модалка отметки факта (fm-*)
+     8. ПАНЕЛЬ ИГРОКОВ С ФАКТОМ (ccpf-*)       ← НОВОЕ
+     9. БЛОК «ПОВТОРИТЬ» (cs-repeat-*)          ← НОВОЕ
+    10. Редактор блока
+    11. Календарь игрока (player-cal-*)
+    12. Модалка дня игрока (pde-*)
+    13. Модалка отметки факта (fm-*) — для совместимости, не используется
    ============================================================ */
 
 /* ============================================================
@@ -441,7 +444,7 @@
 .wt-chip.checked:hover{background:var(--ak-green-light);color:#fff}
 
 /* ============================================================
-   6. МЕСЯЧНАЯ СЕТКА КАЛЕНДАРЯ
+   6. МЕСЯЧНАЯ СЕТКА
    ============================================================ */
 .cc-toolbar-card{
   padding:14px 18px;
@@ -625,7 +628,7 @@
   display:flex;
   flex-direction:column;
   gap:8px;
-  max-height:400px;
+  max-height:70vh;
   overflow:auto;
   padding-right:4px;
 }
@@ -634,13 +637,13 @@
   align-items:stretch;
   gap:8px;
   background:var(--ak-gray-light);
-  border-radius:4px;
+  border-radius:6px;
   border-left:5px solid var(--ak-green);
-  padding:10px 12px;
+  padding:12px 14px;
   transition:.15s;
 }
 .cc-sess-item:hover{background:var(--ak-gray-mid)}
-.cc-sess-main{flex:1;cursor:pointer;min-width:0}
+.cc-sess-main{flex:1;min-width:0}
 .cc-sess-time{
   font-family:var(--font-display);
   font-size:11px;
@@ -658,21 +661,6 @@
 .cc-sess-note{font-size:11px;color:var(--ak-gray-dark);font-style:italic;margin-top:4px}
 
 .cc-sess-actions{display:flex;gap:4px;align-items:flex-start;flex-shrink:0}
-.cc-sess-fact{
-  padding:6px 12px;
-  border-radius:20px;
-  border:2px solid var(--ak-green);
-  background:var(--ak-green);
-  color:#fff;
-  font-family:var(--font-display);
-  font-size:10px;
-  font-weight:900;
-  letter-spacing:.5px;
-  text-transform:uppercase;
-  cursor:pointer;
-  transition:.15s;
-}
-.cc-sess-fact:hover{background:var(--ak-green-light)}
 .cc-sess-edit,
 .cc-sess-del{
   background:transparent;
@@ -702,7 +690,294 @@
 .cc-fact-pill.unmarked{background:#E6E8EA;color:var(--ak-gray-dark)}
 
 /* ============================================================
-   8. РЕДАКТОР БЛОКА
+   8. ПАНЕЛЬ ИГРОКОВ С ФАКТОМ (ccpf-*)
+   ============================================================ */
+
+.ccpf-panel{
+  margin-top:12px;
+  padding:12px;
+  background:#fff;
+  border:1.5px solid var(--ak-gray-mid);
+  border-radius:8px;
+}
+.ccpf-toolbar{
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+  margin-bottom:12px;
+  padding-bottom:10px;
+  border-bottom:1px dashed var(--ak-gray-mid);
+}
+.ccpf-players{
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+}
+.ccpf-player{
+  padding:10px 12px;
+  background:var(--ak-gray-light);
+  border-radius:6px;
+  border-left:4px solid var(--ak-green);
+}
+.ccpf-player-head{
+  display:flex;
+  align-items:baseline;
+  gap:10px;
+  flex-wrap:wrap;
+  margin-bottom:8px;
+}
+.ccpf-fio{
+  font-family:var(--font-display);
+  font-size:13px;
+  font-weight:900;
+  color:var(--ak-green);
+  text-transform:uppercase;
+  letter-spacing:.3px;
+}
+.ccpf-team{
+  font-size:11px;
+  color:var(--ak-gray-dark);
+}
+.ccpf-open{
+  margin-left:auto;
+  background:transparent;
+  border:1.5px solid var(--ak-green);
+  color:var(--ak-green);
+  border-radius:20px;
+  padding:4px 12px;
+  font-family:var(--font-display);
+  font-size:10px;
+  font-weight:900;
+  letter-spacing:.3px;
+  text-transform:uppercase;
+  cursor:pointer;
+  transition:.15s;
+  white-space:nowrap;
+}
+.ccpf-open:hover{background:var(--ak-green);color:#fff}
+
+.ccpf-blocks{
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+}
+.ccpf-block{
+  background:#fff;
+  border-radius:6px;
+  padding:10px 12px;
+  border:1px solid var(--ak-gray-mid);
+}
+.ccpf-block-head{
+  display:flex;
+  justify-content:space-between;
+  align-items:baseline;
+  gap:8px;
+  margin-bottom:8px;
+  flex-wrap:wrap;
+}
+.ccpf-block-name{
+  font-size:12px;
+  font-weight:700;
+  color:var(--ak-text);
+}
+.ccpf-block-time{
+  font-size:11px;
+  color:var(--ak-gray-dark);
+  font-family:var(--font-display);
+  font-weight:900;
+}
+.ccpf-buttons{
+  display:flex;
+  gap:6px;
+  flex-wrap:wrap;
+}
+.ccpf-btn{
+  padding:6px 12px;
+  border-radius:20px;
+  border:1.5px solid var(--ak-gray-mid);
+  background:#fff;
+  font-family:var(--font-display);
+  font-size:10px;
+  font-weight:900;
+  letter-spacing:.3px;
+  text-transform:uppercase;
+  cursor:pointer;
+  transition:.15s;
+  color:var(--ak-gray-dark);
+  white-space:nowrap;
+}
+.ccpf-btn:hover{
+  border-color:var(--ak-green);
+  color:var(--ak-green);
+  background:var(--ak-gray-light);
+}
+.ccpf-btn.active.done{
+  background:#1e7a3f;
+  border-color:#1e7a3f;
+  color:#fff;
+}
+.ccpf-btn.active.partial{
+  background:#b8860b;
+  border-color:#b8860b;
+  color:#fff;
+}
+.ccpf-btn.active.notdone{
+  background:var(--ak-red);
+  border-color:var(--ak-red);
+  color:#fff;
+}
+.ccpf-comment-wrap{margin-top:8px}
+.ccpf-comment{
+  width:100%;
+  padding:8px 12px;
+  border:2px solid var(--ak-red);
+  background:#fff6f8;
+  border-radius:6px;
+  font-family:inherit;
+  font-size:13px;
+}
+.ccpf-comment:focus{
+  outline:none;
+  border-color:var(--ak-red-dark);
+  box-shadow:0 0 0 3px rgba(200,16,46,.12);
+}
+.ccpf-comment::placeholder{
+  color:var(--ak-red);
+  font-weight:700;
+}
+
+.ccpf-footer{
+  margin-top:12px;
+  padding-top:10px;
+  border-top:1px dashed var(--ak-gray-mid);
+  display:flex;
+  justify-content:flex-end;
+}
+.ccpf-footer .btn{
+  min-width:180px;
+  justify-content:center;
+}
+
+.cc-players-empty{
+  padding:14px;
+  text-align:center;
+  color:var(--ak-gray-dark);
+  font-size:12px;
+  background:var(--ak-gray-light);
+  border-radius:4px;
+}
+
+/* ============================================================
+   9. БЛОК «ПОВТОРИТЬ НА ДРУГИЕ ДНИ» (cs-repeat-*)
+   ============================================================ */
+
+.cs-repeat-block{
+  margin-top:18px;
+  padding:14px;
+  background:var(--ak-gray-light);
+  border-radius:8px;
+  border-left:4px solid var(--ak-red);
+}
+.cs-repeat-title{
+  font-family:var(--font-display);
+  font-size:12px;
+  font-weight:900;
+  color:var(--ak-green);
+  text-transform:uppercase;
+  letter-spacing:.5px;
+  margin-bottom:12px;
+}
+
+.cs-repeat-days{
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+  margin-bottom:14px;
+}
+.cs-repeat-day{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  background:#fff;
+  border:1.5px solid var(--ak-gray-mid);
+  border-radius:20px;
+  padding:4px 8px 4px 12px;
+}
+.cs-repeat-day-label{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  cursor:pointer;
+  font-family:var(--font-display);
+  font-size:11px;
+  font-weight:900;
+  color:var(--ak-green);
+  letter-spacing:.3px;
+  text-transform:uppercase;
+  user-select:none;
+}
+.cs-repeat-day-label input{
+  margin:0;
+  cursor:pointer;
+}
+.cs-repeat-day-time{
+  border:none;
+  background:var(--ak-gray-light);
+  border-radius:12px;
+  padding:4px 8px;
+  font-family:inherit;
+  font-size:12px;
+  font-weight:700;
+  color:var(--ak-text);
+  width:80px;
+}
+.cs-repeat-day-time:focus{
+  outline:none;
+  background:#fff;
+  box-shadow:0 0 0 2px var(--ak-green);
+}
+
+.cs-repeat-options{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:12px;
+  margin-bottom:10px;
+}
+
+.cs-repeat-hint{
+  font-size:11px;
+  color:var(--ak-gray-dark);
+  font-style:italic;
+  margin-bottom:10px;
+}
+
+.cs-repeat-preview{
+  background:#fff;
+  border-radius:6px;
+  padding:10px 12px;
+  font-size:12px;
+  color:var(--ak-text);
+  border-left:3px solid var(--ak-green);
+  margin-bottom:10px;
+  min-height:38px;
+  line-height:1.5;
+}
+.cs-repeat-preview strong{
+  font-family:var(--font-display);
+  color:var(--ak-green);
+}
+.cs-repeat-preview-list{
+  color:var(--ak-gray-dark);
+  font-size:11px;
+}
+.cs-repeat-empty{
+  color:var(--ak-gray-dark);
+  font-size:12px;
+  font-style:italic;
+}
+
+/* ============================================================
+   10. РЕДАКТОР БЛОКА
    ============================================================ */
 .cc-time-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
 .cc-block-end{
@@ -752,7 +1027,7 @@
 .cc-block-del:hover{background:#fce8ec;color:var(--ak-red)}
 
 /* ============================================================
-   9. КАЛЕНДАРЬ ИГРОКА — тулбар
+   11. КАЛЕНДАРЬ ИГРОКА — тулбар
    ============================================================ */
 .player-cal-toolbar{
   display:flex;
@@ -785,7 +1060,7 @@
 }
 
 /* ============================================================
-   10. МОДАЛКА ДНЯ ИГРОКА (PDE)
+   12. МОДАЛКА ДНЯ ИГРОКА (PDE)
    ============================================================ */
 .pde-list{display:flex;flex-direction:column;gap:10px}
 .pde-block{
@@ -832,7 +1107,8 @@
 }
 
 /* ============================================================
-   11. МОДАЛКА ОТМЕТКИ ФАКТА (FM)
+   13. СТАРАЯ МОДАЛКА ОТМЕТКИ (fm-*) — совместимость
+   (не используется, но оставлена на случай отката)
    ============================================================ */
 .fm-toolbar{
   display:flex;
@@ -844,7 +1120,6 @@
   border-radius:6px;
 }
 .fm-players{display:flex;flex-direction:column;gap:10px}
-
 .fm-player-row{
   display:flex;
   flex-direction:column;
@@ -854,12 +1129,7 @@
   border:1.5px solid var(--ak-gray-mid);
   border-radius:8px;
 }
-.fm-player-info{
-  display:flex;
-  align-items:baseline;
-  gap:10px;
-  flex-wrap:wrap;
-}
+.fm-player-info{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
 .fm-player-fio{
   font-family:var(--font-display);
   font-size:14px;
@@ -868,15 +1138,8 @@
   text-transform:uppercase;
   letter-spacing:.3px;
 }
-.fm-player-team{
-  font-size:11px;
-  color:var(--ak-gray-dark);
-}
-.fm-buttons{
-  display:flex;
-  gap:8px;
-  flex-wrap:wrap;
-}
+.fm-player-team{font-size:11px;color:var(--ak-gray-dark)}
+.fm-buttons{display:flex;gap:8px;flex-wrap:wrap}
 .fm-btn{
   padding:8px 14px;
   border-radius:20px;
@@ -897,21 +1160,9 @@
   color:var(--ak-green);
   background:var(--ak-gray-light);
 }
-.fm-btn.active.done{
-  background:#1e7a3f;
-  border-color:#1e7a3f;
-  color:#fff;
-}
-.fm-btn.active.partial{
-  background:#b8860b;
-  border-color:#b8860b;
-  color:#fff;
-}
-.fm-btn.active.notdone{
-  background:var(--ak-red);
-  border-color:var(--ak-red);
-  color:#fff;
-}
+.fm-btn.active.done{background:#1e7a3f;border-color:#1e7a3f;color:#fff}
+.fm-btn.active.partial{background:#b8860b;border-color:#b8860b;color:#fff}
+.fm-btn.active.notdone{background:var(--ak-red);border-color:var(--ak-red);color:#fff}
 .fm-comment-wrap{display:none}
 .fm-comment-input{
   width:100%;
@@ -928,7 +1179,25 @@
   box-shadow:0 0 0 3px rgba(200,16,46,.12);
 }
 
-@media (max-width: 700px) {
-  .fm-buttons { flex-direction: column; }
-  .fm-btn { width: 100%; justify-content: center; }
+/* ============================================================
+   АДАПТИВ
+   ============================================================ */
+@media (max-width: 700px){
+  /* панель игроков */
+  .ccpf-buttons{flex-direction:column}
+  .ccpf-btn{width:100%;justify-content:center}
+  .ccpf-open{margin-left:0;width:100%;text-align:center}
+
+  /* блок «Повторить» */
+  .cs-repeat-options{grid-template-columns:1fr}
+  .cs-repeat-day{width:100%}
+  .cs-repeat-day-time{flex:1;width:auto}
+
+  /* модалка дня */
+  .cc-sess-item{flex-direction:column}
+  .cc-sess-actions{flex-direction:row;justify-content:flex-end}
+
+  /* физ/такт/псих кнопки (старая модалка) */
+  .fm-buttons{flex-direction:column}
+  .fm-btn{width:100%;justify-content:center}
 }

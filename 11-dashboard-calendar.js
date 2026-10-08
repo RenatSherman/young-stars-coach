@@ -1,20 +1,14 @@
 /* ============================================================
    11-dashboard-calendar.js
    Календарь тренера:
-   - ячейка дня = одна ТРЕНИРОВКА
-   - клик по дню → модалка со списком тренировок дня
-   - в каждой тренировке кнопка «✓ Отметить» → модалка отметки
-   - кнопка «✎» → редактор тренировки
-   - кнопка «🗑» → удаление
-
-   Модалка отметки:
-   - список игроков тренировки
-   - у каждого игрока три кнопки: Выполнено / Частично / Не выполнено
-   - при «частично» / «не выполнено» появляется комментарий
-   - факт пишется во ВСЕ блоки тренировки данного игрока
-     (если у тренировки один блок — это эквивалентно «по блоку»)
-   - данные автоматически видны в карточке игрока (вкладка «Календарь»)
-     и в отчётах
+   - месячная сетка (как было)
+   - модалка дня → список тренировок
+   - тренировка раскрывается → инлайн-список игроков
+   - у каждого игрока — список его блоков с фактом по каждому блоку
+   - массовые кнопки: всем выполнено / не выполнено / сбросить
+   - кнопка [Открыть] → карточка игрока
+   - создание/редактирование тренировки с блоком «Повторить на другие дни»
+     (серии с seriesId, удаление всей серии или одного дня)
    ============================================================ */
 
 /* ===== Месячная сетка ===== */
@@ -149,6 +143,7 @@ function collectDaySessions(ds) {
         map.set(key, {
           id: sess.id,
           groupId: sess.groupId,
+          seriesId: sess.seriesId || null,
           name: sess.name || '',
           note: sess.note || '',
           blocks: Array.isArray(sess.blocks) ? sess.blocks.map(b => ({ ...b })) : [],
@@ -157,7 +152,7 @@ function collectDaySessions(ds) {
       }
       const entry = map.get(key);
       if (!entry.players.find(x => x.id === p.id)) {
-        entry.players.push({ id: p.id, fio: p.fio });
+        entry.players.push({ id: p.id, fio: p.fio, team: p.team || '' });
       }
     });
   });
@@ -197,40 +192,19 @@ function sessionTimeRange(sess) {
 /* ============================================================
    МОДАЛКА ДНЯ
    ============================================================ */
+let __dayOpenSessions = new Set(); // индексы раскрытых тренировок
+
 function openDaySessions(ds) {
+  __dayOpenSessions = new Set(); // при открытии — всё свёрнуто
+  renderDaySessionsModal(ds);
+}
+
+function renderDaySessionsModal(ds) {
   const sessions = collectDaySessions(ds);
   const title = formatDateFull(ds);
 
   const listHtml = sessions.length
-    ? sessions.map((s, i) => {
-        const color = sessionColor(s);
-        const total = sessionTotalMinutes(s);
-        const range = sessionTimeRange(s);
-        const blocksLine = s.blocks.length
-          ? s.blocks.map(b => `${b.complex || 'Блок'} (${b.format || '—'}, ${b.duration || 0} мин)`).join(' · ')
-          : '—';
-        const facts = computeSessionFactsSummary(s, ds);
-        const factHtml = `
-          <span class="cc-fact-pill done">✓ ${facts.done}</span>
-          <span class="cc-fact-pill partial">~ ${facts.partial}</span>
-          <span class="cc-fact-pill notdone">✗ ${facts.notdone}</span>
-          ${facts.unmarked ? `<span class="cc-fact-pill unmarked">? ${facts.unmarked}</span>` : ''}
-        `;
-        return `<div class="cc-sess-item" style="border-left-color:${color}">
-          <div class="cc-sess-main">
-            <div class="cc-sess-time">${escapeHtml(range)} · ${total} мин</div>
-            <div class="cc-sess-name">${escapeHtml(s.name || 'Тренировка')}</div>
-            <div class="cc-sess-meta">${escapeHtml(blocksLine)}</div>
-            <div class="cc-sess-meta" style="margin-top:4px">${s.players.length} ${plural(s.players.length, 'игрок', 'игрока', 'игроков')} · ${factHtml}</div>
-            ${s.note ? `<div class="cc-sess-note">${escapeHtml(s.note)}</div>` : ''}
-          </div>
-          <div class="cc-sess-actions">
-            <button class="cc-sess-fact" title="Отметить факт" onclick="openSessionFactModal('${ds}', ${i}, event)">✓ Отметить</button>
-            <button class="cc-sess-edit" title="Редактировать тренировку" onclick="openSessionEditor('${ds}', ${i}, event)">✎</button>
-            <button class="cc-sess-del" title="Удалить тренировку" onclick="deleteSessionFromDay('${ds}', ${i}, event)">🗑</button>
-          </div>
-        </div>`;
-      }).join('')
+    ? sessions.map((s, i) => renderDaySessionCard(ds, s, i)).join('')
     : '<p class="subtitle" style="text-align:center;padding:20px 0">На этот день тренировок нет.</p>';
 
   openModal(`<h3>${escapeHtml(title)}</h3>
@@ -241,6 +215,62 @@ function openDaySessions(ds) {
     </div>`);
 }
 
+function renderDaySessionCard(ds, s, idx) {
+  const color = sessionColor(s);
+  const total = sessionTotalMinutes(s);
+  const range = sessionTimeRange(s);
+  const isOpen = __dayOpenSessions.has(idx);
+  const facts = computeSessionFactsSummary(s, ds);
+
+  const blocksLine = s.blocks.length
+    ? s.blocks.map(b => `${b.complex || 'Блок'} (${b.format || '—'}, ${b.duration || 0} мин)`).join(' · ')
+    : '—';
+
+  const factHtml = `
+    <span class="cc-fact-pill done">${facts.done}</span>
+    <span class="cc-fact-pill partial">${facts.partial}</span>
+    <span class="cc-fact-pill notdone">${facts.notdone}</span>
+    ${facts.unmarked ? `<span class="cc-fact-pill unmarked">${facts.unmarked}</span>` : ''}
+  `;
+
+  const playersPanel = isOpen ? renderPlayersFactPanel(ds, s, idx) : '';
+
+  return `<div class="cc-sess-item" style="border-left-color:${color}">
+    <div class="cc-sess-main">
+      <div class="cc-sess-time">${escapeHtml(range)} · ${total} мин</div>
+      <div class="cc-sess-name">${escapeHtml(s.name || 'Тренировка')}</div>
+      <div class="cc-sess-meta">${escapeHtml(blocksLine)}</div>
+      <div class="cc-sess-meta" style="margin-top:4px">
+        ${s.players.length} ${plural(s.players.length, 'игрок', 'игрока', 'игроков')} · ${factHtml}
+      </div>
+      ${s.note ? `<div class="cc-sess-note">${escapeHtml(s.note)}</div>` : ''}
+
+      <div style="margin-top:10px">
+        <button type="button" class="btn btn-sm btn-ghost"
+                onclick="event.stopPropagation();toggleDaySessionPlayers(${idx}, '${ds}')">
+          ${isOpen ? 'Скрыть игроков' : 'Показать игроков'}
+        </button>
+      </div>
+
+      ${playersPanel}
+    </div>
+
+    <div class="cc-sess-actions">
+      <button class="cc-sess-edit" title="Редактировать тренировку"
+              onclick="openSessionEditor('${ds}', ${idx}, event)">✎</button>
+      <button class="cc-sess-del" title="Удалить тренировку"
+              onclick="deleteSessionFromDay('${ds}', ${idx}, event)">🗑</button>
+    </div>
+  </div>`;
+}
+
+function toggleDaySessionPlayers(idx, ds) {
+  if (__dayOpenSessions.has(idx)) __dayOpenSessions.delete(idx);
+  else __dayOpenSessions.add(idx);
+  renderDaySessionsModal(ds);
+}
+
+/* Подсчёт факта по тренировке (суммарно по всем игрокам и блокам) */
 function computeSessionFactsSummary(sess, ds) {
   let done = 0, partial = 0, notdone = 0, unmarked = 0;
   const sessionId = sess.id;
@@ -263,7 +293,219 @@ function computeSessionFactsSummary(sess, ds) {
 }
 
 /* ============================================================
-   РЕДАКТОР ТРЕНИРОВКИ (с блоками)
+   ПАНЕЛЬ ИГРОКОВ С ФАКТОМ (инлайн)
+   ============================================================ */
+function renderPlayersFactPanel(ds, s, sessionIdx) {
+  // Собираем по игрокам: игрок + его блоки в этой тренировке
+  const playersData = [];
+
+  DB.players.forEach(p => {
+    const day = p.calendar && p.calendar[ds];
+    if (!Array.isArray(day)) return;
+    const thisSession = day.find(x => x.id === s.id);
+    if (!thisSession) return;
+
+    playersData.push({
+      id: p.id,
+      fio: p.fio,
+      team: p.team || '',
+      blocks: (thisSession.blocks || []).map((b, bi) => ({
+        blockIndex: bi,
+        complex: b.complex || '',
+        format: b.format || '',
+        startTime: b.startTime || '',
+        duration: Number(b.duration) || 0,
+        fact: b.fact || '',
+        comment: b.comment || ''
+      }))
+    });
+  });
+
+  if (!playersData.length) {
+    return '<div class="cc-players-empty">Игроков нет</div>';
+  }
+
+  // Сохраняем во временное состояние, чтобы потом сохранить разом
+  __factEditState[`${ds}|${s.id}`] = { ds, sessionId: s.id, players: playersData };
+
+  const html = playersData.map(pd => {
+    const blocksHtml = pd.blocks.map(b => {
+      const end = minutesToTime(timeToMinutes(b.startTime) + b.duration);
+      const needComment = (b.fact === 'partial' || b.fact === 'notdone');
+
+      return `<div class="ccpf-block" data-player-id="${pd.id}" data-block-index="${b.blockIndex}">
+        <div class="ccpf-block-head">
+          <span class="ccpf-block-name">${escapeHtml(b.complex || 'Блок')} · ${escapeHtml(b.format || '—')}</span>
+          <span class="ccpf-block-time">${escapeHtml(b.startTime)}–${end} · ${b.duration} мин</span>
+        </div>
+        <div class="ccpf-buttons">
+          <button type="button"
+                  class="ccpf-btn ${b.fact === 'done' ? 'active done' : ''}"
+                  onclick="ccpfSetFact('${ds}','${s.id}','${pd.id}',${b.blockIndex},'done')">
+            Выполнено
+          </button>
+          <button type="button"
+                  class="ccpf-btn ${b.fact === 'partial' ? 'active partial' : ''}"
+                  onclick="ccpfSetFact('${ds}','${s.id}','${pd.id}',${b.blockIndex},'partial')">
+            Выполнено частично
+          </button>
+          <button type="button"
+                  class="ccpf-btn ${b.fact === 'notdone' ? 'active notdone' : ''}"
+                  onclick="ccpfSetFact('${ds}','${s.id}','${pd.id}',${b.blockIndex},'notdone')">
+            Не выполнено
+          </button>
+        </div>
+        <div class="ccpf-comment-wrap" style="display:${needComment ? 'block' : 'none'}">
+          <input type="text" class="ccpf-comment" placeholder="Комментарий (обязательно)"
+                 value="${escapeAttr(b.comment || '')}"
+                 oninput="ccpfSetComment('${ds}','${s.id}','${pd.id}',${b.blockIndex}, this.value)">
+        </div>
+      </div>`;
+    }).join('');
+
+    return `<div class="ccpf-player">
+      <div class="ccpf-player-head">
+        <span class="ccpf-fio">${escapeHtml(pd.fio)}</span>
+        ${pd.team ? `<span class="ccpf-team">${escapeHtml(pd.team)}</span>` : ''}
+        <button type="button" class="ccpf-open" onclick="openPlayerFromSession('${pd.id}')">Открыть</button>
+      </div>
+      <div class="ccpf-blocks">${blocksHtml}</div>
+    </div>`;
+  }).join('');
+
+  return `
+    <div class="ccpf-panel">
+      <div class="ccpf-toolbar">
+        <button type="button" class="btn btn-sm" onclick="ccpfBulkSet('${ds}','${s.id}','done')">Всем выполнено</button>
+        <button type="button" class="btn btn-sm btn-ghost" onclick="ccpfBulkSet('${ds}','${s.id}','notdone')">Всем не выполнено</button>
+        <button type="button" class="btn btn-sm btn-ghost" onclick="ccpfBulkClear('${ds}','${s.id}')">Сбросить</button>
+      </div>
+      <div class="ccpf-players">${html}</div>
+      <div class="ccpf-footer">
+        <button type="button" class="btn" onclick="ccpfSave('${ds}','${s.id}')">Сохранить факт</button>
+      </div>
+    </div>
+  `;
+}
+
+/* Временное состояние редактирования (по ds + sessionId) */
+const __factEditState = {};
+
+function ccpfGetState(ds, sessionId) {
+  return __factEditState[`${ds}|${sessionId}`] || null;
+}
+
+function ccpfSetFact(ds, sessionId, playerId, blockIndex, fact) {
+  const st = ccpfGetState(ds, sessionId);
+  if (!st) return;
+  const pd = st.players.find(x => x.id === playerId);
+  if (!pd) return;
+  const bl = pd.blocks.find(b => b.blockIndex === blockIndex);
+  if (!bl) return;
+
+  // повторный клик по той же кнопке — снимаем
+  bl.fact = (bl.fact === fact) ? '' : fact;
+  if (bl.fact !== 'partial' && bl.fact !== 'notdone') bl.comment = '';
+
+  // локальное обновление DOM
+  const row = document.querySelector(`.ccpf-block[data-player-id="${playerId}"][data-block-index="${blockIndex}"]`);
+  if (row) {
+    row.querySelectorAll('.ccpf-btn').forEach(b => b.classList.remove('active','done','partial','notdone'));
+    if (bl.fact) {
+      const list = row.querySelectorAll('.ccpf-btn');
+      const idx = bl.fact === 'done' ? 0 : bl.fact === 'partial' ? 1 : 2;
+      list[idx].classList.add('active', bl.fact);
+    }
+    const commentWrap = row.querySelector('.ccpf-comment-wrap');
+    if (commentWrap) commentWrap.style.display = (bl.fact === 'partial' || bl.fact === 'notdone') ? 'block' : 'none';
+    const commentInput = row.querySelector('.ccpf-comment');
+    if (commentInput && (bl.fact !== 'partial' && bl.fact !== 'notdone')) commentInput.value = '';
+  }
+}
+
+function ccpfSetComment(ds, sessionId, playerId, blockIndex, value) {
+  const st = ccpfGetState(ds, sessionId);
+  if (!st) return;
+  const pd = st.players.find(x => x.id === playerId);
+  if (!pd) return;
+  const bl = pd.blocks.find(b => b.blockIndex === blockIndex);
+  if (!bl) return;
+  bl.comment = value;
+}
+
+function ccpfBulkSet(ds, sessionId, fact) {
+  const st = ccpfGetState(ds, sessionId);
+  if (!st) return;
+
+  st.players.forEach(pd => {
+    pd.blocks.forEach(bl => {
+      bl.fact = fact;
+      if (fact !== 'partial' && fact !== 'notdone') bl.comment = '';
+    });
+  });
+
+  // перерисуем панель
+  const s = collectDaySessions(ds).find(x => x.id === sessionId);
+  if (s) {
+    // перерисовываем только панель — через полную перерисовку модалки
+    renderDaySessionsModal(ds);
+  }
+}
+
+function ccpfBulkClear(ds, sessionId) {
+  const st = ccpfGetState(ds, sessionId);
+  if (!st) return;
+  st.players.forEach(pd => {
+    pd.blocks.forEach(bl => { bl.fact = ''; bl.comment = ''; });
+  });
+  renderDaySessionsModal(ds);
+}
+
+function ccpfSave(ds, sessionId) {
+  const st = ccpfGetState(ds, sessionId);
+  if (!st) return;
+
+  // Валидация
+  for (const pd of st.players) {
+    for (const bl of pd.blocks) {
+      if ((bl.fact === 'partial' || bl.fact === 'notdone') && !(bl.comment || '').trim()) {
+        alert(`${pd.fio}, ${bl.complex || 'Блок'}: для этого статуса обязателен комментарий`);
+        return;
+      }
+    }
+  }
+
+  // Применяем в DB
+  st.players.forEach(pd => {
+    const p = DB.players.find(x => x.id === pd.id);
+    if (!p || !p.calendar || !p.calendar[ds]) return;
+    const sess = p.calendar[ds].find(x => x.id === sessionId);
+    if (!sess || !Array.isArray(sess.blocks)) return;
+
+    pd.blocks.forEach(bl => {
+      const target = sess.blocks[bl.blockIndex];
+      if (!target) return;
+      target.fact = bl.fact || '';
+      target.comment = (bl.comment || '').trim();
+    });
+  });
+
+  saveDB();
+  toast('Факт сохранён');
+
+  // Перерисовываем модалку дня
+  renderDaySessionsModal(ds);
+  renderCoachCalendar();
+  updateNotifBadge();
+}
+
+function openPlayerFromSession(pid) {
+  closeModal();
+  openPlayer(pid);
+}
+
+/* ============================================================
+   РЕДАКТОР ТРЕНИРОВКИ (создание/редактирование + блок «Повторить»)
    ============================================================ */
 let __sessionEditContext = null;
 
@@ -278,6 +520,7 @@ function openSessionEditor(ds, idx, ev) {
     isEdit: true,
     originalId: s.id,
     originalGroupId: s.groupId,
+    originalSeriesId: s.seriesId || null,
     originalBlocks: s.blocks.map(b => ({ ...b })),
     name: s.name || '',
     note: s.note || '',
@@ -290,7 +533,12 @@ function openSessionEditor(ds, idx, ev) {
       note: b.note || '',
       fact: b.fact || '',
       comment: b.comment || ''
-    })) : [newEmptyBlock()]
+    })) : [newEmptyBlock()],
+    // блок «Повторить»
+    repeatDays: new Set(),
+    repeatTimes: {},          // dayIndex -> 'HH:MM'
+    repeatWeeks: 4,
+    repeatStartDate: nextDayStr(ds)
   };
 
   renderSessionForm();
@@ -302,11 +550,16 @@ function openNewSessionForDate(ds) {
     isEdit: false,
     originalId: null,
     originalGroupId: null,
+    originalSeriesId: null,
     originalBlocks: null,
     name: '',
     note: '',
     playerIds: [],
-    blocks: [newEmptyBlock()]
+    blocks: [newEmptyBlock()],
+    repeatDays: new Set(),
+    repeatTimes: {},
+    repeatWeeks: 4,
+    repeatStartDate: nextDayStr(ds)
   };
   renderSessionForm();
 }
@@ -323,6 +576,12 @@ function newEmptyBlock() {
   };
 }
 
+function nextDayStr(ds) {
+  const d = new Date(ds + 'T00:00:00');
+  d.setDate(d.getDate() + 1);
+  return localDateStr(d);
+}
+
 function renderSessionForm() {
   const ctx = __sessionEditContext;
   if (!ctx) return;
@@ -333,6 +592,7 @@ function renderSessionForm() {
 
   const blocksHtml = ctx.blocks.map((b, i) => renderBlockEditor(b, i, allBlocks)).join('');
   const playersHtml = renderCoachGroupedPlayers(DB.players, ctx.playerIds);
+  const repeatHtml = renderRepeatBlock();
 
   openModal(`<h3>${ctx.isEdit ? 'Редактирование тренировки' : 'Новая тренировка'}</h3>
     <p class="subtitle" style="margin-top:-8px">${escapeHtml(formatDateFull(ctx.ds))}</p>
@@ -364,6 +624,8 @@ function renderSessionForm() {
       <div class="group-list" id="cs-grp-list">${playersHtml}</div>
     </div>
 
+    ${repeatHtml}
+
     <div class="btn-row" style="margin-top:16px">
       <button class="btn" onclick="saveSessionFromForm()">Сохранить</button>
       <button class="btn-ghost btn" onclick="closeModal()">Отмена</button>
@@ -373,6 +635,7 @@ function renderSessionForm() {
     document.querySelectorAll('#cs-grp-list .cc-grp-player').forEach(cb => {
       if (ctx.playerIds.includes(cb.value)) cb.checked = true;
     });
+    updateRepeatPreview();
   }, 0);
 }
 
@@ -512,25 +775,210 @@ function removeBlockFromForm(idx) {
   renderSessionForm();
 }
 
-function saveSessionFromForm() {
+/* ============================================================
+   БЛОК «ПОВТОРИТЬ НА ДРУГИЕ ДНИ»
+   ============================================================ */
+
+const DOW_INDEX_RU = ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
+
+function renderRepeatBlock() {
+  const ctx = __sessionEditContext;
+  if (!ctx) return '';
+
+  const baseTime = (ctx.blocks[0] && ctx.blocks[0].startTime) || '18:00';
+
+  const daysHtml = DOW_INDEX_RU.map((label, dow) => {
+    const checked = ctx.repeatDays.has(dow) ? 'checked' : '';
+    const customTime = ctx.repeatTimes[dow] || baseTime;
+    const showTime = ctx.repeatDays.has(dow);
+    return `<div class="cs-repeat-day">
+      <label class="cs-repeat-day-label">
+        <input type="checkbox" data-dow="${dow}" ${checked}
+               onchange="onRepeatDayToggle(${dow}, this.checked)">
+        <span>${label}</span>
+      </label>
+      <input type="time" class="cs-repeat-day-time"
+             data-dow="${dow}"
+             value="${escapeAttr(customTime)}"
+             onchange="onRepeatTimeChange(${dow}, this.value)"
+             style="display:${showTime ? 'inline-block' : 'none'}">
+    </div>`;
+  }).join('');
+
+  return `<div class="cs-repeat-block">
+    <div class="cs-repeat-title">Повторить на другие дни</div>
+
+    <div class="cs-repeat-days">${daysHtml}</div>
+
+    <div class="cs-repeat-options">
+      <div class="field">
+        <label>Сколько недель вперёд</label>
+        <select id="cs-repeat-weeks" onchange="onRepeatWeeksChange(this.value)">
+          <option value="4" ${ctx.repeatWeeks === 4 ? 'selected' : ''}>4 недели</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Начиная с</label>
+        <input type="date" id="cs-repeat-start" value="${escapeAttr(ctx.repeatStartDate)}"
+               onchange="onRepeatStartChange(this.value)">
+      </div>
+    </div>
+
+    <div class="cs-repeat-hint">
+      Время по умолчанию берётся из первого блока (${escapeHtml(baseTime)}). Можно изменить для каждого дня.
+    </div>
+
+    <div class="cs-repeat-preview" id="cs-repeat-preview"></div>
+
+    <div style="margin-top:8px">
+      <button type="button" class="btn btn-sm btn-ghost" onclick="applyRepeatToForm()">Добавить эти даты</button>
+    </div>
+  </div>`;
+}
+
+function onRepeatDayToggle(dow, checked) {
+  const ctx = __sessionEditContext;
+  if (!ctx) return;
+  if (checked) {
+    ctx.repeatDays.add(dow);
+    const baseTime = (ctx.blocks[0] && ctx.blocks[0].startTime) || '18:00';
+    if (!ctx.repeatTimes[dow]) ctx.repeatTimes[dow] = baseTime;
+  } else {
+    ctx.repeatDays.delete(dow);
+  }
+
+  // локально показываем/скрываем time input
+  const el = document.querySelector(`.cs-repeat-day-time[data-dow="${dow}"]`);
+  if (el) el.style.display = checked ? 'inline-block' : 'none';
+
+  updateRepeatPreview();
+}
+
+function onRepeatTimeChange(dow, value) {
+  const ctx = __sessionEditContext;
+  if (!ctx) return;
+  ctx.repeatTimes[dow] = value || '';
+}
+
+function onRepeatWeeksChange(value) {
+  const ctx = __sessionEditContext;
+  if (!ctx) return;
+  ctx.repeatWeeks = parseInt(value, 10) || 4;
+  updateRepeatPreview();
+}
+
+function onRepeatStartChange(value) {
+  const ctx = __sessionEditContext;
+  if (!ctx) return;
+  ctx.repeatStartDate = value || nextDayStr(ctx.ds);
+  updateRepeatPreview();
+}
+
+function computeRepeatDates() {
+  const ctx = __sessionEditContext;
+  if (!ctx) return [];
+
+  if (!ctx.repeatDays.size) return [];
+
+  const start = new Date((ctx.repeatStartDate || nextDayStr(ctx.ds)) + 'T00:00:00');
+  const weeks = ctx.repeatWeeks || 4;
+
+  const result = []; // { dateStr, dow, time }
+  // идём день за днём от start
+  const end = new Date(start);
+  end.setDate(end.getDate() + weeks * 7);
+
+  const cur = new Date(start);
+  while (cur < end) {
+    const dow = (cur.getDay() + 6) % 7; // Пн=0
+    if (ctx.repeatDays.has(dow)) {
+      const ds = localDateStr(cur);
+      const time = ctx.repeatTimes[dow] || (ctx.blocks[0] && ctx.blocks[0].startTime) || '18:00';
+      result.push({ dateStr: ds, dow, time });
+    }
+    cur.setDate(cur.getDate() + 1);
+  }
+  return result;
+}
+
+function updateRepeatPreview() {
+  const el = document.getElementById('cs-repeat-preview');
+  if (!el) return;
+  const dates = computeRepeatDates();
+  if (!dates.length) {
+    el.innerHTML = '<span class="cs-repeat-empty">Дни недели не выбраны</span>';
+    return;
+  }
+
+  const preview = dates.slice(0, 12).map(d => `${formatDate(d.dateStr)} ${d.time}`).join(' · ');
+  const more = dates.length > 12 ? ` … и ещё ${dates.length - 12}` : '';
+
+  el.innerHTML = `Будет создано: <strong>${dates.length}</strong> тренировок<br><span class="cs-repeat-preview-list">${escapeHtml(preview)}${more}</span>`;
+}
+
+/* Применяем повторы: сразу добавляем в БД и в контекст формы */
+function applyRepeatToForm() {
   syncFormToContext();
   const ctx = __sessionEditContext;
   if (!ctx) return;
 
-  const ds = ctx.ds;
-  if (!ds) { alert('Укажите дату'); return; }
+  const dates = computeRepeatDates();
+  if (!dates.length) { alert('Выберите хотя бы один день недели'); return; }
 
+  // Проверим, что основная форма валидна
+  const validBlocks = collectValidBlocksFromCtx(ctx);
+  if (!validBlocks) return;
+  if (!ctx.playerIds.length) { alert('Выберите хотя бы одного игрока'); return; }
+
+  // seriesId — общий для всей серии
+  const seriesId = ctx.originalSeriesId || uid('ser');
+
+  // Сохраняем основную тренировку (если ещё не сохраняли)
+  if (!ctx.isEdit) {
+    // создаём основную как часть серии
+    createSessionForDate(ctx.ds, ctx.name, ctx.note, validBlocks, ctx.playerIds, ctx.originalGroupId, seriesId);
+    ctx.isEdit = true;
+    ctx.originalId = ctx.originalId || null; // будет проставлено ниже через fact? — оставим null, но сохраним без обновления
+  }
+
+  // Создаём копии на каждую дату
+  dates.forEach(d => {
+    // клонируем блоки с новой стартовой датой (время берём по дню недели)
+    const blocksCopy = validBlocks.map(b => {
+      // для первого блока (или всех) — если указано своё время по дню — поменяем startTime
+      return { ...b, id: uid('blk'), startTime: b.startTime };
+    });
+    // Подмена времени: если пользователь указал время для этого дня недели —
+    // сдвигаем первый блок на это время, остальные — с сохранением относительного сдвига
+    const baseFirst = validBlocks[0] && validBlocks[0].startTime || '18:00';
+    const newFirst = d.time || baseFirst;
+    const delta = timeToMinutes(newFirst) - timeToMinutes(baseFirst);
+    blocksCopy.forEach(b => {
+      b.startTime = minutesToTime(Math.max(0, timeToMinutes(b.startTime) + delta));
+    });
+
+    createSessionForDate(d.dateStr, ctx.name, ctx.note, blocksCopy, ctx.playerIds, null, seriesId);
+  });
+
+  saveDB();
+  toast(`Серия сохранена: ${dates.length + 1} тренировок`);
+  renderCoachCalendar();
+  updateNotifBadge();
+  closeModal();
+  __sessionEditContext = null;
+}
+
+function collectValidBlocksFromCtx(ctx) {
   const validBlocks = [];
   for (let i = 0; i < ctx.blocks.length; i++) {
     const b = ctx.blocks[i];
     const hasAny = (b.complex || '').trim() || (b.format || '').trim() || (b.note || '').trim();
     if (!hasAny) continue;
-
-    if (!b.startTime) { alert(`Блок #${i + 1}: укажите время начала`); return; }
-    if (!b.duration || Number(b.duration) <= 0) { alert(`Блок #${i + 1}: укажите продолжительность`); return; }
+    if (!b.startTime) { alert(`Блок #${i + 1}: укажите время начала`); return null; }
+    if (!b.duration || Number(b.duration) <= 0) { alert(`Блок #${i + 1}: укажите продолжительность`); return null; }
 
     validBlocks.push({
-      id: (b.id) || uid('blk'),
+      id: b.id || uid('blk'),
       complex: (b.complex || '').trim(),
       format: b.format || '',
       startTime: b.startTime,
@@ -540,15 +988,51 @@ function saveSessionFromForm() {
       comment: b.comment || ''
     });
   }
+  if (!validBlocks.length) { alert('Добавьте хотя бы один блок'); return null; }
+  return validBlocks;
+}
 
-  if (!validBlocks.length) { alert('Добавьте хотя бы один блок'); return; }
+function createSessionForDate(ds, name, note, blocks, playerIds, groupId, seriesId) {
+  const sessId = uid('sess');
+  const finalGroupId = groupId || (playerIds.length > 1 ? uid('grp') : null);
+
+  playerIds.forEach(pid => {
+    const p = DB.players.find(x => x.id === pid);
+    if (!p) return;
+    if (!p.calendar) p.calendar = {};
+    if (!p.calendar[ds]) p.calendar[ds] = [];
+    p.calendar[ds].push({
+      id: sessId,
+      name: name || '',
+      note: note || '',
+      groupId: finalGroupId,
+      seriesId: seriesId || null,
+      blocks: blocks.map(b => ({ ...b }))
+    });
+  });
+  return sessId;
+}
+
+/* ===== Сохранение тренировки (без повторов) ===== */
+function saveSessionFromForm() {
+  syncFormToContext();
+  const ctx = __sessionEditContext;
+  if (!ctx) return;
+
+  const ds = ctx.ds;
+  if (!ds) { alert('Укажите дату'); return; }
+
+  const validBlocks = collectValidBlocksFromCtx(ctx);
+  if (!validBlocks) return;
   if (!ctx.playerIds.length) { alert('Выберите хотя бы одного игрока'); return; }
 
+  const seriesId = ctx.originalSeriesId || null;
   const newSession = {
     id: ctx.originalId || uid('sess'),
     name: (ctx.name || '').trim(),
     note: (ctx.note || '').trim(),
     groupId: ctx.originalGroupId || (ctx.playerIds.length > 1 ? uid('grp') : null),
+    seriesId: seriesId,
     blocks: validBlocks
   };
 
@@ -575,6 +1059,7 @@ function saveSessionFromForm() {
       name: newSession.name,
       note: newSession.note,
       groupId: newSession.groupId,
+      seriesId: newSession.seriesId,
       blocks: newSession.blocks.map(b => ({ ...b }))
     });
   });
@@ -600,267 +1085,85 @@ function sessionMatchesOriginal(s, originalId, originalGroupId, originalBlocks) 
   return false;
 }
 
+/* ============================================================
+   УДАЛЕНИЕ ТРЕНИРОВКИ (один день / вся серия)
+   ============================================================ */
 function deleteSessionFromDay(ds, idx, ev) {
   if (ev) ev.stopPropagation();
-  if (!confirm('Удалить тренировку у всех игроков?')) return;
-
   const sessions = collectDaySessions(ds);
   const s = sessions[idx];
   if (!s) return;
 
-  DB.players.forEach(p => {
-    if (!p.calendar || !p.calendar[ds]) return;
-    const arr = p.calendar[ds];
-    if (!Array.isArray(arr)) return;
-    p.calendar[ds] = arr.filter(x => !sessionMatchesOriginal(x, s.id, s.groupId, s.blocks));
-    if (!p.calendar[ds].length) delete p.calendar[ds];
-  });
+  // Если это часть серии — спросим, что удалять
+  if (s.seriesId) {
+    openModal(`
+      <h3>Удалить тренировку</h3>
+      <p class="subtitle">Эта тренировка — часть серии. Что удалить?</p>
+      <div class="btn-row" style="margin-top:16px">
+        <button class="btn btn-red" onclick="deleteSessionOnlyThisDay('${ds}', '${s.seriesId}', ${idx})">Только этот день</button>
+        <button class="btn btn-red" onclick="deleteSessionWholeSeries('${s.seriesId}')">Всю серию</button>
+        <button class="btn-ghost btn" onclick="renderDaySessionsModal('${ds}')">Отмена</button>
+      </div>
+    `);
+    return;
+  }
 
+  if (!confirm('Удалить тренировку у всех игроков?')) return;
+  deleteSessionsByPredicate(session => sessionMatchesOriginal(session, s.id, s.groupId, s.blocks));
   saveDB();
-  closeModal();
+  renderDaySessionsModal(ds);
   renderCoachCalendar();
   updateNotifBadge();
 }
 
-/* ============================================================
-   МОДАЛКА ОТМЕТКИ ФАКТА
-   У каждого игрока — 3 кнопки: Выполнено / Частично / Не выполнено.
-   При «частично» / «не выполнено» появляется комментарий.
-   Факт применяется ко всем блокам тренировки этого игрока.
-   ============================================================ */
-
-let __factModalState = null;
-
-function openSessionFactModal(ds, sessionIdx, ev) {
-  if (ev) ev.stopPropagation();
+function deleteSessionOnlyThisDay(ds, seriesId, idx) {
   const sessions = collectDaySessions(ds);
-  const s = sessions[sessionIdx];
+  const s = sessions[idx];
   if (!s) return;
 
-  // Собираем игроков тренировки + их текущий факт (берём из первого блока)
-  const playersData = [];
-
-  DB.players.forEach(p => {
-    const day = p.calendar && p.calendar[ds];
-    if (!Array.isArray(day)) return;
-    const thisSession = day.find(x => x.id === s.id);
-    if (!thisSession) return;
-
-    const blocks = Array.isArray(thisSession.blocks) ? thisSession.blocks : [];
-    // Факт считаем выставленным, если он одинаковый во всех блоках
-    const firstFact = blocks[0] ? (blocks[0].fact || '') : '';
-    const allSame = blocks.every(b => (b.fact || '') === firstFact);
-
-    playersData.push({
-      id: p.id,
-      fio: p.fio,
-      team: p.team || '',
-      fact: allSame ? firstFact : (firstFact || ''),
-      comment: blocks[0] ? (blocks[0].comment || '') : ''
-    });
-  });
-
-  __factModalState = {
-    ds,
-    sessionId: s.id,
-    session: {
-      name: s.name || '',
-      blockCount: s.blocks.length,
-      range: sessionTimeRange(s),
-      total: sessionTotalMinutes(s)
-    },
-    players: playersData
-  };
-
-  renderFactModal();
-}
-
-function renderFactModal() {
-  const st = __factModalState;
-  if (!st) return;
-
-  const playersCount = st.players.length;
-
-  const playersHtml = st.players.map((p, pi) => {
-    const factCls = p.fact || '';
-    return `<div class="fm-player-row" data-player-index="${pi}">
-      <div class="fm-player-info">
-        <div class="fm-player-fio">${escapeHtml(p.fio)}</div>
-        ${p.team ? `<div class="fm-player-team">${escapeHtml(p.team)}</div>` : ''}
-      </div>
-      <div class="fm-buttons">
-        <button type="button"
-                class="fm-btn ${factCls === 'done' ? 'active done' : ''}"
-                onclick="setFactForPlayer(${pi}, 'done')">
-          ✓ Выполнено
-        </button>
-        <button type="button"
-                class="fm-btn ${factCls === 'partial' ? 'active partial' : ''}"
-                onclick="setFactForPlayer(${pi}, 'partial')">
-          ~ Частично
-        </button>
-        <button type="button"
-                class="fm-btn ${factCls === 'notdone' ? 'active notdone' : ''}"
-                onclick="setFactForPlayer(${pi}, 'notdone')">
-          ✗ Не выполнено
-        </button>
-      </div>
-      <div class="fm-comment-wrap" data-player-index="${pi}"
-           style="display:${(p.fact === 'partial' || p.fact === 'notdone') ? 'block' : 'none'}">
-        <input type="text" class="fm-comment-input"
-               placeholder="Комментарий (обязательно)"
-               value="${escapeAttr(p.comment || '')}"
-               oninput="setCommentForPlayer(${pi}, this.value)">
-      </div>
-    </div>`;
-  }).join('');
-
-  openModal(`
-    <h3>Отметка факта</h3>
-    <p class="subtitle" style="margin-top:-8px">
-      ${escapeHtml(st.session.name || 'Тренировка')} · ${escapeHtml(formatDateFull(st.ds))}
-      · ${escapeHtml(st.session.range || '')} · ${st.session.total} мин · ${playersCount} ${plural(playersCount, 'игрок', 'игрока', 'игроков')}
-    </p>
-
-    <div class="fm-toolbar">
-      <button type="button" class="btn btn-sm" onclick="factModalAllDone()">✓ Всем «Выполнено»</button>
-      <button type="button" class="btn btn-sm btn-ghost" onclick="factModalClear()">Сбросить</button>
-    </div>
-
-    <div class="fm-players">
-      ${playersHtml || '<p class="subtitle" style="text-align:center;padding:20px 0">В тренировке нет игроков.</p>'}
-    </div>
-
-    <div class="btn-row" style="margin-top:16px">
-      <button class="btn" onclick="saveSessionFact()">Сохранить</button>
-      <button class="btn-ghost btn" onclick="closeFactModal()">Отмена</button>
-    </div>
-  `);
-}
-
-function setFactForPlayer(pi, fact) {
-  const st = __factModalState;
-  if (!st || !st.players[pi]) return;
-
-  const current = st.players[pi].fact;
-  // Повторное нажатие той же кнопки — снимаем выбор
-  const newFact = (current === fact) ? '' : fact;
-
-  st.players[pi].fact = newFact;
-  if (newFact !== 'partial' && newFact !== 'notdone') {
-    st.players[pi].comment = '';
-  }
-
-  // Обновляем кнопки
-  const row = document.querySelector(`.fm-player-row[data-player-index="${pi}"]`);
-  if (row) {
-    row.querySelectorAll('.fm-btn').forEach(btn => {
-      btn.classList.remove('active', 'done', 'partial', 'notdone');
-    });
-    if (newFact) {
-      const btn = row.querySelectorAll('.fm-btn')[
-        newFact === 'done' ? 0 : newFact === 'partial' ? 1 : 2
-      ];
-      if (btn) btn.classList.add('active', newFact);
-    }
-    // Комментарий
-    const wrap = row.querySelector('.fm-comment-wrap');
-    const inp = row.querySelector('.fm-comment-input');
-    if (wrap) wrap.style.display = (newFact === 'partial' || newFact === 'notdone') ? 'block' : 'none';
-    if (inp) {
-      inp.value = st.players[pi].comment || '';
-      inp.placeholder = (newFact === 'partial' || newFact === 'notdone') ? 'Комментарий (обязательно)' : 'Комментарий';
-    }
-  }
-}
-
-function setCommentForPlayer(pi, value) {
-  const st = __factModalState;
-  if (!st || !st.players[pi]) return;
-  st.players[pi].comment = value;
-}
-
-function factModalAllDone() {
-  const st = __factModalState;
-  if (!st) return;
-  st.players.forEach((p, pi) => {
-    p.fact = 'done';
-    p.comment = '';
-    const row = document.querySelector(`.fm-player-row[data-player-index="${pi}"]`);
-    if (row) {
-      row.querySelectorAll('.fm-btn').forEach(btn => btn.classList.remove('active', 'done', 'partial', 'notdone'));
-      const firstBtn = row.querySelectorAll('.fm-btn')[0];
-      if (firstBtn) firstBtn.classList.add('active', 'done');
-      const wrap = row.querySelector('.fm-comment-wrap');
-      if (wrap) wrap.style.display = 'none';
-      const inp = row.querySelector('.fm-comment-input');
-      if (inp) inp.value = '';
-    }
-  });
-}
-
-function factModalClear() {
-  const st = __factModalState;
-  if (!st) return;
-  st.players.forEach((p, pi) => {
-    p.fact = '';
-    p.comment = '';
-    const row = document.querySelector(`.fm-player-row[data-player-index="${pi}"]`);
-    if (row) {
-      row.querySelectorAll('.fm-btn').forEach(btn => btn.classList.remove('active', 'done', 'partial', 'notdone'));
-      const wrap = row.querySelector('.fm-comment-wrap');
-      if (wrap) wrap.style.display = 'none';
-      const inp = row.querySelector('.fm-comment-input');
-      if (inp) inp.value = '';
-    }
-  });
-}
-
-function closeFactModal() {
-  __factModalState = null;
-  closeModal();
-}
-
-function saveSessionFact() {
-  const st = __factModalState;
-  if (!st) return;
-
-  // Валидация: для «частично» и «не выполнено» обязателен комментарий
-  for (let pi = 0; pi < st.players.length; pi++) {
-    const p = st.players[pi];
-    if ((p.fact === 'partial' || p.fact === 'notdone') && !(p.comment || '').trim()) {
-      alert(`${p.fio}: укажите комментарий для «${factLabel(p.fact)}»`);
-      return;
-    }
-  }
-
-  const ds = st.ds;
-  const sessionId = st.sessionId;
-
-  // Применяем: для каждого игрока — его факт во ВСЕ блоки этой тренировки
-  st.players.forEach(pd => {
-    if (!pd.fact) return; // пропускаем неотмеченных
-    const p = DB.players.find(x => x.id === pd.id);
-    if (!p || !p.calendar || !p.calendar[ds]) return;
-    const sess = p.calendar[ds].find(x => x.id === sessionId);
-    if (!sess || !Array.isArray(sess.blocks)) return;
-
-    sess.blocks.forEach(b => {
-      b.fact = pd.fact;
-      b.comment = (pd.comment || '').trim();
-    });
-  });
-
+  deleteSessionsByPredicate(session => sessionMatchesOriginal(session, s.id, s.groupId, s.blocks));
   saveDB();
-  closeFactModal();
-  openDaySessions(ds);
+  renderDaySessionsModal(ds);
   renderCoachCalendar();
   updateNotifBadge();
-  toast('Факт сохранён');
+  toast('Удалена одна тренировка из серии');
+}
+
+function deleteSessionWholeSeries(seriesId) {
+  let removed = 0;
+  DB.players.forEach(p => {
+    if (!p.calendar) return;
+    Object.keys(p.calendar).forEach(ds => {
+      const day = p.calendar[ds];
+      if (!Array.isArray(day)) return;
+      const before = day.length;
+      p.calendar[ds] = day.filter(s => s.seriesId !== seriesId);
+      removed += before - p.calendar[ds].length;
+      if (!p.calendar[ds].length) delete p.calendar[ds];
+    });
+  });
+  saveDB();
+  closeModal();
+  renderCoachCalendar();
+  updateNotifBadge();
+  toast(`Удалена вся серия (${removed} записей)`);
+}
+
+/* Удаление по предикату — во всех календарях всех игроков */
+function deleteSessionsByPredicate(predicate) {
+  DB.players.forEach(p => {
+    if (!p.calendar) return;
+    Object.keys(p.calendar).forEach(ds => {
+      const day = p.calendar[ds];
+      if (!Array.isArray(day)) return;
+      p.calendar[ds] = day.filter(s => !predicate(s));
+      if (!p.calendar[ds].length) delete p.calendar[ds];
+    });
+  });
 }
 
 /* ============================================================
-   ГРУППИРОВАННЫЙ СПИСОК ИГРОКОВ
+   ГРУППИРОВАННЫЙ СПИСОК ИГРОКОВ (для редактора)
    ============================================================ */
 function renderCoachGroupedPlayers(players, preselectedIds) {
   const selected = new Set(preselectedIds || []);
