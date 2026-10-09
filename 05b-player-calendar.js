@@ -1,21 +1,14 @@
 /* ============================================================
    05b-player-calendar.js
    Календарь игрока в карточке:
-   - месячная сетка (отображается всегда — даже без тренировок)
+   - месячная сетка (всегда, даже без тренировок)
+   - по умолчанию открывается ТЕКУЩИЙ месяц
    - клик по дню → редактируемая модалка с отметкой факта
-   - для «частично» / «не выполнено» обязателен комментарий
-   - сохранение идёт через saveBlockFact() из 06-plan.js
-
-   Разбиение 05-player.js:
-     05a-player-core.js       — ядро карточки (уже создан)
-     05b-player-calendar.js   ← этот файл
-     05c-player-tables.js     — таблицы и графики
+   - в модалке дня видны выбранные упражнения для каждого блока
    ============================================================ */
 
-/* ===== Состояние выбранного месяца ===== */
 let playerCalMonth = null;
 
-/* Локальные копии хелперов — чтобы не зависеть от порядка загрузки скриптов */
 function collectPlayerPlanMonthsLocal(p) {
   const set = new Set();
   if (!p || !p.calendar) return [];
@@ -32,8 +25,6 @@ function monthLabelFromKeyLocal(ym) {
   return `${MONTH_NAMES_RU[m - 1]} ${y}`;
 }
 
-/* ===== Заготовка вкладки ===== */
-
 function renderPlayerCalendarTab(p) {
   return `<div class="card">
     <h2>Календарь тренировок игрока</h2>
@@ -41,8 +32,6 @@ function renderPlayerCalendarTab(p) {
     <div id="player-calendar-content"></div>
   </div>`;
 }
-
-/* ===== Основной рендер ===== */
 
 function renderPlayerCalendarContent(p) {
   const el = document.getElementById('player-calendar-content');
@@ -53,9 +42,10 @@ function renderPlayerCalendarContent(p) {
   const months = collectPlayerPlanMonthsLocal(p);
   const hasAny = months.length > 0;
 
-  // Валидация playerCalMonth — строка YYYY-MM, иначе текущий месяц
+  // ВСЕГДА открываем ТЕКУЩИЙ месяц, если пользователь сам ничего не выбрал
+  // или если выбранный месяц невалиден
   if (!playerCalMonth || !/^\d{4}-\d{2}$/.test(playerCalMonth)) {
-    playerCalMonth = hasAny ? months[months.length - 1] : currentMonth;
+    playerCalMonth = currentMonth;
   }
 
   const [year, month] = playerCalMonth.split('-').map(Number);
@@ -108,8 +98,6 @@ function renderPlayerCalendarContentInner(el, p, months, currentMonth, year, mon
   renderPlayerMonthGrid(p, year, month);
 }
 
-/* ===== Навигация по месяцам ===== */
-
 function playerCalShiftMonth(pid, delta) {
   const [y, m] = playerCalMonth.split('-').map(Number);
   const d = new Date(y, m - 1 + delta, 1);
@@ -130,8 +118,6 @@ function onPlayerCalMonthChange(pid, month) {
   const p = DB.players.find(x => x.id === pid);
   if (p) renderPlayerCalendarContent(p);
 }
-
-/* ===== Сетка месяца ===== */
 
 function renderPlayerMonthGrid(p, year, month) {
   const grid = document.getElementById('player-month-grid');
@@ -189,7 +175,6 @@ function renderPlayerMonthGrid(p, year, month) {
   grid.innerHTML = html;
 }
 
-/* Цвет плашки в зависимости от формата работы */
 function playerBlockColor(b) {
   const f = b.format || '';
   if (f === 'В группе') return WORK_TYPE_COLORS['В группе'];
@@ -211,7 +196,6 @@ function openPlayerDaySessions(pid, ds) {
   const sessions = Array.isArray(day) ? day : [];
   const title = formatDateFull(ds);
 
-  // Собираем блоки
   const blocks = [];
   sessions.forEach(sess => {
     (sess.blocks || []).forEach((b, bi) => {
@@ -220,6 +204,7 @@ function openPlayerDaySessions(pid, ds) {
         sessionName: sess.name || '',
         blockIndex: bi,
         complex: b.complex || '',
+        complexItems: Array.isArray(b.complexItems) ? b.complexItems.slice() : [],
         format: b.format || '',
         startTime: b.startTime || '',
         duration: Number(b.duration) || 0,
@@ -247,12 +232,18 @@ function openPlayerDaySessions(pid, ds) {
     }).join('');
     const needComment = (b.fact === 'partial' || b.fact === 'notdone');
     const factCls = factClass(b.fact);
+
+    // Список упражнений: либо вся мини-группа, либо выбранные
+    const exHtml = renderBlockExercisesLineForPlayer(b);
+
     return `<div class="pde-block" data-block-index="${i}">
       <div class="pde-block-head">
         <span class="pde-block-time">${escapeHtml(b.startTime)}–${end} · ${b.duration} мин</span>
         ${b.sessionName ? `<span class="pde-block-session">${escapeHtml(b.sessionName)}</span>` : ''}
       </div>
       <div class="pde-block-name">${escapeHtml(b.complex || '—')} · ${escapeHtml(b.format || '—')}</div>
+      ${exHtml}
+      <div class="pde-block-fact-label">Оценка (на весь блок):</div>
       <div class="pde-block-fields">
         <select class="pde-fact ${factCls}" onchange="onPlayerDayFactChange(${i}, this.value)">
           ${factOptions}
@@ -265,19 +256,48 @@ function openPlayerDaySessions(pid, ds) {
     </div>`;
   }).join('');
 
-  // Локальный контекст для модалки
   __playerDayFactCtx = {
     pid, ds,
     blocks: blocks.map(b => ({ ...b }))
   };
 
   openModal(`<h3>${escapeHtml(title)}</h3>
-    <p class="subtitle" style="margin-top:-8px">Можно отметить факт прямо здесь.</p>
+    <p class="subtitle" style="margin-top:-8px">Можно отметить факт прямо здесь. Оценка ставится на весь блок.</p>
     <div class="pde-list">${rowsHtml}</div>
     <div class="btn-row" style="margin-top:16px">
       <button class="btn" onclick="savePlayerDayFact()">Сохранить факт</button>
       <button class="btn-ghost btn" onclick="closeModal()">Закрыть</button>
     </div>`);
+}
+
+/* Список упражнений для модалки дня игрока */
+function renderBlockExercisesLineForPlayer(b) {
+  const name = b.complex || '';
+  if (!name) return '';
+  const found = findSubgroupByName(name);
+  if (!found) return '';
+
+  const allItems = Array.isArray(found.subgroup.items) ? found.subgroup.items : [];
+  const selected = Array.isArray(b.complexItems) ? b.complexItems : [];
+  const isWhole = selected.length === 0;
+
+  if (!allItems.length) return '';
+
+  const itemsToShow = isWhole ? allItems : selected;
+  if (!itemsToShow.length) return '';
+
+  const list = itemsToShow.map(it =>
+    `<li><span class="bx-dot"></span><span class="bx-text">${escapeHtml(it)}</span></li>`
+  ).join('');
+
+  const headerText = isWhole
+    ? `Весь комплекс «${escapeHtml(name)}» — ${allItems.length} ${plural(allItems.length, 'упражнение', 'упражнения', 'упражнений')}`
+    : `Из «${escapeHtml(name)}» выбрано ${selected.length} из ${allItems.length} ${plural(allItems.length, 'упражнения', 'упражнений', 'упражнений')}`;
+
+  return `<div class="bx-block">
+    <div class="bx-head">${headerText}</div>
+    <ul class="bx-list">${list}</ul>
+  </div>`;
 }
 
 function onPlayerDayFactChange(i, value) {
@@ -313,7 +333,6 @@ function savePlayerDayFact() {
   const ctx = __playerDayFactCtx;
   if (!ctx) return;
 
-  // Валидация: для «частично» и «не выполнено» обязателен комментарий
   for (let i = 0; i < ctx.blocks.length; i++) {
     const b = ctx.blocks[i];
     if ((b.fact === 'partial' || b.fact === 'notdone') && !(b.comment || '').trim()) {
@@ -322,9 +341,8 @@ function savePlayerDayFact() {
     }
   }
 
-  // Сохраняем через общий хелпер (определён в 06-plan.js)
   if (typeof saveBlockFact !== 'function') {
-    alert('Ошибка: saveBlockFact не найдена. Проверьте порядок подключения скриптов.');
+    alert('Ошибка: saveBlockFact не найдена.');
     return;
   }
 
@@ -336,7 +354,6 @@ function savePlayerDayFact() {
   __playerDayFactCtx = null;
   closeModal();
 
-  // Перерисовываем сетку месяца с обновлённым фактом
   const p = DB.players.find(x => x.id === pid);
   if (p) renderPlayerCalendarContent(p);
   toast('Факт сохранён');

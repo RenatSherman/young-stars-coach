@@ -2,13 +2,10 @@
    11-dashboard-calendar.js
    Календарь тренера.
    - месячная сетка
-   - модалка дня
+   - модалка дня (с показом выбранных упражнений)
    - создание/редактирование тренировки
    - блок «Повторить на другие дни»
-   - поле «Комплекс упражнений» — кастомный поповер-дерево:
-       Большая группа (свёрнута) → Мини-группа → Упражнения (чекбоксы)
-     Выбор: либо вся мини-группа (клик по радио/названию),
-            либо отдельные упражнения (чекбоксы + кнопка «Назначить»).
+   - поле «Комплекс упражнений» — кастомный поповер-дерево
    ============================================================ */
 
 /* ===== Месячная сетка ===== */
@@ -214,6 +211,38 @@ function findSubgroupByName(name) {
   return null;
 }
 
+/* Возвращает HTML со списком выбранных упражнений блока.
+   Если выбрана вся мини-группа (complexItems пусто) — показываем все упражнения
+   мини-группы со статусом «все». */
+function renderBlockExercisesLine(b) {
+  const name = b.complex || '';
+  if (!name) return '';
+  const found = findSubgroupByName(name);
+  if (!found) return '';
+
+  const allItems = Array.isArray(found.subgroup.items) ? found.subgroup.items : [];
+  const selected = Array.isArray(b.complexItems) ? b.complexItems : [];
+  const isWhole = selected.length === 0;
+
+  if (!allItems.length) return '';
+
+  const itemsToShow = isWhole ? allItems : selected;
+  if (!itemsToShow.length) return '';
+
+  const list = itemsToShow.map(it =>
+    `<li><span class="bx-dot"></span><span class="bx-text">${escapeHtml(it)}</span></li>`
+  ).join('');
+
+  const headerText = isWhole
+    ? `Весь комплекс «${escapeHtml(name)}» — ${allItems.length} ${plural(allItems.length, 'упражнение', 'упражнения', 'упражнений')}`
+    : `Из «${escapeHtml(name)}» выбрано ${selected.length} из ${allItems.length} ${plural(allItems.length, 'упражнения', 'упражнений', 'упражнений')}`;
+
+  return `<div class="bx-block">
+    <div class="bx-head">${headerText}</div>
+    <ul class="bx-list">${list}</ul>
+  </div>`;
+}
+
 /* ============================================================
    МОДАЛКА ДНЯ
    ============================================================ */
@@ -226,9 +255,6 @@ function openDaySessions(ds) {
         const color = sessionColor(s);
         const total = sessionTotalMinutes(s);
         const range = sessionTimeRange(s);
-        const blocksLine = s.blocks.length
-          ? s.blocks.map(b => `${blockComplexLabel(b) || 'Блок'} (${b.format || '—'}, ${b.duration || 0} мин)`).join(' · ')
-          : '—';
         const facts = computeSessionFactsSummary(s, ds);
         const factHtml = `
           <span class="cc-fact-pill done">${facts.done}</span>
@@ -236,11 +262,27 @@ function openDaySessions(ds) {
           <span class="cc-fact-pill notdone">${facts.notdone}</span>
           ${facts.unmarked ? `<span class="cc-fact-pill unmarked">${facts.unmarked}</span>` : ''}
         `;
+
+        const blocksHtml = (s.blocks || []).map(b => {
+          const end = minutesToTime(timeToMinutes(b.startTime) + (Number(b.duration) || 0));
+          const fact = b.fact ? factLabel(b.fact) : '— не отмечено —';
+          const factCls = factClass(b.fact);
+          return `<div class="cc-sess-block">
+            <div class="cc-sess-block-head">
+              <span class="cc-sess-block-time">${escapeHtml(b.startTime || '')}–${end} · ${Number(b.duration) || 0} мин</span>
+              <span class="cc-sess-block-format">${escapeHtml(b.format || '—')}</span>
+            </div>
+            <div class="cc-sess-block-name">${escapeHtml(b.complex || 'Блок')} ${b.complexItems && b.complexItems.length ? `<span class="cc-sess-block-partial">частично</span>` : ''}</div>
+            ${renderBlockExercisesLine(b)}
+            <div class="cc-sess-block-fact">Оценка (на весь блок): <span class="pcs-fact ${factCls}" style="display:inline-block;padding:2px 10px;font-size:11px">${escapeHtml(fact)}</span></div>
+            ${b.comment ? `<div class="cc-sess-note">Примечание: ${escapeHtml(b.comment)}</div>` : ''}
+          </div>`;
+        }).join('');
+
         return `<div class="cc-sess-item" style="border-left-color:${color}">
           <div class="cc-sess-main" onclick="openSessionEditor('${ds}', ${i}, event)">
             <div class="cc-sess-time">${escapeHtml(range)} · ${total} мин</div>
             <div class="cc-sess-name">${escapeHtml(s.name || 'Тренировка')}</div>
-            <div class="cc-sess-meta">${escapeHtml(blocksLine)}</div>
             <div class="cc-sess-meta" style="margin-top:4px">${s.players.length} ${plural(s.players.length, 'игрок', 'игрока', 'игроков')} · ${factHtml}</div>
             ${s.note ? `<div class="cc-sess-note">${escapeHtml(s.note)}</div>` : ''}
           </div>
@@ -248,6 +290,7 @@ function openDaySessions(ds) {
             <button class="cc-sess-edit" title="Редактировать тренировку" onclick="openSessionEditor('${ds}', ${i}, event)">✎</button>
             <button class="cc-sess-del" title="Удалить тренировку" onclick="deleteSessionFromDay('${ds}', ${i}, event)">🗑</button>
           </div>
+          <div class="cc-sess-blocks-full">${blocksHtml}</div>
         </div>`;
       }).join('')
     : '<p class="subtitle" style="text-align:center;padding:20px 0">На этот день тренировок нет.</p>';
@@ -633,7 +676,6 @@ function renderComplexPickerSub(sg) {
   </div>`;
 }
 
-/* Клик по радио/названию мини-группы → выбрать всю */
 function onComplexSubClick(event, btn) {
   if (event) event.stopPropagation();
   const subId = btn.dataset.subId;
@@ -642,7 +684,6 @@ function onComplexSubClick(event, btn) {
   selectComplexWholeGroup(__openComplexPopoverIdx, found.subgroup.name);
 }
 
-/* Клик по треугольнику → раскрыть/свернуть упражнения */
 function toggleComplexPickerSub(event, btn) {
   if (event) event.stopPropagation();
   const subEl = btn.closest('.complex-picker-sub');
@@ -675,7 +716,6 @@ function toggleComplexPickerGroup(groupId) {
   groupEl.classList.toggle('open', isOpen);
 }
 
-/* Кнопка «Отметить все»/«Снять все» */
 function checkAllSubItems(event, btn, checked) {
   if (event) event.stopPropagation();
   const subEl = btn.closest('.complex-picker-sub');
@@ -683,7 +723,6 @@ function checkAllSubItems(event, btn, checked) {
   subEl.querySelectorAll('.complex-picker-item-cb').forEach(cb => { cb.checked = checked; });
 }
 
-/* Кнопка «Назначить» — сохранить отмеченные упражнения */
 function assignComplexItemsFromSub(event, btn) {
   if (event) event.stopPropagation();
 
@@ -722,7 +761,6 @@ function assignComplexItemsFromSub(event, btn) {
   toast(`Назначено: ${found.subgroup.name}` + (checkedItems.length < totalItems ? ` (${checkedItems.length} из ${totalItems})` : ''));
 }
 
-/* Выбрать всю мини-группу (клик по радио/названию) */
 function selectComplexWholeGroup(blockIdx, complexName) {
   const ctx = __sessionEditContext;
   if (!ctx || !ctx.blocks[blockIdx]) return;

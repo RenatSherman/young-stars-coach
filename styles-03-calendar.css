@@ -1,7 +1,7 @@
 /* ============================================================
    styles-03-calendar.css
    Календари, план развития, поповер комплексов, блок «Повторить»,
-   кастомный поповер «Комплекс упражнений» с чекбоксами упражнений.
+   кастомный поповер «Комплекс упражнений», блок упражнений в модалке дня.
    ============================================================ */
 
 /* ============================================================
@@ -620,6 +620,7 @@
 .cc-sess-item{
   display:flex;
   align-items:stretch;
+  flex-wrap:wrap;
   gap:8px;
   background:var(--ak-gray-light);
   border-radius:6px;
@@ -628,7 +629,7 @@
   transition:.15s;
 }
 .cc-sess-item:hover{background:var(--ak-gray-mid)}
-.cc-sess-main{flex:1;min-width:0}
+.cc-sess-main{flex:1;min-width:0;cursor:pointer;}
 .cc-sess-time{
   font-family:var(--font-display);
   font-size:11px;
@@ -1317,7 +1318,127 @@
 }
 
 /* ============================================================
-   12. КАЛЕНДАРЬ ИГРОКА — тулбар
+   12. БЛОК УПРАЖНЕНИЙ В МОДАЛКЕ ДНЯ (тренер и игрок)
+   ============================================================ */
+
+/* Полный блок в модалке дня (тренер) */
+.cc-sess-blocks-full{
+  width:100%;
+  margin-top:10px;
+  padding-top:10px;
+  border-top:1px dashed var(--ak-gray-mid);
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+}
+.cc-sess-block{
+  padding:10px 12px;
+  background:#fff;
+  border-radius:6px;
+  border-left:4px solid var(--ak-green);
+  border:1px solid var(--ak-gray-mid);
+}
+.cc-sess-block-head{
+  display:flex;
+  justify-content:space-between;
+  gap:8px;
+  margin-bottom:4px;
+  flex-wrap:wrap;
+}
+.cc-sess-block-time{
+  font-family:var(--font-display);
+  font-size:11px;
+  font-weight:900;
+  color:var(--ak-red);
+}
+.cc-sess-block-format{
+  font-size:11px;
+  color:var(--ak-gray-dark);
+  background:var(--ak-gray-light);
+  padding:2px 8px;
+  border-radius:10px;
+}
+.cc-sess-block-name{
+  font-size:13px;
+  font-weight:700;
+  color:var(--ak-green);
+  margin-bottom:4px;
+  display:flex;
+  gap:8px;
+  align-items:center;
+  flex-wrap:wrap;
+}
+.cc-sess-block-partial{
+  font-size:10px;
+  font-weight:700;
+  text-transform:uppercase;
+  letter-spacing:.3px;
+  color:#b8860b;
+  background:#fdf3dd;
+  padding:1px 8px;
+  border-radius:10px;
+}
+.cc-sess-block-fact{
+  font-size:11px;
+  color:var(--ak-gray-dark);
+  margin-top:6px;
+}
+
+/* Список упражнений блока (общий класс .bx-*) */
+.bx-block{
+  margin-top:8px;
+  padding:8px 12px;
+  background:#fff;
+  border-radius:6px;
+  border-left:3px solid var(--ak-green);
+}
+.bx-head{
+  font-size:11px;
+  font-weight:700;
+  color:var(--ak-green);
+  margin-bottom:6px;
+  text-transform:uppercase;
+  letter-spacing:.3px;
+}
+.bx-list{
+  list-style:none;
+  margin:0;
+  padding:0;
+  display:flex;
+  flex-direction:column;
+  gap:3px;
+}
+.bx-list li{
+  display:flex;
+  align-items:flex-start;
+  gap:8px;
+  font-size:12px;
+  color:var(--ak-text);
+  line-height:1.4;
+}
+.bx-dot{
+  display:inline-block;
+  width:6px;
+  height:6px;
+  border-radius:50%;
+  background:var(--ak-red);
+  margin-top:6px;
+  flex-shrink:0;
+}
+.bx-text{flex:1;min-width:0;}
+
+/* В карточке игрока */
+.pde-block-fact-label{
+  font-size:11px;
+  color:var(--ak-gray-dark);
+  margin-top:6px;
+  font-weight:700;
+  text-transform:uppercase;
+  letter-spacing:.3px;
+}
+
+/* ============================================================
+   13. КАЛЕНДАРЬ ИГРОКА — тулбар
    ============================================================ */
 .player-cal-toolbar{
   display:flex;
@@ -1350,7 +1471,7 @@
 }
 
 /* ============================================================
-   13. МОДАЛКА ДНЯ ИГРОКА (PDE)
+   14. МОДАЛКА ДНЯ ИГРОКА (PDE)
    ============================================================ */
 .pde-list{display:flex;flex-direction:column;gap:10px}
 .pde-block{
@@ -1397,7 +1518,7 @@
 }
 
 /* ============================================================
-   14. СТАРАЯ МОДАЛКА ОТМЕТКИ (fm-*)
+   15. СТАРАЯ МОДАЛКА ОТМЕТКИ (fm-*)
    ============================================================ */
 .fm-toolbar{
   display:flex;
@@ -1480,6 +1601,7 @@
   .cs-repeat-day-time{flex:1;width:auto}
   .cc-sess-item{flex-direction:column}
   .cc-sess-actions{flex-direction:row;justify-content:flex-end}
+  .cc-sess-blocks-full{margin-top:8px}
   .fm-buttons{flex-direction:column}
   .fm-btn{width:100%;justify-content:center}
 }
