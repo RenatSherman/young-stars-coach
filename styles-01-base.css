@@ -1,10 +1,8 @@
 /* ============================================================
    styles-01-base.css
    Токены, сброс, типографика, шапка, кнопки, карточки, вкладки,
-   справочник упражнений (аккордеон),
-   дерево навыков в карточке игрока (.sk-*),
-   селектор сезона (.season-*), плашка архива (.archive-*),
-   модалка управления сезонами (.ms-*, .cs-*).
+   справочник упражнений, дерево навыков (.sk-*), селектор сезона,
+   плашка архива.
    ============================================================ */
 
 :root{
@@ -52,7 +50,6 @@ header{
   border-bottom:4px solid var(--ak-red);
   gap:12px;
 }
-
 .logo{
   display:flex;
   align-items:center;
@@ -81,7 +78,6 @@ header{
   text-transform:uppercase;
   margin-top:2px;
 }
-
 nav{
   display:flex;
   gap:2px;
@@ -89,7 +85,7 @@ nav{
   flex:1;
   justify-content:flex-end;
   flex-wrap:nowrap;
-  overflow-x:auto;
+  overflow:visible;
   scrollbar-width:none;
 }
 nav::-webkit-scrollbar{display:none}
@@ -120,7 +116,6 @@ nav button.active{background:var(--ak-red)}
   margin-left:6px;
 }
 .notif-btn:hover{background:rgba(255,255,255,.25)!important}
-
 .notif-badge{
   position:absolute;
   top:-2px;
@@ -135,167 +130,6 @@ nav button.active{background:var(--ak-red)}
   text-align:center;
   border:2px solid var(--ak-green-dark);
 }
-
-/* ============================================================
-   СЕЛЕКТОР СЕЗОНА
-   ============================================================ */
-.season-selector{
-  position:relative;
-  flex-shrink:0;
-  margin-left:6px;
-}
-.season-btn{
-  display:inline-flex;
-  align-items:center;
-  gap:8px;
-  background:rgba(255,255,255,.15);
-  border:2px solid rgba(255,255,255,.2);
-  color:#fff;
-  padding:6px 12px;
-  border-radius:20px;
-  cursor:pointer;
-  font-family:var(--font-display);
-  font-size:11px;
-  font-weight:900;
-  letter-spacing:.5px;
-  transition:.15s;
-}
-.season-btn:hover{background:rgba(255,255,255,.25)}
-.season-btn.archive{
-  background:rgba(200,16,46,.35);
-  border-color:rgba(200,16,46,.8);
-}
-.season-btn.archive:hover{background:rgba(200,16,46,.55)}
-.season-btn-label{
-  font-size:9px;
-  opacity:.7;
-  text-transform:uppercase;
-}
-.season-btn-value{
-  text-transform:uppercase;
-  letter-spacing:.5px;
-}
-.season-btn-caret{
-  font-size:10px;
-  opacity:.7;
-}
-
-.season-menu{
-  display:none;
-  position:fixed;
-  top:72px;
-  right:16px;
-  width:300px;
-  max-width:calc(100vw - 32px);
-  max-height:calc(100vh - 88px);
-  background:#fff;
-  color:var(--ak-text);
-  border-radius:12px;
-  box-shadow:0 12px 40px rgba(0,0,0,.28);
-  overflow:hidden;
-  z-index:9999;
-  border:1px solid var(--ak-gray-mid);
-  flex-direction:column;
-}
-.season-menu.active{display:flex;}
-.season-menu-head{
-  padding:10px 14px;
-  background:var(--ak-green);
-  color:#fff;
-  font-family:var(--font-display);
-  font-size:11px;
-  font-weight:900;
-  letter-spacing:1px;
-  text-transform:uppercase;
-  flex-shrink:0;
-}
-.season-menu-list{
-  max-height:280px;
-  overflow-y:auto;
-  padding:6px;
-  flex:1;
-}
-.season-menu-item{
-  display:flex;
-  align-items:center;
-  gap:10px;
-  width:100%;
-  padding:10px 12px;
-  border:none;
-  background:transparent;
-  border-radius:8px;
-  cursor:pointer;
-  text-align:left;
-  font-family:inherit;
-  font-size:13px;
-  color:var(--ak-text);
-  transition:.12s;
-}
-.season-menu-item:hover{background:var(--ak-gray-light)}
-.season-menu-item.active{
-  background:var(--ak-green);
-  color:#fff;
-}
-.season-menu-label{
-  flex:1;
-  font-weight:700;
-  font-family:var(--font-display);
-  letter-spacing:.3px;
-  text-transform:uppercase;
-  font-size:12px;
-}
-.season-menu-count{
-  font-size:11px;
-  color:var(--ak-gray-dark);
-  font-family:var(--font-display);
-  font-weight:900;
-  padding:2px 8px;
-  border-radius:10px;
-  background:var(--ak-gray-light);
-}
-.season-menu-item.active .season-menu-count{
-  background:rgba(255,255,255,.2);
-  color:#fff;
-}
-.season-menu-check{
-  color:var(--ak-red);
-  font-size:14px;
-  font-weight:900;
-}
-.season-menu-item.active .season-menu-check{color:#fff}
-
-.season-menu-foot{
-  padding:8px;
-  border-top:1px solid var(--ak-gray-mid);
-  background:#fafbfc;
-  display:flex;
-  flex-direction:column;
-  gap:4px;
-  flex-shrink:0;
-}
-.season-menu-action{
-  width:100%;
-  padding:10px 12px;
-  border:none;
-  background:var(--ak-green);
-  color:#fff;
-  border-radius:6px;
-  cursor:pointer;
-  font-family:var(--font-display);
-  font-size:11px;
-  font-weight:900;
-  letter-spacing:.4px;
-  text-transform:uppercase;
-  transition:.15s;
-}
-.season-menu-action:hover{background:var(--ak-green-light)}
-.season-menu-action.ghost{
-  background:transparent;
-  color:var(--ak-green);
-  border:2px solid var(--ak-green);
-}
-.season-menu-action.ghost:hover{background:var(--ak-green);color:#fff}
-
 .user-pill{
   background:rgba(255,255,255,.12);
   padding:6px 10px;
@@ -330,7 +164,6 @@ nav button.active{background:var(--ak-red)}
   letter-spacing:.5px;
 }
 .user-pill button:hover{background:var(--ak-red-dark)}
-
 .sync-status{
   display:inline-flex;
   align-items:center;
@@ -355,7 +188,6 @@ nav button.active{background:var(--ak-red)}
 .sync-status.saving .dot{background:#fbbf24;animation:pulse 1s infinite}
 .sync-status.error .dot{background:var(--ak-red)}
 .sync-status.offline .dot{background:#888}
-
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
 
 .burger{
@@ -373,45 +205,176 @@ nav button.active{background:var(--ak-red)}
 .burger:hover{background:rgba(255,255,255,.1)}
 
 /* ============================================================
+   СЕЛЕКТОР СЕЗОНА В ШАПКЕ
+   ============================================================ */
+.season-selector{
+  position:relative;
+  display:inline-block;
+  margin-left:6px;
+  flex-shrink:0;
+}
+.season-btn{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  background:rgba(255,255,255,.15);
+  border:none;
+  color:#fff;
+  padding:6px 12px;
+  border-radius:20px;
+  cursor:pointer;
+  font-family:var(--font-display);
+  font-size:10px;
+  font-weight:900;
+  letter-spacing:.5px;
+  text-transform:uppercase;
+  transition:.15s;
+  white-space:nowrap;
+}
+.season-btn:hover{background:rgba(255,255,255,.25)}
+.season-btn.archive{
+  background:rgba(200,16,46,.25);
+  border:1px solid rgba(255,255,255,.3);
+}
+.season-btn.archive:hover{background:rgba(200,16,46,.4)}
+.season-btn-label{opacity:.75;font-weight:600;font-size:10px;}
+.season-btn-value{font-weight:900;font-size:11px;letter-spacing:.3px;}
+.season-btn-caret{opacity:.8;font-size:9px;}
+
+.season-menu{
+  display:none;
+  position:absolute;
+  top:calc(100% + 6px);
+  right:0;
+  min-width:260px;
+  background:#fff;
+  border-radius:8px;
+  box-shadow:var(--shadow-lg);
+  overflow:hidden;
+  z-index:300;
+  border-top:4px solid var(--ak-green);
+}
+.season-menu.active{display:block}
+.season-menu-head{
+  background:var(--ak-green);
+  color:#fff;
+  font-family:var(--font-display);
+  font-size:11px;
+  font-weight:900;
+  letter-spacing:.5px;
+  text-transform:uppercase;
+  padding:8px 14px;
+}
+.season-menu-list{max-height:240px;overflow-y:auto;padding:4px 0;}
+.season-menu-item{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  width:100%;
+  padding:10px 14px;
+  background:transparent;
+  border:none;
+  cursor:pointer;
+  text-align:left;
+  font-family:var(--font-body);
+  font-size:13px;
+  color:var(--ak-text);
+  transition:.1s;
+}
+.season-menu-item:hover{background:var(--ak-gray-light)}
+.season-menu-item.active{
+  background:var(--ak-gray-light);
+  color:var(--ak-green);
+  font-weight:700;
+}
+.season-menu-label{
+  flex:1;
+  min-width:0;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.season-menu-count{
+  font-size:10px;
+  font-weight:700;
+  padding:2px 8px;
+  border-radius:10px;
+  background:var(--ak-gray-light);
+  color:var(--ak-gray-dark);
+  font-family:var(--font-display);
+  flex-shrink:0;
+}
+.season-menu-item.active .season-menu-count{
+  background:var(--ak-green);
+  color:#fff;
+}
+.season-menu-check{color:var(--ak-green);font-weight:900;flex-shrink:0;}
+.season-menu-foot{
+  display:flex;
+  gap:6px;
+  padding:10px 12px;
+  background:var(--ak-gray-light);
+  border-top:1px solid var(--ak-gray-mid);
+}
+.season-menu-action{
+  flex:1;
+  padding:8px 10px;
+  border-radius:4px;
+  border:none;
+  background:var(--ak-green);
+  color:#fff;
+  font-family:var(--font-display);
+  font-size:10px;
+  font-weight:900;
+  letter-spacing:.5px;
+  text-transform:uppercase;
+  cursor:pointer;
+  transition:.15s;
+}
+.season-menu-action:hover{background:var(--ak-green-light)}
+.season-menu-action.ghost{
+  background:transparent;
+  color:var(--ak-green);
+  border:2px solid var(--ak-green);
+}
+.season-menu-action.ghost:hover{background:var(--ak-green);color:#fff}
+
+/* ============================================================
    ПЛАШКА АРХИВНОГО СЕЗОНА
    ============================================================ */
 .archive-badge{
   display:none;
   align-items:center;
   gap:12px;
-  padding:10px 20px;
-  background:#fff4d6;
-  border-bottom:2px solid #f0c000;
+  margin:0 auto;
+  padding:10px 18px;
+  background:#fef3c7;
+  border-bottom:1px solid #f0d264;
+  border-left:5px solid #b8860b;
+  color:#6b5000;
   font-size:13px;
-  color:#7a5500;
-  flex-wrap:wrap;
-  position:sticky;
-  top:64px;
-  z-index:90;
+  font-weight:500;
+  max-width:1400px;
 }
 .archive-badge.editable{
-  background:#fce8ec;
-  border-bottom-color:var(--ak-red);
-  color:var(--ak-red-dark);
+  background:#e3f3e8;
+  border-bottom-color:#b8d6c2;
+  border-left-color:#1e7a3f;
+  color:#15472a;
 }
-.archive-badge .archive-icon{
-  font-size:18px;
-  flex-shrink:0;
-}
+.archive-badge > span:not(.archive-icon){flex:1;min-width:0;}
 .archive-badge strong{
   font-family:var(--font-display);
+  font-weight:900;
   letter-spacing:.3px;
 }
-.archive-badge .btn{
-  margin-left:auto;
-  flex-shrink:0;
-}
+.archive-badge .archive-icon{font-size:18px;flex-shrink:0;}
+.archive-badge .btn{flex-shrink:0;padding:6px 12px;font-size:11px;}
 
 /* ===== ОБЩЕЕ ===== */
 main{max-width:1400px;margin:0 auto;padding:20px}
 .screen{display:none}
 .screen.active{display:block}
-
 h1{
   font-family:var(--font-display);
   font-size:24px;
@@ -438,7 +401,6 @@ h3{
   margin-bottom:8px;
   letter-spacing:.3px;
 }
-
 .subtitle{
   color:var(--ak-gray-dark);
   font-size:13px;
@@ -465,24 +427,20 @@ h3{
   text-transform:uppercase;
 }
 .btn:hover{background:var(--ak-green-light)}
-
 .btn-red{background:var(--ak-red)}
 .btn-red:hover{background:var(--ak-red-dark)}
-
 .btn-ghost{
   background:transparent;
   color:var(--ak-green);
   border:2px solid var(--ak-green);
 }
 .btn-ghost:hover{background:var(--ak-green);color:#fff}
-
 .btn-danger{
   background:#fff;
   color:var(--ak-red);
   border:2px solid var(--ak-red);
 }
 .btn-danger:hover{background:var(--ak-red);color:#fff}
-
 .btn-sm{padding:6px 12px;font-size:11px}
 .btn-block{width:100%;justify-content:center}
 
@@ -498,6 +456,8 @@ h3{
 }
 .btn-icon:hover{background:var(--ak-gray-light);color:var(--ak-green)}
 .btn-icon.red:hover{background:#fdf2f4;color:var(--ak-red)}
+.btn-icon[disabled]{opacity:.3;cursor:not-allowed;}
+.btn-icon[disabled]:hover{background:transparent;color:var(--ak-gray-dark);}
 
 .btn-row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px}
 
@@ -552,7 +512,6 @@ h3{
   font-family:var(--font-display);
   letter-spacing:.5px;
 }
-
 .char-block{grid-column:1/-1;margin-top:8px}
 .char-block .value{
   font-size:13px;
@@ -657,11 +616,7 @@ input.cell[type=number]{text-align:center}
   padding:40px;
   color:var(--ak-gray-dark);
 }
-.empty-state .big{
-  font-size:48px;
-  margin-bottom:12px;
-  opacity:.25;
-}
+.empty-state .big{font-size:48px;margin-bottom:12px;opacity:.25;}
 
 .danger-box{
   background:#fce8ec;
@@ -698,10 +653,9 @@ input.cell[type=number]{text-align:center}
 }
 
 /* ============================================================
-   СПРАВОЧНИК УПРАЖНЕНИЙ (аккордеон)
+   СПРАВОЧНИК УПРАЖНЕНИЙ — ДВУХУРОВНЕВОЕ ДЕРЕВО
    ============================================================ */
-
-.accordion{
+.ex-parent{
   margin-bottom:12px;
   border-radius:8px;
   overflow:hidden;
@@ -710,19 +664,30 @@ input.cell[type=number]{text-align:center}
   border-left:5px solid var(--ak-green);
   transition:.2s;
 }
-.accordion:hover{box-shadow:var(--shadow-lg)}
+.ex-parent:hover{box-shadow:var(--shadow-lg)}
+.ex-parent.open{border-left-color:var(--ak-red);}
 
-.accordion-header{
+.ex-parent-head{
   display:flex;
   align-items:center;
   justify-content:space-between;
-  gap:12px;
-  padding:14px 20px;
-  cursor:pointer;
-  transition:.15s;
+  gap:8px;
   background:#fff;
+  border-bottom:1px solid transparent;
+}
+.ex-parent.open .ex-parent-head{
+  background:var(--ak-green);
+  border-bottom-color:var(--ak-green-dark);
+}
+.ex-parent-toggle{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  flex:1;
+  padding:14px 16px;
+  background:transparent;
   border:none;
-  width:100%;
+  cursor:pointer;
   text-align:left;
   font-family:var(--font-display);
   font-size:14px;
@@ -730,21 +695,14 @@ input.cell[type=number]{text-align:center}
   color:var(--ak-green);
   letter-spacing:.5px;
   text-transform:uppercase;
-}
-.accordion-header:hover{background:var(--ak-gray-light)}
-.accordion.open .accordion-header{background:var(--ak-green);color:#fff}
-
-.accordion-header .title-wrap{
-  display:flex;
-  align-items:center;
-  gap:12px;
-  flex:1;
+  transition:.15s;
   min-width:0;
 }
-.accordion-header .arrow{
-  transition:transform .25s;
-  font-size:12px;
-  color:var(--ak-red);
+.ex-parent-toggle:hover{background:var(--ak-gray-light)}
+.ex-parent.open .ex-parent-toggle{color:#fff}
+.ex-parent.open .ex-parent-toggle:hover{background:var(--ak-green-light)}
+
+.ex-parent-arrow{
   display:inline-flex;
   align-items:center;
   justify-content:center;
@@ -752,21 +710,24 @@ input.cell[type=number]{text-align:center}
   height:24px;
   border-radius:50%;
   background:rgba(200,16,46,.1);
+  color:var(--ak-red);
+  font-size:11px;
   flex-shrink:0;
+  transition:transform .25s, background .15s;
 }
-.accordion.open .accordion-header .arrow{
+.ex-parent.open .ex-parent-arrow{
   transform:rotate(90deg);
   background:rgba(255,255,255,.2);
   color:#fff;
 }
-.accordion-header .acc-name{
+.ex-parent-name{
   flex:1;
   min-width:0;
   overflow:hidden;
   text-overflow:ellipsis;
   white-space:nowrap;
 }
-.accordion-header .count{
+.ex-parent-count{
   font-size:10px;
   font-weight:900;
   padding:3px 10px;
@@ -776,59 +737,126 @@ input.cell[type=number]{text-align:center}
   white-space:nowrap;
   font-family:var(--font-display);
   letter-spacing:.3px;
+  flex-shrink:0;
 }
-.accordion.open .accordion-header .count{
+.ex-parent.open .ex-parent-count{
   background:rgba(255,255,255,.2);
   color:#fff;
 }
-.accordion-header .group-actions{display:flex;gap:2px;opacity:0;transition:.15s}
-.accordion-header:hover .group-actions{opacity:1}
-.accordion.open .accordion-header .group-actions .btn-icon{color:#fff}
-.accordion.open .accordion-header .group-actions .btn-icon:hover{background:rgba(255,255,255,.2)}
-
-.accordion-body{
-  max-height:0;
-  overflow:hidden;
-  transition:max-height .35s ease;
-}
-.accordion.open .accordion-body{max-height:4000px}
-.accordion-inner{padding:14px 16px 8px 16px;background:#fff}
-.accordion-footer{
-  padding:12px 16px;
+.ex-parent-actions{display:flex;gap:2px;padding-right:10px;flex-shrink:0;}
+.ex-parent.open .ex-parent-actions .btn-icon{color:#fff}
+.ex-parent.open .ex-parent-actions .btn-icon:hover{background:rgba(255,255,255,.2)}
+.ex-parent.open .ex-parent-actions .btn-icon[disabled]{color:rgba(255,255,255,.3)}
+.ex-parent-body{
+  background:#fff;
+  padding:10px 12px 12px 22px;
   border-top:1px solid var(--ak-gray-mid);
-  background:#fafbfc;
-  display:flex;
-  justify-content:flex-start;
 }
-.accordion-footer .btn{font-size:11px;padding:6px 14px}
-.accordion-empty{
-  padding:16px;
-  text-align:center;
-  color:var(--ak-gray-dark);
-  font-size:13px;
+.ex-parent-footer{padding-top:8px;display:flex;gap:6px;}
+
+.ex-sub{
+  margin-bottom:8px;
+  border-radius:6px;
+  overflow:hidden;
   background:var(--ak-gray-light);
-  border-radius:4px;
-  margin:8px 0;
+  border-left:3px solid var(--ak-gray-dark);
+  transition:.15s;
 }
+.ex-sub.open{border-left-color:var(--ak-red);}
+.ex-sub-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:6px;
+  background:var(--ak-gray-light);
+}
+.ex-sub.open .ex-sub-head{
+  background:#fff;
+  border-bottom:1px solid var(--ak-gray-mid);
+}
+.ex-sub-toggle{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  flex:1;
+  padding:8px 12px 8px 16px;
+  background:transparent;
+  border:none;
+  cursor:pointer;
+  text-align:left;
+  font-family:var(--font-display);
+  font-size:12px;
+  font-weight:900;
+  color:var(--ak-gray-dark);
+  letter-spacing:.4px;
+  text-transform:uppercase;
+  transition:.15s;
+  min-width:0;
+}
+.ex-sub-toggle:hover{color:var(--ak-green)}
+.ex-sub.open .ex-sub-toggle{color:var(--ak-green)}
+.ex-sub-arrow{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width:18px;
+  height:18px;
+  border-radius:50%;
+  background:rgba(200,16,46,.1);
+  color:var(--ak-red);
+  font-size:9px;
+  flex-shrink:0;
+  transition:transform .2s;
+}
+.ex-sub.open .ex-sub-arrow{transform:rotate(90deg)}
+.ex-sub-name{
+  flex:1;
+  min-width:0;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.ex-sub-count{
+  font-size:10px;
+  font-weight:900;
+  padding:2px 8px;
+  border-radius:12px;
+  background:#fff;
+  color:var(--ak-gray-dark);
+  white-space:nowrap;
+  font-family:var(--font-display);
+  flex-shrink:0;
+}
+.ex-sub.open .ex-sub-count{
+  background:var(--ak-gray-light);
+  color:var(--ak-gray-dark);
+}
+.ex-sub-actions{display:flex;gap:2px;padding-right:8px;flex-shrink:0;}
+.ex-sub.open .ex-sub-actions .btn-icon{color:var(--ak-gray-dark)}
+.ex-sub.open .ex-sub-actions .btn-icon:hover{background:var(--ak-gray-light);color:var(--ak-green)}
+.ex-sub-actions .btn-icon.red:hover{background:#fdf2f4;color:var(--ak-red)}
+.ex-sub-body{background:#fff;padding:8px 12px 10px 26px;}
+.ex-sub-footer{padding-top:6px;display:flex;gap:6px;}
 
 .ex-item{
   display:flex;
   align-items:center;
-  gap:12px;
-  padding:10px 12px;
+  gap:10px;
+  padding:8px 10px;
   background:var(--ak-gray-light);
   border-radius:4px;
   margin-bottom:6px;
   transition:.15s;
   border-left:3px solid transparent;
 }
-.ex-item:hover{background:#eef0f2;border-left-color:var(--ak-green)}
+.ex-item:hover{background:#eef0f2;border-left-color:var(--ak-green);}
 .ex-item .num{
   font-weight:900;
   color:var(--ak-red);
-  min-width:28px;
+  min-width:24px;
   font-size:12px;
   font-family:var(--font-display);
+  flex-shrink:0;
 }
 .ex-item .txt{
   flex:1;
@@ -839,7 +867,7 @@ input.cell[type=number]{text-align:center}
   min-width:0;
 }
 .ex-item .txt:hover{background:#fff}
-.ex-item .txt:focus{outline:none;background:#fff;border:1px solid var(--ak-green)}
+.ex-item .txt:focus{outline:none;background:#fff;border:1px solid var(--ak-green);}
 .ex-item a{
   color:var(--ak-red);
   font-weight:900;
@@ -852,10 +880,24 @@ input.cell[type=number]{text-align:center}
   font-family:var(--font-display);
   letter-spacing:.3px;
   text-transform:uppercase;
+  flex-shrink:0;
 }
 .ex-item a:hover{text-decoration:underline}
-.ex-item .item-actions{display:flex;gap:2px;opacity:0;transition:.15s}
+.ex-item .item-actions{display:flex;gap:2px;opacity:0;transition:.15s;flex-shrink:0;}
 .ex-item:hover .item-actions{opacity:1}
+.ex-item .item-actions .btn-icon{font-size:12px;padding:3px 6px;}
+.ex-item .item-actions .btn-icon[disabled]{opacity:.3;cursor:not-allowed;}
+
+.ex-empty{
+  padding:12px;
+  text-align:center;
+  color:var(--ak-gray-dark);
+  font-size:12px;
+  background:#fff;
+  border-radius:4px;
+  margin-bottom:6px;
+  font-style:italic;
+}
 
 /* ============================================================
    ДЕРЕВО НАВЫКОВ (карточка игрока) — .sk-*
@@ -1030,190 +1072,72 @@ input.cell[type=number]{text-align:center}
   box-shadow:0 0 0 2px rgba(21,71,52,.12);
 }
 
-/* ============================================================
-   МОДАЛКА УПРАВЛЕНИЯ СЕЗОНАМИ (.ms-*) и СОЗДАНИЯ (.cs-*)
-   ============================================================ */
-
-/* Управление сезонами */
-.ms-list{display:flex;flex-direction:column;gap:8px;max-height:420px;overflow-y:auto}
-.ms-row{
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap:10px;
-  padding:12px 14px;
-  background:var(--ak-gray-light);
-  border-radius:8px;
-  border-left:4px solid var(--ak-green);
-  flex-wrap:wrap;
-}
-.ms-row-info{flex:1;min-width:180px}
-.ms-row-name{
-  font-family:var(--font-display);
-  font-size:13px;
-  font-weight:900;
-  color:var(--ak-green);
-  letter-spacing:.3px;
-  text-transform:uppercase;
-  display:flex;
-  align-items:center;
-  gap:8px;
-  flex-wrap:wrap;
-}
-.ms-tag{
-  font-size:9px;
-  padding:2px 8px;
-  border-radius:10px;
-  background:var(--ak-gray-mid);
-  color:var(--ak-gray-dark);
-  font-weight:900;
-  letter-spacing:.3px;
-}
-.ms-tag.current{background:var(--ak-red);color:#fff}
-.ms-row-meta{
-  font-size:12px;
-  color:var(--ak-gray-dark);
-  margin-top:2px;
-}
-.ms-row-actions{display:flex;gap:4px;flex-wrap:wrap}
-
-/* Подсказка в модалке создания */
-.cs-hint{
-  font-size:12px;
-  color:var(--ak-gray-dark);
-  margin-top:6px;
-  min-height:16px;
-}
-.cs-hint.ok{color:#1e7a3f}
-.cs-hint.error{color:var(--ak-red)}
-
-/* ============================================================
-   СПИСОК ИГРОКОВ ДЛЯ ПЕРЕНОСА
-   ============================================================ */
-
-.cs-players-list{
-  max-height:280px;
-  overflow-y:auto;
-  overflow-x:hidden;
-  border:1.5px solid var(--ak-gray-mid);
-  border-radius:6px;
-  padding:6px;
-  background:#fafbfc;
-  width:100%;
-  box-sizing:border-box;
-}
-
-.cs-player-row{
-  display:flex !important;
-  flex-direction:row !important;
-  align-items:flex-start !important;
-  justify-content:flex-start !important;
-  gap:10px;
-  padding:8px 10px;
-  border-radius:6px;
-  cursor:pointer;
-  transition:.12s;
-  width:100%;
-  min-width:0;
-  box-sizing:border-box;
-  text-align:left;
-  float:none;
-  position:static;
-}
-.cs-player-row:hover{background:#fff}
-.cs-player-row + .cs-player-row{border-top:1px solid rgba(0,0,0,.05)}
-
-.cs-player-check{
-  flex:0 0 16px !important;
-  width:16px !important;
-  height:16px !important;
-  margin:3px 0 0 0 !important;
-  padding:0;
-  cursor:pointer;
-  display:inline-block;
-}
-
-.cs-player-info{
-  display:flex !important;
-  flex-direction:column !important;
-  align-items:flex-start !important;
-  flex:1 1 auto !important;
-  min-width:0 !important;
-  max-width:100% !important;
-  text-align:left;
-  overflow:hidden;
-  box-sizing:border-box;
-}
-.cs-player-fio{
-  font-size:13px;
-  font-weight:700;
-  color:var(--ak-green);
-  line-height:1.3;
-  white-space:normal !important;
-  word-break:normal !important;
-  overflow-wrap:break-word !important;
-  max-width:100%;
-}
-.cs-player-meta{
-  font-size:11px;
-  color:var(--ak-gray-dark);
-  margin-top:2px;
-  line-height:1.3;
-  white-space:normal !important;
-  max-width:100%;
-}
-
-.cs-empty{
-  padding:16px;
-  text-align:center;
-  color:var(--ak-gray-dark);
-  font-size:12px;
-}
-
-.cs-bulk-actions{
-  display:flex;
-  gap:6px;
-  margin-top:8px;
-  flex-wrap:wrap;
+/* Адаптив для дерева навыков */
+@media (max-width: 700px){
+  .sk-acc-head{padding:10px 12px;font-size:12px;}
+  .sk-acc.level-2 .sk-acc-head{font-size:11px;padding:8px 12px 8px 18px;}
+  .sk-acc-inner{padding:8px 10px 10px 10px;}
+  .sk-table .sk-cell{width:56px;padding:4px 5px;font-size:12px;}
 }
 
 /* ============================================================
-   ОПЦИИ «ЧТО ПЕРЕНОСИТЬ»
+   АДАПТИВ
    ============================================================ */
-
-.cs-copy-options{
-  display:flex;
-  flex-direction:column;
-  gap:6px;
-  margin-top:4px;
+@media (max-width: 1100px){
+  .season-btn-label{display:none;}
+  nav button{font-size:10px;padding:9px 10px}
+  .sync-status{display:none}
 }
 
-.cs-copy-row{
-  display:flex;
-  align-items:center;
-  gap:10px;
-  padding:10px 12px;
-  background:#fafbfc;
-  border:1px solid var(--ak-gray-mid);
-  border-radius:6px;
-  cursor:pointer;
-  transition:.12s;
-  width:100%;
-  text-align:left;
-  font-size:13px;
+@media (max-width: 900px){
+  header{padding:0 12px;gap:8px}
+  .burger{display:inline-flex}
+  .logo{font-size:15px}
+  .logo small{display:none}
+  nav{
+    position:fixed;top:64px;left:0;right:0;
+    background:var(--ak-green);flex-direction:column;align-items:stretch;
+    padding:8px;gap:2px;max-height:calc(100vh - 64px);overflow-y:auto;
+    transform:translateY(-8px);opacity:0;pointer-events:none;
+    transition:transform .2s,opacity .2s;z-index:99;
+    border-bottom:4px solid var(--ak-red);box-shadow:var(--shadow-lg);
+  }
+  nav.open{transform:translateY(0);opacity:1;pointer-events:auto}
+  nav button{padding:12px 16px;font-size:13px;text-align:left;width:100%;border-radius:4px}
+  nav button.active{background:var(--ak-red)}
+  .notif-btn{margin:6px 0 0 0;justify-content:center;text-align:center!important}
+  .user-pill{margin:6px 0 0 0;justify-content:space-between;padding:8px 12px;border-radius:8px;width:100%}
+  .user-pill .email{display:inline;max-width:none}
+  .sync-status{display:inline-flex;margin:6px 0 0 0;justify-content:center}
+  .season-selector{width:100%;margin:8px 0 0 0;}
+  .season-btn{width:100%;justify-content:space-between;}
+  .season-btn-label{display:inline;}
+  .season-menu{width:100%;right:auto;left:0;}
+
+  main{padding:14px}
+  h1{font-size:20px}
 }
-.cs-copy-row:hover{background:#fff;border-color:var(--ak-green)}
-.cs-copy-row input[type=checkbox]{
-  flex-shrink:0;
-  width:16px;
-  height:16px;
-  margin:0;
-  cursor:pointer;
-}
-.cs-copy-text{
-  flex:1;
-  min-width:0;
-  line-height:1.35;
-  color:var(--ak-text);
-  word-wrap:break-word;
+
+@media (max-width: 700px){
+  .ex-parent-toggle{padding:12px}
+  .ex-parent-name{font-size:13px}
+  .ex-parent-count{display:none}
+  .ex-parent-actions{gap:0;padding-right:4px}
+  .ex-parent-actions .btn-icon{padding:3px 5px;font-size:12px}
+  .ex-parent-body{padding-left:12px}
+  .ex-sub-toggle{padding:8px 10px}
+  .ex-sub-actions{gap:0;padding-right:4px}
+  .ex-sub-actions .btn-icon{padding:3px 5px;font-size:12px}
+  .ex-sub-body{padding-left:14px}
+  .ex-item{flex-wrap:wrap;gap:6px;}
+  .ex-item .item-actions{opacity:1;width:100%;justify-content:flex-end;}
+  .ex-item a{font-size:10px;}
+
+  .archive-badge{
+    flex-direction:column;
+    align-items:flex-start;
+    gap:8px;
+    padding:12px 14px;
+  }
+  .archive-badge .btn{width:100%;}
 }

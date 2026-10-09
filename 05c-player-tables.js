@@ -1,25 +1,16 @@
 /* ============================================================
    05c-player-tables.js
-   Таблицы и графики карточки игрока:
-   - вкладка «Навыки» — дерево аккордеонов:
-       * ТЕХНИЧЕСКИЕ (подразделы-аккордеоны → таблица)
-       * ФИЗИЧЕСКИЕ (таблица)
-       * ТАКТИЧЕСКИЕ (таблица)
-       * ПСИХОЛОГИЧЕСКИЕ (таблица)
-   - «Статистика»
-   - «Тесты»
-   - «Графики тестов»
-   - загрузка фото
-   - дефолтные наборы критериев
-
-   Данные не меняются: techDetail / otherDetail как были.
+   Таблицы и графики карточки игрока.
+   Вкладка «Навыки» — дерево аккордеонов:
+     ТЕХНИЧЕСКИЕ → подразделы-аккордеоны → таблица критериев
+     ФИЗИЧЕСКИЕ / ТАКТИЧЕСКИЕ / ПСИХОЛОГИЧЕСКИЕ → таблица критериев
    ============================================================ */
 
 /* ============================================================
    ВКЛАДКА «НАВЫКИ» — дерево аккордеонов
    ============================================================ */
 
-const SKILLS_OPEN = new Set(); // id раскрытых аккордеонов вида "tech", "tech:Катание", "phys", "tact", "psih"
+const SKILLS_OPEN = new Set();
 
 function renderSkillsTab(p) {
   return `<div class="card">
@@ -40,16 +31,13 @@ function renderSkillsContent(p) {
   const el = document.getElementById('skills-content');
   if (!el) return;
 
-  // Технические: группируем по подразделам
   const techGroups = groupBy(p.techDetail || [], 'sub');
-
-  // Физ/Такт/Псих: группируем по разделу (там group уже раздел, sub — подраздел)
   const otherByGroup = groupBy(p.otherDetail || [], 'group');
 
-  const techCount   = (p.techDetail || []).length;
-  const physCount   = ((otherByGroup['Физические качества']) || []).length;
-  const tactCount   = ((otherByGroup['Тактические навыки']) || []).length;
-  const psihCount   = ((otherByGroup['Психологические характеристики']) || []).length;
+  const techCount = (p.techDetail || []).length;
+  const physCount = ((otherByGroup['Физические качества']) || []).length;
+  const tactCount = ((otherByGroup['Тактические навыки']) || []).length;
+  const psihCount = ((otherByGroup['Психологические характеристики']) || []).length;
 
   const html = `
     <div class="skills-tree">
@@ -93,7 +81,6 @@ function renderSkillsContent(p) {
   updateSkillsToggleAllBtn(p);
 }
 
-/* Вспомогательный: группировка массива по полю */
 function groupBy(arr, field) {
   const out = {};
   arr.forEach(r => {
@@ -104,7 +91,6 @@ function groupBy(arr, field) {
   return out;
 }
 
-/* Универсальный рендер аккордеона */
 function renderSkillAccordion({ id, title, count, body, level = 1 }) {
   const isOpen = SKILLS_OPEN.has(id);
   const levelCls = 'sk-level-' + level;
@@ -120,7 +106,6 @@ function renderSkillAccordion({ id, title, count, body, level = 1 }) {
   </div>`;
 }
 
-/* Вложенное дерево для «Технических»: подразделы-аккордеоны */
 function renderTechSubtree(p, techGroups) {
   const subNames = Object.keys(techGroups);
   if (!subNames.length) return '<div class="sk-empty">Нет критериев в этом разделе</div>';
@@ -139,14 +124,10 @@ function renderTechSubtree(p, techGroups) {
   }).join('');
 }
 
-/* Таблица для группы «Техники» (внутри подраздела).
-   Внутри подраздела может быть несколько подгрупп sub — но так как мы уже
-   отфильтровали по sub, все строки одного подраздела. */
 function renderGroupedTechTable(rows, pid, subName) {
   if (!rows.length) return '<div class="sk-empty">Пусто</div>';
 
   const html = rows.map((r, i) => {
-    // Индекс в исходном массиве techDetail
     const globalIdx = findTechIndex(pid, r);
     return `<tr>
       <td style="text-align:center;color:var(--ak-gray-dark);font-weight:900;font-family:var(--font-display)">${i + 1}</td>
@@ -173,14 +154,12 @@ function renderGroupedTechTable(rows, pid, subName) {
   </div>`;
 }
 
-/* Находим глобальный индекс строки в p.techDetail (сравнение по ссылке) */
 function findTechIndex(pid, row) {
   const p = DB.players.find(x => x.id === pid);
   if (!p || !p.techDetail) return -1;
   return p.techDetail.indexOf(row);
 }
 
-/* Плоская таблица для Физ/Такт/Псих */
 function renderFlatTable(rows, pid, kind) {
   if (!rows || !rows.length) return '<div class="sk-empty">Пусто</div>';
 
@@ -217,7 +196,6 @@ function findOtherIndex(pid, row) {
   return p.otherDetail.indexOf(row);
 }
 
-/* Открытие/закрытие */
 function toggleSkillsAccordion(id) {
   if (SKILLS_OPEN.has(id)) SKILLS_OPEN.delete(id);
   else SKILLS_OPEN.add(id);
@@ -230,7 +208,6 @@ function toggleAllSkillsAccordions(pid) {
   const p = DB.players.find(x => x.id === pid);
   if (!p) return;
 
-  // Собираем все id аккордеонов
   const ids = collectAllSkillIds(p);
   const allOpen = ids.length && ids.every(id => SKILLS_OPEN.has(id));
 
@@ -253,7 +230,6 @@ function collectAllSkillIds(p) {
   (p.techDetail || []).forEach(r => {
     if (r.sub) ids.push('tech:' + r.sub);
   });
-  // уникализируем
   return Array.from(new Set(ids));
 }
 
@@ -266,8 +242,7 @@ function updateSkillsToggleAllBtn(p) {
 }
 
 /* ============================================================
-   СТАРЫЕ «ПЛОСКИЕ» ТАБЛИЦЫ (для PDF-экспорта и общего списка)
-   Оставлены без изменений, используются только в 08-pdf.js.
+   ПЛОСКИЕ ТАБЛИЦЫ (для PDF и старого экспорта)
    ============================================================ */
 
 function renderTechTable(p) {
@@ -287,7 +262,6 @@ function renderTechTable(p) {
     lastGroup = r.group; lastSub = r.sub;
   });
   return `<div class="card"><h2>Техническая оснащённость</h2>
-    <p class="subtitle" style="margin-top:-8px">Названия критериев редактируются кликом</p>
     <div style="overflow-x:auto"><table><thead><tr><th>Раздел</th><th>Подраздел</th><th>№</th><th>Критерий</th><th>Начало</th><th>Середина</th><th>Конец</th></tr></thead>
     <tbody>${rows}</tbody></table></div></div>`;
 }
@@ -328,7 +302,6 @@ function renderOtherTable(p) {
     lastGroup = r.group; lastSub = r.sub;
   });
   return `<div class="card"><h2>Физические, тактические и психологические характеристики</h2>
-    <p class="subtitle" style="margin-top:-8px">Названия критериев редактируются кликом</p>
     <div style="overflow-x:auto"><table><thead><tr><th>Раздел</th><th>Подраздел</th><th>№</th><th>Критерий</th><th>Начало</th><th>Середина</th><th>Конец</th></tr></thead>
     <tbody>${rows}</tbody></table></div></div>`;
 }
@@ -381,7 +354,6 @@ function updateStat(pid, i, f, v) {
   p.stats[i][f] = (f === 'club' || f === 'season') ? v : (v === '' ? '' : Number(v));
   saveDB();
 }
-
 function addStat(pid) {
   const p = DB.players.find(x => x.id === pid);
   if (!p) return;
@@ -389,7 +361,6 @@ function addStat(pid) {
   saveDB();
   refreshProfile(pid);
 }
-
 function addStatSection(pid) {
   const p = DB.players.find(x => x.id === pid);
   if (!p) return;
@@ -399,7 +370,6 @@ function addStatSection(pid) {
   saveDB();
   refreshProfile(pid);
 }
-
 function removeStat(pid, i) {
   const p = DB.players.find(x => x.id === pid);
   if (!p || !p.stats) return;
@@ -443,26 +413,20 @@ function renameTestColumn(key, newLabel) {
     DB.testColumns = DEFAULT_TEST_COLUMNS.map(c => ({ ...c }));
   }
   const col = DB.testColumns.find(c => c.key === key);
-  if (col && col.label !== newLabel) {
-    col.label = newLabel;
-    saveDB();
-  }
+  if (col && col.label !== newLabel) { col.label = newLabel; saveDB(); }
 }
-
 function resetTestColumns() {
   if (!confirm('Сбросить названия столбцов тестов на стандартные?')) return;
   DB.testColumns = DEFAULT_TEST_COLUMNS.map(c => ({ ...c }));
   saveDB();
   if (currentPlayerId) refreshProfile(currentPlayerId);
 }
-
 function updateTest(pid, i, f, v) {
   const p = DB.players.find(x => x.id === pid);
   if (!p || !p.tests || !p.tests[i]) return;
   p.tests[i][f] = v;
   saveDB();
 }
-
 function addTest(pid) {
   const p = DB.players.find(x => x.id === pid);
   if (!p) return;
@@ -473,7 +437,6 @@ function addTest(pid) {
   saveDB();
   refreshProfile(pid);
 }
-
 function removeTest(pid, i) {
   const p = DB.players.find(x => x.id === pid);
   if (!p || !p.tests) return;
