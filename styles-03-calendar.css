@@ -1,22 +1,7 @@
 /* ============================================================
    styles-03-calendar.css
-   Календари, план развития, поповер комплексов, панель факта,
-   блок «Повторить на другие дни».
-
-   Разделы:
-     1. Сводка plan-summary
-     2. Старая plan-таблица
-     3. План развития (dev-plan-*)
-     4. Поповер комплексов (cc-popover)
-     5. Чипы (wt-chip)
-     6. Месячная сетка календаря (cc-*)
-     7. Модалка дня (cc-sess-*)
-     8. ПАНЕЛЬ ИГРОКОВ С ФАКТОМ (ccpf-*)       ← НОВОЕ
-     9. БЛОК «ПОВТОРИТЬ» (cs-repeat-*)          ← НОВОЕ
-    10. Редактор блока
-    11. Календарь игрока (player-cal-*)
-    12. Модалка дня игрока (pde-*)
-    13. Модалка отметки факта (fm-*) — для совместимости, не используется
+   Календари, план развития, поповер комплексов, блок «Повторить»,
+   кастомный поповер «Комплекс упражнений» с чекбоксами упражнений.
    ============================================================ */
 
 /* ============================================================
@@ -297,7 +282,7 @@
 }
 
 /* ============================================================
-   4. ПОПОВЕР КОМПЛЕКСОВ
+   4. ПОПОВЕР КОМПЛЕКСОВ (в плане развития)
    ============================================================ */
 .cc-popover{
   display:none;
@@ -692,7 +677,6 @@
 /* ============================================================
    8. ПАНЕЛЬ ИГРОКОВ С ФАКТОМ (ccpf-*)
    ============================================================ */
-
 .ccpf-panel{
   margin-top:12px;
   padding:12px;
@@ -708,11 +692,7 @@
   padding-bottom:10px;
   border-bottom:1px dashed var(--ak-gray-mid);
 }
-.ccpf-players{
-  display:flex;
-  flex-direction:column;
-  gap:12px;
-}
+.ccpf-players{display:flex;flex-direction:column;gap:12px;}
 .ccpf-player{
   padding:10px 12px;
   background:var(--ak-gray-light);
@@ -734,10 +714,7 @@
   text-transform:uppercase;
   letter-spacing:.3px;
 }
-.ccpf-team{
-  font-size:11px;
-  color:var(--ak-gray-dark);
-}
+.ccpf-team{font-size:11px;color:var(--ak-gray-dark);}
 .ccpf-open{
   margin-left:auto;
   background:transparent;
@@ -756,11 +733,7 @@
 }
 .ccpf-open:hover{background:var(--ak-green);color:#fff}
 
-.ccpf-blocks{
-  display:flex;
-  flex-direction:column;
-  gap:8px;
-}
+.ccpf-blocks{display:flex;flex-direction:column;gap:8px;}
 .ccpf-block{
   background:#fff;
   border-radius:6px;
@@ -775,22 +748,14 @@
   margin-bottom:8px;
   flex-wrap:wrap;
 }
-.ccpf-block-name{
-  font-size:12px;
-  font-weight:700;
-  color:var(--ak-text);
-}
+.ccpf-block-name{font-size:12px;font-weight:700;color:var(--ak-text);}
 .ccpf-block-time{
   font-size:11px;
   color:var(--ak-gray-dark);
   font-family:var(--font-display);
   font-weight:900;
 }
-.ccpf-buttons{
-  display:flex;
-  gap:6px;
-  flex-wrap:wrap;
-}
+.ccpf-buttons{display:flex;gap:6px;flex-wrap:wrap;}
 .ccpf-btn{
   padding:6px 12px;
   border-radius:20px;
@@ -811,22 +776,10 @@
   color:var(--ak-green);
   background:var(--ak-gray-light);
 }
-.ccpf-btn.active.done{
-  background:#1e7a3f;
-  border-color:#1e7a3f;
-  color:#fff;
-}
-.ccpf-btn.active.partial{
-  background:#b8860b;
-  border-color:#b8860b;
-  color:#fff;
-}
-.ccpf-btn.active.notdone{
-  background:var(--ak-red);
-  border-color:var(--ak-red);
-  color:#fff;
-}
-.ccpf-comment-wrap{margin-top:8px}
+.ccpf-btn.active.done{background:#1e7a3f;border-color:#1e7a3f;color:#fff;}
+.ccpf-btn.active.partial{background:#b8860b;border-color:#b8860b;color:#fff;}
+.ccpf-btn.active.notdone{background:var(--ak-red);border-color:var(--ak-red);color:#fff;}
+.ccpf-comment-wrap{margin-top:8px;}
 .ccpf-comment{
   width:100%;
   padding:8px 12px;
@@ -841,10 +794,7 @@
   border-color:var(--ak-red-dark);
   box-shadow:0 0 0 3px rgba(200,16,46,.12);
 }
-.ccpf-comment::placeholder{
-  color:var(--ak-red);
-  font-weight:700;
-}
+.ccpf-comment::placeholder{color:var(--ak-red);font-weight:700;}
 
 .ccpf-footer{
   margin-top:12px;
@@ -853,10 +803,7 @@
   display:flex;
   justify-content:flex-end;
 }
-.ccpf-footer .btn{
-  min-width:180px;
-  justify-content:center;
-}
+.ccpf-footer .btn{min-width:180px;justify-content:center;}
 
 .cc-players-empty{
   padding:14px;
@@ -870,7 +817,6 @@
 /* ============================================================
    9. БЛОК «ПОВТОРИТЬ НА ДРУГИЕ ДНИ» (cs-repeat-*)
    ============================================================ */
-
 .cs-repeat-block{
   margin-top:18px;
   padding:14px;
@@ -887,7 +833,6 @@
   letter-spacing:.5px;
   margin-bottom:12px;
 }
-
 .cs-repeat-days{
   display:flex;
   gap:8px;
@@ -916,10 +861,7 @@
   text-transform:uppercase;
   user-select:none;
 }
-.cs-repeat-day-label input{
-  margin:0;
-  cursor:pointer;
-}
+.cs-repeat-day-label input{margin:0;cursor:pointer;}
 .cs-repeat-day-time{
   border:none;
   background:var(--ak-gray-light);
@@ -936,21 +878,18 @@
   background:#fff;
   box-shadow:0 0 0 2px var(--ak-green);
 }
-
 .cs-repeat-options{
   display:grid;
   grid-template-columns:1fr 1fr;
   gap:12px;
   margin-bottom:10px;
 }
-
 .cs-repeat-hint{
   font-size:11px;
   color:var(--ak-gray-dark);
   font-style:italic;
   margin-bottom:10px;
 }
-
 .cs-repeat-preview{
   background:#fff;
   border-radius:6px;
@@ -962,19 +901,9 @@
   min-height:38px;
   line-height:1.5;
 }
-.cs-repeat-preview strong{
-  font-family:var(--font-display);
-  color:var(--ak-green);
-}
-.cs-repeat-preview-list{
-  color:var(--ak-gray-dark);
-  font-size:11px;
-}
-.cs-repeat-empty{
-  color:var(--ak-gray-dark);
-  font-size:12px;
-  font-style:italic;
-}
+.cs-repeat-preview strong{font-family:var(--font-display);color:var(--ak-green);}
+.cs-repeat-preview-list{color:var(--ak-gray-dark);font-size:11px;}
+.cs-repeat-empty{color:var(--ak-gray-dark);font-size:12px;font-style:italic;}
 
 /* ============================================================
    10. РЕДАКТОР БЛОКА
@@ -1027,7 +956,353 @@
 .cc-block-del:hover{background:#fce8ec;color:var(--ak-red)}
 
 /* ============================================================
-   11. КАЛЕНДАРЬ ИГРОКА — тулбар
+   11. КАСТОМНЫЙ ПОПОВЕР «КОМПЛЕКС УПРАЖНЕНИЙ»
+   ============================================================ */
+
+.complex-picker{position:relative;}
+
+.complex-picker-btn{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+  width:100%;
+  padding:10px 14px;
+  border:1.5px solid var(--ak-gray-mid);
+  border-radius:6px;
+  background:#fff;
+  color:var(--ak-text);
+  font-family:inherit;
+  font-size:13px;
+  cursor:pointer;
+  text-align:left;
+  transition:.15s;
+  min-height:40px;
+}
+.complex-picker-btn:hover{
+  border-color:var(--ak-green);
+  background:var(--ak-gray-light);
+}
+.complex-picker-btn.has-value{
+  border-color:var(--ak-green);
+  background:#f6fbf7;
+  font-weight:600;
+}
+.complex-picker-btn .complex-picker-text{
+  flex:1;
+  min-width:0;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.complex-picker-btn .complex-picker-caret{
+  color:var(--ak-gray-dark);
+  font-size:10px;
+  flex-shrink:0;
+}
+
+.complex-picker-popover{
+  display:none;
+  position:absolute;
+  z-index:100;
+  top:calc(100% + 4px);
+  left:0;
+  right:0;
+  min-width:360px;
+  max-height:460px;
+  background:#fff;
+  border:2px solid var(--ak-green);
+  border-radius:8px;
+  box-shadow:0 12px 40px rgba(0,0,0,.25);
+  overflow:hidden;
+  flex-direction:column;
+}
+.complex-picker-popover.active{display:flex;}
+
+.complex-picker-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:8px 14px;
+  background:var(--ak-green);
+  color:#fff;
+  font-family:var(--font-display);
+  font-weight:900;
+  font-size:11px;
+  letter-spacing:.5px;
+  text-transform:uppercase;
+  flex-shrink:0;
+}
+.complex-picker-close{
+  background:transparent;
+  border:none;
+  color:#fff;
+  font-size:18px;
+  cursor:pointer;
+  padding:0 6px;
+  line-height:1;
+  opacity:.8;
+}
+.complex-picker-close:hover{opacity:1;}
+
+.complex-picker-search-wrap{
+  padding:8px 10px;
+  background:var(--ak-gray-light);
+  border-bottom:1px solid var(--ak-gray-mid);
+  flex-shrink:0;
+}
+.complex-picker-search{
+  width:100%;
+  padding:7px 10px;
+  border:1.5px solid var(--ak-gray-mid);
+  border-radius:4px;
+  font-size:12px;
+  font-family:inherit;
+  background:#fff;
+}
+.complex-picker-search:focus{outline:none;border-color:var(--ak-green);}
+
+.complex-picker-body{
+  overflow-y:auto;
+  overflow-x:hidden;
+  padding:6px 0;
+  flex:1;
+}
+
+.complex-picker-empty{
+  padding:20px;
+  text-align:center;
+  color:var(--ak-gray-dark);
+  font-size:12px;
+  font-style:italic;
+}
+
+/* ===== Большая группа ===== */
+.complex-picker-group{
+  border-bottom:1px solid var(--ak-gray-light);
+}
+.complex-picker-group:last-child{border-bottom:none;}
+.complex-picker-group.empty{opacity:.6;}
+
+.complex-picker-group-head{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  width:100%;
+  padding:10px 14px;
+  background:#fff;
+  border:none;
+  cursor:pointer;
+  text-align:left;
+  font-family:var(--font-display);
+  font-size:12px;
+  font-weight:900;
+  letter-spacing:.5px;
+  text-transform:uppercase;
+  color:var(--ak-green);
+  transition:.1s;
+}
+.complex-picker-group-head:hover{background:var(--ak-gray-light);}
+.complex-picker-group.open .complex-picker-group-head{background:var(--ak-gray-light);}
+
+.complex-picker-group-arrow{
+  font-size:10px;
+  color:var(--ak-red);
+  flex-shrink:0;
+  width:12px;
+  text-align:center;
+}
+.complex-picker-group-name{
+  flex:1;
+  min-width:0;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.complex-picker-group-count{
+  font-size:10px;
+  font-weight:900;
+  padding:1px 8px;
+  border-radius:10px;
+  background:var(--ak-gray-light);
+  color:var(--ak-gray-dark);
+  flex-shrink:0;
+}
+.complex-picker-group.open .complex-picker-group-count{
+  background:var(--ak-green);
+  color:#fff;
+}
+
+.complex-picker-group-body{
+  padding:2px 0 6px 0;
+  background:#fafbfc;
+}
+
+/* ===== Мини-группа ===== */
+.complex-picker-sub{
+  padding:1px 0;
+  border-bottom:1px dashed rgba(0,0,0,.05);
+}
+.complex-picker-sub:last-child{border-bottom:none;}
+
+.complex-picker-sub-row{
+  display:flex;
+  align-items:center;
+  gap:2px;
+  padding:0 8px 0 16px;
+  min-width:0;
+}
+.complex-picker-sub-arrow-btn{
+  background:transparent;
+  border:none;
+  color:var(--ak-gray-dark);
+  font-size:10px;
+  cursor:pointer;
+  padding:6px 6px;
+  border-radius:4px;
+  flex-shrink:0;
+  width:22px;
+  height:22px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  line-height:1;
+  transition:.1s;
+}
+.complex-picker-sub-arrow-btn:hover{background:var(--ak-gray-light);color:var(--ak-green);}
+
+.complex-picker-sub-btn{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  flex:1;
+  min-width:0;
+  padding:8px 6px;
+  background:transparent;
+  border:none;
+  cursor:pointer;
+  text-align:left;
+  font-family:inherit;
+  font-size:13px;
+  color:var(--ak-text);
+  transition:.1s;
+  border-radius:4px;
+}
+.complex-picker-sub-btn:hover{background:var(--ak-gray-light);}
+
+.complex-picker-radio{
+  display:inline-block;
+  width:14px;
+  height:14px;
+  border-radius:50%;
+  border:2px solid var(--ak-gray-mid);
+  flex-shrink:0;
+  transition:.15s;
+}
+.complex-picker-sub-btn:hover .complex-picker-radio{border-color:var(--ak-green);}
+
+.complex-picker-sub-name{
+  flex:1;
+  min-width:0;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  font-weight:600;
+}
+.complex-picker-sub-count{
+  font-size:10px;
+  font-weight:700;
+  color:var(--ak-gray-dark);
+  padding:1px 6px;
+  border-radius:8px;
+  background:var(--ak-gray-light);
+  flex-shrink:0;
+}
+
+/* ===== Упражнения внутри мини-группы ===== */
+.complex-picker-sub-body{
+  padding:4px 10px 8px 44px;
+  background:#fdfdfd;
+}
+.complex-picker-item-check{
+  display:flex;
+  align-items:flex-start;
+  gap:10px;
+  padding:6px 8px;
+  border-radius:4px;
+  cursor:pointer;
+  font-size:12px;
+  color:var(--ak-text);
+  line-height:1.45;
+  transition:.1s;
+}
+.complex-picker-item-check:hover{background:var(--ak-gray-light);}
+
+.complex-picker-item-check input[type=checkbox]{
+  width:16px;
+  height:16px;
+  min-width:16px;
+  min-height:16px;
+  margin:2px 0 0 0;
+  cursor:pointer;
+  flex-shrink:0;
+  accent-color:var(--ak-green);
+}
+.complex-picker-item-text{
+  flex:1;
+  min-width:0;
+  word-break:break-word;
+  overflow-wrap:break-word;
+}
+
+.complex-picker-sub-actions{
+  display:flex;
+  gap:6px;
+  margin-top:10px;
+  padding-top:8px;
+  border-top:1px dashed var(--ak-gray-mid);
+  flex-wrap:wrap;
+}
+.complex-picker-sub-action{
+  padding:6px 12px;
+  border-radius:20px;
+  border:none;
+  background:var(--ak-green);
+  color:#fff;
+  font-family:var(--font-display);
+  font-size:10px;
+  font-weight:900;
+  letter-spacing:.3px;
+  text-transform:uppercase;
+  cursor:pointer;
+  transition:.15s;
+  white-space:nowrap;
+}
+.complex-picker-sub-action:hover{background:var(--ak-green-light);}
+.complex-picker-sub-action.ghost{
+  background:transparent;
+  color:var(--ak-gray-dark);
+  border:1.5px solid var(--ak-gray-mid);
+}
+.complex-picker-sub-action.ghost:hover{
+  border-color:var(--ak-green);
+  color:var(--ak-green);
+  background:#fff;
+}
+
+@media (max-width: 700px){
+  .complex-picker-popover{
+    min-width:0;
+    left:-10px;
+    right:-10px;
+  }
+  .complex-picker-sub-body{
+    padding-left:26px;
+  }
+}
+
+/* ============================================================
+   12. КАЛЕНДАРЬ ИГРОКА — тулбар
    ============================================================ */
 .player-cal-toolbar{
   display:flex;
@@ -1060,7 +1335,7 @@
 }
 
 /* ============================================================
-   12. МОДАЛКА ДНЯ ИГРОКА (PDE)
+   13. МОДАЛКА ДНЯ ИГРОКА (PDE)
    ============================================================ */
 .pde-list{display:flex;flex-direction:column;gap:10px}
 .pde-block{
@@ -1107,8 +1382,7 @@
 }
 
 /* ============================================================
-   13. СТАРАЯ МОДАЛКА ОТМЕТКИ (fm-*) — совместимость
-   (не используется, но оставлена на случай отката)
+   14. СТАРАЯ МОДАЛКА ОТМЕТКИ (fm-*)
    ============================================================ */
 .fm-toolbar{
   display:flex;
@@ -1183,21 +1457,14 @@
    АДАПТИВ
    ============================================================ */
 @media (max-width: 700px){
-  /* панель игроков */
   .ccpf-buttons{flex-direction:column}
   .ccpf-btn{width:100%;justify-content:center}
   .ccpf-open{margin-left:0;width:100%;text-align:center}
-
-  /* блок «Повторить» */
   .cs-repeat-options{grid-template-columns:1fr}
   .cs-repeat-day{width:100%}
   .cs-repeat-day-time{flex:1;width:auto}
-
-  /* модалка дня */
   .cc-sess-item{flex-direction:column}
   .cc-sess-actions{flex-direction:row;justify-content:flex-end}
-
-  /* физ/такт/псих кнопки (старая модалка) */
   .fm-buttons{flex-direction:column}
   .fm-btn{width:100%;justify-content:center}
 }
