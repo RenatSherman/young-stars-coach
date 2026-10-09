@@ -7,7 +7,8 @@
    - блок «Повторить на другие дни»
    - поле «Комплекс упражнений» — кастомный поповер-дерево:
        Большая группа (свёрнута) → Мини-группа → Упражнения (чекбоксы)
-     Выбор: либо вся мини-группа (клик по радио), либо отдельные упражнения.
+     Выбор: либо вся мини-группа (клик по радио/названию),
+            либо отдельные упражнения (чекбоксы + кнопка «Назначить»).
    ============================================================ */
 
 /* ===== Месячная сетка ===== */
@@ -188,13 +189,13 @@ function sessionTimeRange(sess) {
   return `${firstStart}–${end}`;
 }
 
-/* ===== Отображение complexItems в текстовом виде ===== */
+/* ===== Отображение complexItems ===== */
 function blockComplexLabel(block) {
   const name = (block && block.complex) ? block.complex : '';
   const items = (block && Array.isArray(block.complexItems)) ? block.complexItems : [];
   if (!name) return '';
   if (!items.length) return name;
-  // Показать «Посадка 1 (3 из 8)»
+
   const found = findSubgroupByName(name);
   if (found && Array.isArray(found.subgroup.items)) {
     const total = found.subgroup.items.length;
@@ -445,6 +446,7 @@ function renderBlockEditor(block, idx) {
           <span class="complex-picker-caret">▾</span>
         </button>
         <div class="complex-picker-popover" id="complex-popover-${idx}"
+             data-block-idx="${idx}"
              onclick="event.stopPropagation()"></div>
       </div>
     </div>
@@ -472,15 +474,11 @@ function renderBlockEditor(block, idx) {
 
 /* ============================================================
    ПОПОВЕР-ДЕРЕВО «КОМПЛЕКС УПРАЖНЕНИЙ»
-   - большие группы свёрнуты, клик раскрывает
-   - у мини-группы клик по радио = выбрать всю
-   - у мини-группы клик по треугольнику = раскрыть упражнения с чекбоксами
-   - внизу раскрытой мини-группы: кнопки «Выбрать всю» и «Выбрать отмеченные»
    ============================================================ */
 
 let __openComplexPopoverIdx = null;
-let __openComplexGroups = new Set();     // раскрытые большие группы (id)
-let __openComplexSubgroups = new Set();  // раскрытые мини-группы (id)
+let __openComplexGroups = new Set();
+let __openComplexSubgroups = new Set();
 
 function toggleComplexPicker(event, idx) {
   if (event) event.stopPropagation();
@@ -586,15 +584,12 @@ function renderComplexPickerGroup(parent) {
 function renderComplexPickerSub(sg) {
   const items = Array.isArray(sg.items) ? sg.items : [];
   const isOpen = __openComplexSubgroups.has(sg.id);
-
   const subSearch = ((sg.name || '') + ' ' + items.join(' ')).toLowerCase();
 
-  const itemsHtml = items.map((it, i) => `
+  const itemsHtml = items.map(it => `
     <label class="complex-picker-item-check">
       <input type="checkbox" class="complex-picker-item-cb"
-             data-sub-id="${escapeAttr(sg.id)}"
-             data-item="${escapeAttr(it)}"
-             onchange="onComplexItemToggle(this)">
+             data-item="${escapeAttr(it)}">
       <span class="complex-picker-item-text">${escapeHtml(it)}</span>
     </label>
   `).join('');
@@ -605,11 +600,12 @@ function renderComplexPickerSub(sg) {
     <div class="complex-picker-sub-row">
       <button type="button" class="complex-picker-sub-arrow-btn"
               title="${isOpen ? 'Свернуть упражнения' : 'Раскрыть упражнения'}"
-              onclick="toggleComplexPickerSub('${escapeAttr(sg.id)}')">
+              onclick="toggleComplexPickerSub(event, this)">
         ${isOpen ? '▼' : '▶'}
       </button>
       <button type="button" class="complex-picker-sub-btn"
-              onclick="selectComplexWholeGroup(${__openComplexPopoverIdx}, '${escapeAttr(sg.name)}')">
+              data-sub-id="${escapeAttr(sg.id)}"
+              onclick="onComplexSubClick(event, this)">
         <span class="complex-picker-radio"></span>
         <span class="complex-picker-sub-name">${escapeHtml(sg.name)}</span>
         <span class="complex-picker-sub-count">${items.length}</span>
@@ -619,16 +615,16 @@ function renderComplexPickerSub(sg) {
       <div class="complex-picker-sub-body">
         ${itemsHtml}
         <div class="complex-picker-sub-actions">
-          <button type="button" class="complex-picker-sub-action"
-                  onclick="selectComplexItems(${__openComplexPopoverIdx}, '${escapeAttr(sg.name)}')">
-            Выбрать отмеченные
+          <button type="button" class="complex-picker-sub-action primary"
+                  onclick="assignComplexItemsFromSub(event, this)">
+            Назначить
           </button>
           <button type="button" class="complex-picker-sub-action ghost"
-                  onclick="checkAllSubItems('${escapeAttr(sg.id)}', true)">
+                  onclick="checkAllSubItems(event, this, true)">
             Отметить все
           </button>
           <button type="button" class="complex-picker-sub-action ghost"
-                  onclick="checkAllSubItems('${escapeAttr(sg.id)}', false)">
+                  onclick="checkAllSubItems(event, this, false)">
             Снять все
           </button>
         </div>
@@ -637,11 +633,39 @@ function renderComplexPickerSub(sg) {
   </div>`;
 }
 
+/* Клик по радио/названию мини-группы → выбрать всю */
+function onComplexSubClick(event, btn) {
+  if (event) event.stopPropagation();
+  const subId = btn.dataset.subId;
+  const found = findSubgroupById(subId);
+  if (!found) return;
+  selectComplexWholeGroup(__openComplexPopoverIdx, found.subgroup.name);
+}
+
+/* Клик по треугольнику → раскрыть/свернуть упражнения */
+function toggleComplexPickerSub(event, btn) {
+  if (event) event.stopPropagation();
+  const subEl = btn.closest('.complex-picker-sub');
+  if (!subEl) return;
+
+  const subId = subEl.dataset.subId;
+  const found = findSubgroupById(subId);
+  if (!found) return;
+
+  if (__openComplexSubgroups.has(subId)) __openComplexSubgroups.delete(subId);
+  else __openComplexSubgroups.add(subId);
+
+  const tmp = document.createElement('div');
+  tmp.innerHTML = renderComplexPickerSub(found.subgroup);
+  const newSub = tmp.firstElementChild;
+  subEl.replaceWith(newSub);
+}
+
 function toggleComplexPickerGroup(groupId) {
   if (__openComplexGroups.has(groupId)) __openComplexGroups.delete(groupId);
   else __openComplexGroups.add(groupId);
 
-  const groupEl = document.querySelector(`.complex-picker-group[data-group-id="${groupId}"]`);
+  const groupEl = document.querySelector(`.complex-picker-group[data-group-id="${CSS.escape(groupId)}"]`);
   if (!groupEl) return;
   const body = groupEl.querySelector('.complex-picker-group-body');
   const arrow = groupEl.querySelector('.complex-picker-group-arrow');
@@ -651,35 +675,54 @@ function toggleComplexPickerGroup(groupId) {
   groupEl.classList.toggle('open', isOpen);
 }
 
-function toggleComplexPickerSub(subId) {
-  if (__openComplexSubgroups.has(subId)) __openComplexSubgroups.delete(subId);
-  else __openComplexSubgroups.add(subId);
-
-  const subEl = document.querySelector(`.complex-picker-sub[data-sub-id="${subId}"]`);
-  if (!subEl) return;
-
-  // Перерисуем эту мини-группу
-  const found = findSubgroupById(subId);
-  if (!found) return;
-  const subHtml = renderComplexPickerSub(found.subgroup);
-  const tmp = document.createElement('div');
-  tmp.innerHTML = subHtml;
-  const newSub = tmp.firstElementChild;
-  subEl.replaceWith(newSub);
-}
-
-function checkAllSubItems(subId, checked) {
-  const subEl = document.querySelector(`.complex-picker-sub[data-sub-id="${subId}"]`);
+/* Кнопка «Отметить все»/«Снять все» */
+function checkAllSubItems(event, btn, checked) {
+  if (event) event.stopPropagation();
+  const subEl = btn.closest('.complex-picker-sub');
   if (!subEl) return;
   subEl.querySelectorAll('.complex-picker-item-cb').forEach(cb => { cb.checked = checked; });
 }
 
-function onComplexItemToggle(cb) {
-  // Снимаем выделение с «всей мини-группы» — т.к. идёт выбор по упражнениям
-  // Просто обновляем счётчик выбранных в кнопке выбора (не обязательно)
+/* Кнопка «Назначить» — сохранить отмеченные упражнения */
+function assignComplexItemsFromSub(event, btn) {
+  if (event) event.stopPropagation();
+
+  const ctx = __sessionEditContext;
+  const blockIdx = __openComplexPopoverIdx;
+  if (!ctx || !ctx.blocks[blockIdx]) return;
+
+  const subEl = btn.closest('.complex-picker-sub');
+  if (!subEl) return;
+
+  const subId = subEl.dataset.subId;
+  const found = findSubgroupById(subId);
+  if (!found) return;
+
+  const checkedItems = [];
+  subEl.querySelectorAll('.complex-picker-item-cb').forEach(cb => {
+    if (cb.checked) checkedItems.push(cb.dataset.item);
+  });
+
+  if (!checkedItems.length) {
+    alert('Отметьте хотя бы одно упражнение. Если нужно выбрать всю мини-группу — кликните по кружку рядом с названием.');
+    return;
+  }
+
+  const totalItems = (found.subgroup.items || []).length;
+
+  ctx.blocks[blockIdx].complex = found.subgroup.name;
+  if (checkedItems.length === totalItems) {
+    ctx.blocks[blockIdx].complexItems = [];
+  } else {
+    ctx.blocks[blockIdx].complexItems = checkedItems.slice();
+  }
+
+  updateComplexPickerButton(blockIdx);
+  closeAllComplexPickers();
+  toast(`Назначено: ${found.subgroup.name}` + (checkedItems.length < totalItems ? ` (${checkedItems.length} из ${totalItems})` : ''));
 }
 
-/* Выбор всей мини-группы (клик по радио/названию) */
+/* Выбрать всю мини-группу (клик по радио/названию) */
 function selectComplexWholeGroup(blockIdx, complexName) {
   const ctx = __sessionEditContext;
   if (!ctx || !ctx.blocks[blockIdx]) return;
@@ -689,43 +732,7 @@ function selectComplexWholeGroup(blockIdx, complexName) {
 
   updateComplexPickerButton(blockIdx);
   closeAllComplexPickers();
-}
-
-/* Выбор отмеченных упражнений мини-группы */
-function selectComplexItems(blockIdx, complexName) {
-  const ctx = __sessionEditContext;
-  if (!ctx || !ctx.blocks[blockIdx]) return;
-
-  const found = findSubgroupByName(complexName);
-  if (!found) { toast('Не удалось найти мини-группу'); return; }
-
-  const subId = found.subgroup.id;
-  const subEl = document.querySelector(`.complex-picker-sub[data-sub-id="${subId}"]`);
-  if (!subEl) return;
-
-  const checkedItems = [];
-  subEl.querySelectorAll('.complex-picker-item-cb').forEach(cb => {
-    if (cb.checked) checkedItems.push(cb.dataset.item);
-  });
-
-  if (!checkedItems.length) {
-    alert('Отметьте хотя бы одно упражнение или нажмите на кружок мини-группы, чтобы выбрать комплекс целиком.');
-    return;
-  }
-
-  const totalItems = (found.subgroup.items || []).length;
-
-  // Если выбраны ВСЕ упражнения — сохраняем как «вся мини-группа»
-  if (checkedItems.length === totalItems) {
-    ctx.blocks[blockIdx].complex = complexName;
-    ctx.blocks[blockIdx].complexItems = [];
-  } else {
-    ctx.blocks[blockIdx].complex = complexName;
-    ctx.blocks[blockIdx].complexItems = checkedItems.slice();
-  }
-
-  updateComplexPickerButton(blockIdx);
-  closeAllComplexPickers();
+  toast(`Назначено: ${complexName}`);
 }
 
 function updateComplexPickerButton(blockIdx) {
@@ -790,7 +797,7 @@ function filterComplexPicker(query) {
 }
 
 /* ============================================================
-   СИНХРОНИЗАЦИЯ ФОРМЫ С КОНТЕКСТОМ
+   СИНХРОНИЗАЦИЯ ФОРМЫ
    ============================================================ */
 
 function syncFormToContext() {
@@ -1179,7 +1186,7 @@ function sessionMatchesOriginal(s, originalId, originalGroupId, originalBlocks) 
 }
 
 /* ============================================================
-   УДАЛЕНИЕ ТРЕНИРОВКИ (один день / вся серия)
+   УДАЛЕНИЕ ТРЕНИРОВКИ
    ============================================================ */
 function deleteSessionFromDay(ds, idx, ev) {
   if (ev) ev.stopPropagation();
