@@ -1,6 +1,7 @@
 /* ============================================================
    06-plan.js
    План развития + общий хелпер факта для блоков календаря.
+   Список комплексов берётся из двухуровневого справочника через flattenSubgroups().
    ============================================================ */
 
 /* ---------- Хелперы навыков ---------- */
@@ -50,7 +51,7 @@ function renderDevelopmentPlan(p) {
   return `<div class="card">
     <h2>План развития</h2>
     <p class="subtitle" style="margin-top:-8px">
-      Цели по навыкам. Текущая оценка подтягивается из «Техники» и «Физ / Такт / Псих».
+      Цели по навыкам. Текущая оценка подтягивается из «Навыков».
       Для фактов «частично» и «не выполнено» обязателен комментарий.
     </p>
     <div id="development-content"></div>
@@ -174,7 +175,7 @@ function renderDevRow(p, g, i) {
   </tr>`;
 }
 
-/* ---------- CRUD ---------- */
+/* ---------- CRUD целей ---------- */
 
 function addDevelopmentGoal(pid) {
   const p = DB.players.find(x => x.id === pid);
@@ -258,9 +259,7 @@ function onDevFactChange(pid, idx, value) {
   const g = p && p.developmentPlans ? p.developmentPlans[idx] : null;
   if (!g) return;
   g.fact = value || '';
-  if (g.fact !== 'partial' && g.fact !== 'notdone') {
-    g.comment = '';
-  }
+  if (g.fact !== 'partial' && g.fact !== 'notdone') g.comment = '';
   saveDB();
   renderDevelopmentPlanContent(p);
 }
@@ -281,9 +280,28 @@ function onDevCommentChange(pid, idx, value) {
 
 /* ============================================================
    ПОПОВЕР КОМПЛЕКСОВ
+   Читает список комплексов из двухуровневого справочника.
    ============================================================ */
 
 let __devPopoverState = { pid: null, idx: null };
+
+/* Возвращает список "полных" имён комплексов для поповера.
+   Логика такая же, как в getAllBlockNames() (11-dashboard-calendar.js). */
+function getComplexesForPicker() {
+  if (typeof flattenSubgroups !== 'function') {
+    if (!Array.isArray(DB.exercises)) return [];
+    return DB.exercises.map(g => g.group || g.name || '').filter(Boolean);
+  }
+  const list = flattenSubgroups();
+  const names = list.map(x => {
+    if (x.parentName && x.subgroupName && x.parentName === x.subgroupName) return x.subgroupName;
+    if (x.parentName && x.subgroupName && x.subgroupName.toLowerCase().startsWith(x.parentName.toLowerCase())) {
+      return x.subgroupName;
+    }
+    return (x.parentName ? x.parentName + ' · ' : '') + x.subgroupName;
+  });
+  return Array.from(new Set(names)).sort((a, b) => a.localeCompare(b, 'ru'));
+}
 
 function toggleDevComplexesPopover(event, pid, idx) {
   if (event) event.stopPropagation();
@@ -307,6 +325,8 @@ function toggleDevComplexesPopover(event, pid, idx) {
   if (!btn) return;
   const rect = btn.getBoundingClientRect();
 
+  const options = getComplexesForPicker();
+
   const pop = document.createElement('div');
   pop.className = 'cc-popover cc-popover-fixed';
   pop.id = 'dev-pop-global';
@@ -324,13 +344,13 @@ function toggleDevComplexesPopover(event, pid, idx) {
       <button type="button" onclick="devComplexesSelectAll(false)">Никто</button>
     </div>
     <div class="cc-popover-body" id="dev-pop-body">
-      ${DB.exercises.length
-        ? DB.exercises.map(ex => {
-            const checked = complexes.includes(ex.group) ? 'checked' : '';
-            return `<label data-group="${escapeAttr(ex.group.toLowerCase())}">
-              <input type="checkbox" value="${escapeAttr(ex.group)}" ${checked}
+      ${options.length
+        ? options.map(name => {
+            const checked = complexes.includes(name) ? 'checked' : '';
+            return `<label data-group="${escapeAttr(name.toLowerCase())}">
+              <input type="checkbox" value="${escapeAttr(name)}" ${checked}
                      onchange="onDevComplexToggle(this.value, this.checked)">
-              <span>${escapeHtml(ex.group)}</span>
+              <span>${escapeHtml(name)}</span>
             </label>`;
           }).join('')
         : '<div class="cc-popover-empty">Справочник упражнений пуст</div>'}
@@ -512,7 +532,6 @@ function renderDevelopmentSummaryBlock(stats) {
 
 /* ============================================================
    ОБЩИЙ ХЕЛПЕР ФАКТА ДЛЯ БЛОКА КАЛЕНДАРЯ
-   Используется в карточке игрока и потенциально где-то ещё.
    ============================================================ */
 
 function saveBlockFact(playerId, dateStr, sessionId, blockIndex, fact, comment) {

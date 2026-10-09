@@ -1,14 +1,13 @@
 /* ============================================================
    11-dashboard-calendar.js
-   Календарь тренера:
-   - месячная сетка (как было)
-   - модалка дня → список тренировок
-   - тренировка раскрывается → инлайн-список игроков
-   - у каждого игрока — список его блоков с фактом по каждому блоку
-   - массовые кнопки: всем выполнено / не выполнено / сбросить
-   - кнопка [Открыть] → карточка игрока
-   - создание/редактирование тренировки с блоком «Повторить на другие дни»
-     (серии с seriesId, удаление всей серии или одного дня)
+   Календарь тренера.
+   - месячная сетка
+   - модалка дня
+   - создание/редактирование тренировки
+   - блок «Повторить на другие дни»
+   - поле «Комплекс упражнений» — кастомный поповер-дерево:
+       Большая группа (свёрнута) → Мини-группа → Упражнения (чекбоксы)
+     Выбор: либо вся мини-группа (клик по радио), либо отдельные упражнения.
    ============================================================ */
 
 /* ===== Месячная сетка ===== */
@@ -189,22 +188,67 @@ function sessionTimeRange(sess) {
   return `${firstStart}–${end}`;
 }
 
+/* ===== Отображение complexItems в текстовом виде ===== */
+function blockComplexLabel(block) {
+  const name = (block && block.complex) ? block.complex : '';
+  const items = (block && Array.isArray(block.complexItems)) ? block.complexItems : [];
+  if (!name) return '';
+  if (!items.length) return name;
+  // Показать «Посадка 1 (3 из 8)»
+  const found = findSubgroupByName(name);
+  if (found && Array.isArray(found.subgroup.items)) {
+    const total = found.subgroup.items.length;
+    return `${name} (${items.length} из ${total})`;
+  }
+  return `${name} (${items.length} выбр.)`;
+}
+
+function findSubgroupByName(name) {
+  if (!name || !Array.isArray(DB.exercises)) return null;
+  for (const parent of DB.exercises) {
+    if (!parent || !Array.isArray(parent.subgroups)) continue;
+    const sg = parent.subgroups.find(s => s.name === name);
+    if (sg) return { parent, subgroup: sg };
+  }
+  return null;
+}
+
 /* ============================================================
    МОДАЛКА ДНЯ
    ============================================================ */
-let __dayOpenSessions = new Set(); // индексы раскрытых тренировок
-
 function openDaySessions(ds) {
-  __dayOpenSessions = new Set(); // при открытии — всё свёрнуто
-  renderDaySessionsModal(ds);
-}
-
-function renderDaySessionsModal(ds) {
   const sessions = collectDaySessions(ds);
   const title = formatDateFull(ds);
 
   const listHtml = sessions.length
-    ? sessions.map((s, i) => renderDaySessionCard(ds, s, i)).join('')
+    ? sessions.map((s, i) => {
+        const color = sessionColor(s);
+        const total = sessionTotalMinutes(s);
+        const range = sessionTimeRange(s);
+        const blocksLine = s.blocks.length
+          ? s.blocks.map(b => `${blockComplexLabel(b) || 'Блок'} (${b.format || '—'}, ${b.duration || 0} мин)`).join(' · ')
+          : '—';
+        const facts = computeSessionFactsSummary(s, ds);
+        const factHtml = `
+          <span class="cc-fact-pill done">${facts.done}</span>
+          <span class="cc-fact-pill partial">${facts.partial}</span>
+          <span class="cc-fact-pill notdone">${facts.notdone}</span>
+          ${facts.unmarked ? `<span class="cc-fact-pill unmarked">${facts.unmarked}</span>` : ''}
+        `;
+        return `<div class="cc-sess-item" style="border-left-color:${color}">
+          <div class="cc-sess-main" onclick="openSessionEditor('${ds}', ${i}, event)">
+            <div class="cc-sess-time">${escapeHtml(range)} · ${total} мин</div>
+            <div class="cc-sess-name">${escapeHtml(s.name || 'Тренировка')}</div>
+            <div class="cc-sess-meta">${escapeHtml(blocksLine)}</div>
+            <div class="cc-sess-meta" style="margin-top:4px">${s.players.length} ${plural(s.players.length, 'игрок', 'игрока', 'игроков')} · ${factHtml}</div>
+            ${s.note ? `<div class="cc-sess-note">${escapeHtml(s.note)}</div>` : ''}
+          </div>
+          <div class="cc-sess-actions">
+            <button class="cc-sess-edit" title="Редактировать тренировку" onclick="openSessionEditor('${ds}', ${i}, event)">✎</button>
+            <button class="cc-sess-del" title="Удалить тренировку" onclick="deleteSessionFromDay('${ds}', ${i}, event)">🗑</button>
+          </div>
+        </div>`;
+      }).join('')
     : '<p class="subtitle" style="text-align:center;padding:20px 0">На этот день тренировок нет.</p>';
 
   openModal(`<h3>${escapeHtml(title)}</h3>
@@ -215,62 +259,6 @@ function renderDaySessionsModal(ds) {
     </div>`);
 }
 
-function renderDaySessionCard(ds, s, idx) {
-  const color = sessionColor(s);
-  const total = sessionTotalMinutes(s);
-  const range = sessionTimeRange(s);
-  const isOpen = __dayOpenSessions.has(idx);
-  const facts = computeSessionFactsSummary(s, ds);
-
-  const blocksLine = s.blocks.length
-    ? s.blocks.map(b => `${b.complex || 'Блок'} (${b.format || '—'}, ${b.duration || 0} мин)`).join(' · ')
-    : '—';
-
-  const factHtml = `
-    <span class="cc-fact-pill done">${facts.done}</span>
-    <span class="cc-fact-pill partial">${facts.partial}</span>
-    <span class="cc-fact-pill notdone">${facts.notdone}</span>
-    ${facts.unmarked ? `<span class="cc-fact-pill unmarked">${facts.unmarked}</span>` : ''}
-  `;
-
-  const playersPanel = isOpen ? renderPlayersFactPanel(ds, s, idx) : '';
-
-  return `<div class="cc-sess-item" style="border-left-color:${color}">
-    <div class="cc-sess-main">
-      <div class="cc-sess-time">${escapeHtml(range)} · ${total} мин</div>
-      <div class="cc-sess-name">${escapeHtml(s.name || 'Тренировка')}</div>
-      <div class="cc-sess-meta">${escapeHtml(blocksLine)}</div>
-      <div class="cc-sess-meta" style="margin-top:4px">
-        ${s.players.length} ${plural(s.players.length, 'игрок', 'игрока', 'игроков')} · ${factHtml}
-      </div>
-      ${s.note ? `<div class="cc-sess-note">${escapeHtml(s.note)}</div>` : ''}
-
-      <div style="margin-top:10px">
-        <button type="button" class="btn btn-sm btn-ghost"
-                onclick="event.stopPropagation();toggleDaySessionPlayers(${idx}, '${ds}')">
-          ${isOpen ? 'Скрыть игроков' : 'Показать игроков'}
-        </button>
-      </div>
-
-      ${playersPanel}
-    </div>
-
-    <div class="cc-sess-actions">
-      <button class="cc-sess-edit" title="Редактировать тренировку"
-              onclick="openSessionEditor('${ds}', ${idx}, event)">✎</button>
-      <button class="cc-sess-del" title="Удалить тренировку"
-              onclick="deleteSessionFromDay('${ds}', ${idx}, event)">🗑</button>
-    </div>
-  </div>`;
-}
-
-function toggleDaySessionPlayers(idx, ds) {
-  if (__dayOpenSessions.has(idx)) __dayOpenSessions.delete(idx);
-  else __dayOpenSessions.add(idx);
-  renderDaySessionsModal(ds);
-}
-
-/* Подсчёт факта по тренировке (суммарно по всем игрокам и блокам) */
 function computeSessionFactsSummary(sess, ds) {
   let done = 0, partial = 0, notdone = 0, unmarked = 0;
   const sessionId = sess.id;
@@ -293,219 +281,7 @@ function computeSessionFactsSummary(sess, ds) {
 }
 
 /* ============================================================
-   ПАНЕЛЬ ИГРОКОВ С ФАКТОМ (инлайн)
-   ============================================================ */
-function renderPlayersFactPanel(ds, s, sessionIdx) {
-  // Собираем по игрокам: игрок + его блоки в этой тренировке
-  const playersData = [];
-
-  DB.players.forEach(p => {
-    const day = p.calendar && p.calendar[ds];
-    if (!Array.isArray(day)) return;
-    const thisSession = day.find(x => x.id === s.id);
-    if (!thisSession) return;
-
-    playersData.push({
-      id: p.id,
-      fio: p.fio,
-      team: p.team || '',
-      blocks: (thisSession.blocks || []).map((b, bi) => ({
-        blockIndex: bi,
-        complex: b.complex || '',
-        format: b.format || '',
-        startTime: b.startTime || '',
-        duration: Number(b.duration) || 0,
-        fact: b.fact || '',
-        comment: b.comment || ''
-      }))
-    });
-  });
-
-  if (!playersData.length) {
-    return '<div class="cc-players-empty">Игроков нет</div>';
-  }
-
-  // Сохраняем во временное состояние, чтобы потом сохранить разом
-  __factEditState[`${ds}|${s.id}`] = { ds, sessionId: s.id, players: playersData };
-
-  const html = playersData.map(pd => {
-    const blocksHtml = pd.blocks.map(b => {
-      const end = minutesToTime(timeToMinutes(b.startTime) + b.duration);
-      const needComment = (b.fact === 'partial' || b.fact === 'notdone');
-
-      return `<div class="ccpf-block" data-player-id="${pd.id}" data-block-index="${b.blockIndex}">
-        <div class="ccpf-block-head">
-          <span class="ccpf-block-name">${escapeHtml(b.complex || 'Блок')} · ${escapeHtml(b.format || '—')}</span>
-          <span class="ccpf-block-time">${escapeHtml(b.startTime)}–${end} · ${b.duration} мин</span>
-        </div>
-        <div class="ccpf-buttons">
-          <button type="button"
-                  class="ccpf-btn ${b.fact === 'done' ? 'active done' : ''}"
-                  onclick="ccpfSetFact('${ds}','${s.id}','${pd.id}',${b.blockIndex},'done')">
-            Выполнено
-          </button>
-          <button type="button"
-                  class="ccpf-btn ${b.fact === 'partial' ? 'active partial' : ''}"
-                  onclick="ccpfSetFact('${ds}','${s.id}','${pd.id}',${b.blockIndex},'partial')">
-            Выполнено частично
-          </button>
-          <button type="button"
-                  class="ccpf-btn ${b.fact === 'notdone' ? 'active notdone' : ''}"
-                  onclick="ccpfSetFact('${ds}','${s.id}','${pd.id}',${b.blockIndex},'notdone')">
-            Не выполнено
-          </button>
-        </div>
-        <div class="ccpf-comment-wrap" style="display:${needComment ? 'block' : 'none'}">
-          <input type="text" class="ccpf-comment" placeholder="Комментарий (обязательно)"
-                 value="${escapeAttr(b.comment || '')}"
-                 oninput="ccpfSetComment('${ds}','${s.id}','${pd.id}',${b.blockIndex}, this.value)">
-        </div>
-      </div>`;
-    }).join('');
-
-    return `<div class="ccpf-player">
-      <div class="ccpf-player-head">
-        <span class="ccpf-fio">${escapeHtml(pd.fio)}</span>
-        ${pd.team ? `<span class="ccpf-team">${escapeHtml(pd.team)}</span>` : ''}
-        <button type="button" class="ccpf-open" onclick="openPlayerFromSession('${pd.id}')">Открыть</button>
-      </div>
-      <div class="ccpf-blocks">${blocksHtml}</div>
-    </div>`;
-  }).join('');
-
-  return `
-    <div class="ccpf-panel">
-      <div class="ccpf-toolbar">
-        <button type="button" class="btn btn-sm" onclick="ccpfBulkSet('${ds}','${s.id}','done')">Всем выполнено</button>
-        <button type="button" class="btn btn-sm btn-ghost" onclick="ccpfBulkSet('${ds}','${s.id}','notdone')">Всем не выполнено</button>
-        <button type="button" class="btn btn-sm btn-ghost" onclick="ccpfBulkClear('${ds}','${s.id}')">Сбросить</button>
-      </div>
-      <div class="ccpf-players">${html}</div>
-      <div class="ccpf-footer">
-        <button type="button" class="btn" onclick="ccpfSave('${ds}','${s.id}')">Сохранить факт</button>
-      </div>
-    </div>
-  `;
-}
-
-/* Временное состояние редактирования (по ds + sessionId) */
-const __factEditState = {};
-
-function ccpfGetState(ds, sessionId) {
-  return __factEditState[`${ds}|${sessionId}`] || null;
-}
-
-function ccpfSetFact(ds, sessionId, playerId, blockIndex, fact) {
-  const st = ccpfGetState(ds, sessionId);
-  if (!st) return;
-  const pd = st.players.find(x => x.id === playerId);
-  if (!pd) return;
-  const bl = pd.blocks.find(b => b.blockIndex === blockIndex);
-  if (!bl) return;
-
-  // повторный клик по той же кнопке — снимаем
-  bl.fact = (bl.fact === fact) ? '' : fact;
-  if (bl.fact !== 'partial' && bl.fact !== 'notdone') bl.comment = '';
-
-  // локальное обновление DOM
-  const row = document.querySelector(`.ccpf-block[data-player-id="${playerId}"][data-block-index="${blockIndex}"]`);
-  if (row) {
-    row.querySelectorAll('.ccpf-btn').forEach(b => b.classList.remove('active','done','partial','notdone'));
-    if (bl.fact) {
-      const list = row.querySelectorAll('.ccpf-btn');
-      const idx = bl.fact === 'done' ? 0 : bl.fact === 'partial' ? 1 : 2;
-      list[idx].classList.add('active', bl.fact);
-    }
-    const commentWrap = row.querySelector('.ccpf-comment-wrap');
-    if (commentWrap) commentWrap.style.display = (bl.fact === 'partial' || bl.fact === 'notdone') ? 'block' : 'none';
-    const commentInput = row.querySelector('.ccpf-comment');
-    if (commentInput && (bl.fact !== 'partial' && bl.fact !== 'notdone')) commentInput.value = '';
-  }
-}
-
-function ccpfSetComment(ds, sessionId, playerId, blockIndex, value) {
-  const st = ccpfGetState(ds, sessionId);
-  if (!st) return;
-  const pd = st.players.find(x => x.id === playerId);
-  if (!pd) return;
-  const bl = pd.blocks.find(b => b.blockIndex === blockIndex);
-  if (!bl) return;
-  bl.comment = value;
-}
-
-function ccpfBulkSet(ds, sessionId, fact) {
-  const st = ccpfGetState(ds, sessionId);
-  if (!st) return;
-
-  st.players.forEach(pd => {
-    pd.blocks.forEach(bl => {
-      bl.fact = fact;
-      if (fact !== 'partial' && fact !== 'notdone') bl.comment = '';
-    });
-  });
-
-  // перерисуем панель
-  const s = collectDaySessions(ds).find(x => x.id === sessionId);
-  if (s) {
-    // перерисовываем только панель — через полную перерисовку модалки
-    renderDaySessionsModal(ds);
-  }
-}
-
-function ccpfBulkClear(ds, sessionId) {
-  const st = ccpfGetState(ds, sessionId);
-  if (!st) return;
-  st.players.forEach(pd => {
-    pd.blocks.forEach(bl => { bl.fact = ''; bl.comment = ''; });
-  });
-  renderDaySessionsModal(ds);
-}
-
-function ccpfSave(ds, sessionId) {
-  const st = ccpfGetState(ds, sessionId);
-  if (!st) return;
-
-  // Валидация
-  for (const pd of st.players) {
-    for (const bl of pd.blocks) {
-      if ((bl.fact === 'partial' || bl.fact === 'notdone') && !(bl.comment || '').trim()) {
-        alert(`${pd.fio}, ${bl.complex || 'Блок'}: для этого статуса обязателен комментарий`);
-        return;
-      }
-    }
-  }
-
-  // Применяем в DB
-  st.players.forEach(pd => {
-    const p = DB.players.find(x => x.id === pd.id);
-    if (!p || !p.calendar || !p.calendar[ds]) return;
-    const sess = p.calendar[ds].find(x => x.id === sessionId);
-    if (!sess || !Array.isArray(sess.blocks)) return;
-
-    pd.blocks.forEach(bl => {
-      const target = sess.blocks[bl.blockIndex];
-      if (!target) return;
-      target.fact = bl.fact || '';
-      target.comment = (bl.comment || '').trim();
-    });
-  });
-
-  saveDB();
-  toast('Факт сохранён');
-
-  // Перерисовываем модалку дня
-  renderDaySessionsModal(ds);
-  renderCoachCalendar();
-  updateNotifBadge();
-}
-
-function openPlayerFromSession(pid) {
-  closeModal();
-  openPlayer(pid);
-}
-
-/* ============================================================
-   РЕДАКТОР ТРЕНИРОВКИ (создание/редактирование + блок «Повторить»)
+   РЕДАКТОР ТРЕНИРОВКИ
    ============================================================ */
 let __sessionEditContext = null;
 
@@ -527,6 +303,7 @@ function openSessionEditor(ds, idx, ev) {
     playerIds: s.players.map(p => p.id),
     blocks: s.blocks.length ? s.blocks.map(b => ({
       complex: b.complex || '',
+      complexItems: Array.isArray(b.complexItems) ? b.complexItems.slice() : [],
       format: b.format || '',
       startTime: b.startTime || '18:00',
       duration: Number(b.duration) || 60,
@@ -534,9 +311,8 @@ function openSessionEditor(ds, idx, ev) {
       fact: b.fact || '',
       comment: b.comment || ''
     })) : [newEmptyBlock()],
-    // блок «Повторить»
     repeatDays: new Set(),
-    repeatTimes: {},          // dayIndex -> 'HH:MM'
+    repeatTimes: {},
     repeatWeeks: 4,
     repeatStartDate: nextDayStr(ds)
   };
@@ -567,6 +343,7 @@ function openNewSessionForDate(ds) {
 function newEmptyBlock() {
   return {
     complex: '',
+    complexItems: [],
     format: '',
     startTime: '18:00',
     duration: 60,
@@ -586,11 +363,9 @@ function renderSessionForm() {
   const ctx = __sessionEditContext;
   if (!ctx) return;
 
-  const allBlocks = Array.from(new Set(DB.exercises.map(g => g.group)));
-
   syncFormToContext();
 
-  const blocksHtml = ctx.blocks.map((b, i) => renderBlockEditor(b, i, allBlocks)).join('');
+  const blocksHtml = ctx.blocks.map((b, i) => renderBlockEditor(b, i)).join('');
   const playersHtml = renderCoachGroupedPlayers(DB.players, ctx.playerIds);
   const repeatHtml = renderRepeatBlock();
 
@@ -639,11 +414,11 @@ function renderSessionForm() {
   }, 0);
 }
 
-function renderBlockEditor(block, idx, allBlocks) {
-  const complexOptions = ['<option value="">— не выбрано —</option>']
-    .concat(allBlocks.map(v => `<option value="${escapeAttr(v)}" ${block.complex === v ? 'selected' : ''}>${escapeHtml(v)}</option>`))
-    .join('');
+/* ============================================================
+   РЕНДЕР БЛОКА
+   ============================================================ */
 
+function renderBlockEditor(block, idx) {
   const formatOptions = ['<option value="">— не выбрано —</option>']
     .concat(WORK_TYPES.map(v => `<option value="${escapeAttr(v)}" ${block.format === v ? 'selected' : ''}>${escapeHtml(v)}</option>`))
     .join('');
@@ -651,6 +426,9 @@ function renderBlockEditor(block, idx, allBlocks) {
   const startT = block.startTime || '18:00';
   const dur = Number(block.duration) || 60;
   const endT = minutesToTime(timeToMinutes(startT) + dur);
+
+  const complexLabel = blockComplexLabel(block) || '— не выбрано —';
+  const complexCls = block.complex ? 'has-value' : '';
 
   return `<div class="cc-block-editor" data-block-index="${idx}">
     <div class="cc-block-head">
@@ -660,7 +438,15 @@ function renderBlockEditor(block, idx, allBlocks) {
 
     <div class="field">
       <label>Комплекс упражнений (из справочника)</label>
-      <select class="blk-complex" data-block-index="${idx}" onchange="onBlockFieldChange(${idx},'complex',this.value)">${complexOptions}</select>
+      <div class="complex-picker" data-block-index="${idx}">
+        <button type="button" class="complex-picker-btn ${complexCls}"
+                onclick="toggleComplexPicker(event, ${idx})">
+          <span class="complex-picker-text">${escapeHtml(complexLabel)}</span>
+          <span class="complex-picker-caret">▾</span>
+        </button>
+        <div class="complex-picker-popover" id="complex-popover-${idx}"
+             onclick="event.stopPropagation()"></div>
+      </div>
     </div>
 
     <div class="field">
@@ -684,6 +470,329 @@ function renderBlockEditor(block, idx, allBlocks) {
   </div>`;
 }
 
+/* ============================================================
+   ПОПОВЕР-ДЕРЕВО «КОМПЛЕКС УПРАЖНЕНИЙ»
+   - большие группы свёрнуты, клик раскрывает
+   - у мини-группы клик по радио = выбрать всю
+   - у мини-группы клик по треугольнику = раскрыть упражнения с чекбоксами
+   - внизу раскрытой мини-группы: кнопки «Выбрать всю» и «Выбрать отмеченные»
+   ============================================================ */
+
+let __openComplexPopoverIdx = null;
+let __openComplexGroups = new Set();     // раскрытые большие группы (id)
+let __openComplexSubgroups = new Set();  // раскрытые мини-группы (id)
+
+function toggleComplexPicker(event, idx) {
+  if (event) event.stopPropagation();
+
+  const wasOpen = __openComplexPopoverIdx === idx;
+  closeAllComplexPickers();
+
+  if (wasOpen) return;
+
+  __openComplexGroups = new Set();
+  __openComplexSubgroups = new Set();
+
+  const pop = document.getElementById('complex-popover-' + idx);
+  if (!pop) return;
+
+  pop.innerHTML = buildComplexPopoverHtml(idx);
+  pop.classList.add('active');
+  __openComplexPopoverIdx = idx;
+
+  setTimeout(() => {
+    const search = pop.querySelector('.complex-picker-search');
+    if (search) search.focus();
+  }, 30);
+}
+
+function closeAllComplexPickers() {
+  document.querySelectorAll('.complex-picker-popover.active').forEach(el => el.classList.remove('active'));
+  __openComplexPopoverIdx = null;
+  __openComplexGroups = new Set();
+  __openComplexSubgroups = new Set();
+}
+
+document.addEventListener('click', () => {
+  if (__openComplexPopoverIdx !== null) closeAllComplexPickers();
+});
+
+function buildComplexPopoverHtml(blockIdx) {
+  const groups = Array.isArray(DB.exercises) ? DB.exercises : [];
+
+  if (!groups.length) {
+    return `
+      <div class="complex-picker-head">
+        <span>Комплексы</span>
+        <button type="button" class="complex-picker-close" onclick="closeAllComplexPickers()">×</button>
+      </div>
+      <div class="complex-picker-empty">Справочник пуст.</div>
+    `;
+  }
+
+  const body = groups.map(parent => renderComplexPickerGroup(parent)).join('');
+
+  return `
+    <div class="complex-picker-head">
+      <span>Выберите комплекс</span>
+      <button type="button" class="complex-picker-close" onclick="closeAllComplexPickers()">×</button>
+    </div>
+    <div class="complex-picker-search-wrap">
+      <input type="text" class="complex-picker-search" placeholder="Поиск…"
+             oninput="filterComplexPicker(this.value)">
+    </div>
+    <div class="complex-picker-body" id="complex-picker-body-${blockIdx}">
+      ${body || '<div class="complex-picker-empty">Нет ни одной мини-группы</div>'}
+    </div>
+  `;
+}
+
+function renderComplexPickerGroup(parent) {
+  const subs = Array.isArray(parent.subgroups) ? parent.subgroups : [];
+  const isOpen = __openComplexGroups.has(parent.id);
+
+  const searchParts = [parent.name || ''];
+  subs.forEach(sg => {
+    searchParts.push(sg.name || '');
+    (sg.items || []).forEach(it => searchParts.push(it || ''));
+  });
+  const searchStr = searchParts.join(' ').toLowerCase();
+
+  if (!subs.length) {
+    return `<div class="complex-picker-group empty" data-search="${escapeAttr(searchStr)}">
+      <div class="complex-picker-group-head">
+        <span class="complex-picker-group-arrow">·</span>
+        <span class="complex-picker-group-name">${escapeHtml(parent.name)}</span>
+        <span class="complex-picker-group-count">0</span>
+      </div>
+    </div>`;
+  }
+
+  const subHtml = subs.map(sg => renderComplexPickerSub(sg)).join('');
+
+  return `<div class="complex-picker-group ${isOpen ? 'open' : ''}"
+                data-group-id="${escapeAttr(parent.id)}"
+                data-search="${escapeAttr(searchStr)}">
+    <button type="button" class="complex-picker-group-head"
+            onclick="toggleComplexPickerGroup('${escapeAttr(parent.id)}')">
+      <span class="complex-picker-group-arrow">${isOpen ? '▼' : '▶'}</span>
+      <span class="complex-picker-group-name">${escapeHtml(parent.name)}</span>
+      <span class="complex-picker-group-count">${subs.length}</span>
+    </button>
+    <div class="complex-picker-group-body" style="display:${isOpen ? 'block' : 'none'}">${subHtml}</div>
+  </div>`;
+}
+
+function renderComplexPickerSub(sg) {
+  const items = Array.isArray(sg.items) ? sg.items : [];
+  const isOpen = __openComplexSubgroups.has(sg.id);
+
+  const subSearch = ((sg.name || '') + ' ' + items.join(' ')).toLowerCase();
+
+  const itemsHtml = items.map((it, i) => `
+    <label class="complex-picker-item-check">
+      <input type="checkbox" class="complex-picker-item-cb"
+             data-sub-id="${escapeAttr(sg.id)}"
+             data-item="${escapeAttr(it)}"
+             onchange="onComplexItemToggle(this)">
+      <span class="complex-picker-item-text">${escapeHtml(it)}</span>
+    </label>
+  `).join('');
+
+  return `<div class="complex-picker-sub ${isOpen ? 'open' : ''}"
+                data-sub-id="${escapeAttr(sg.id)}"
+                data-search="${escapeAttr(subSearch)}">
+    <div class="complex-picker-sub-row">
+      <button type="button" class="complex-picker-sub-arrow-btn"
+              title="${isOpen ? 'Свернуть упражнения' : 'Раскрыть упражнения'}"
+              onclick="toggleComplexPickerSub('${escapeAttr(sg.id)}')">
+        ${isOpen ? '▼' : '▶'}
+      </button>
+      <button type="button" class="complex-picker-sub-btn"
+              onclick="selectComplexWholeGroup(${__openComplexPopoverIdx}, '${escapeAttr(sg.name)}')">
+        <span class="complex-picker-radio"></span>
+        <span class="complex-picker-sub-name">${escapeHtml(sg.name)}</span>
+        <span class="complex-picker-sub-count">${items.length}</span>
+      </button>
+    </div>
+    ${isOpen && items.length ? `
+      <div class="complex-picker-sub-body">
+        ${itemsHtml}
+        <div class="complex-picker-sub-actions">
+          <button type="button" class="complex-picker-sub-action"
+                  onclick="selectComplexItems(${__openComplexPopoverIdx}, '${escapeAttr(sg.name)}')">
+            Выбрать отмеченные
+          </button>
+          <button type="button" class="complex-picker-sub-action ghost"
+                  onclick="checkAllSubItems('${escapeAttr(sg.id)}', true)">
+            Отметить все
+          </button>
+          <button type="button" class="complex-picker-sub-action ghost"
+                  onclick="checkAllSubItems('${escapeAttr(sg.id)}', false)">
+            Снять все
+          </button>
+        </div>
+      </div>
+    ` : ''}
+  </div>`;
+}
+
+function toggleComplexPickerGroup(groupId) {
+  if (__openComplexGroups.has(groupId)) __openComplexGroups.delete(groupId);
+  else __openComplexGroups.add(groupId);
+
+  const groupEl = document.querySelector(`.complex-picker-group[data-group-id="${groupId}"]`);
+  if (!groupEl) return;
+  const body = groupEl.querySelector('.complex-picker-group-body');
+  const arrow = groupEl.querySelector('.complex-picker-group-arrow');
+  const isOpen = __openComplexGroups.has(groupId);
+  if (body)  body.style.display = isOpen ? 'block' : 'none';
+  if (arrow) arrow.textContent = isOpen ? '▼' : '▶';
+  groupEl.classList.toggle('open', isOpen);
+}
+
+function toggleComplexPickerSub(subId) {
+  if (__openComplexSubgroups.has(subId)) __openComplexSubgroups.delete(subId);
+  else __openComplexSubgroups.add(subId);
+
+  const subEl = document.querySelector(`.complex-picker-sub[data-sub-id="${subId}"]`);
+  if (!subEl) return;
+
+  // Перерисуем эту мини-группу
+  const found = findSubgroupById(subId);
+  if (!found) return;
+  const subHtml = renderComplexPickerSub(found.subgroup);
+  const tmp = document.createElement('div');
+  tmp.innerHTML = subHtml;
+  const newSub = tmp.firstElementChild;
+  subEl.replaceWith(newSub);
+}
+
+function checkAllSubItems(subId, checked) {
+  const subEl = document.querySelector(`.complex-picker-sub[data-sub-id="${subId}"]`);
+  if (!subEl) return;
+  subEl.querySelectorAll('.complex-picker-item-cb').forEach(cb => { cb.checked = checked; });
+}
+
+function onComplexItemToggle(cb) {
+  // Снимаем выделение с «всей мини-группы» — т.к. идёт выбор по упражнениям
+  // Просто обновляем счётчик выбранных в кнопке выбора (не обязательно)
+}
+
+/* Выбор всей мини-группы (клик по радио/названию) */
+function selectComplexWholeGroup(blockIdx, complexName) {
+  const ctx = __sessionEditContext;
+  if (!ctx || !ctx.blocks[blockIdx]) return;
+
+  ctx.blocks[blockIdx].complex = complexName || '';
+  ctx.blocks[blockIdx].complexItems = [];
+
+  updateComplexPickerButton(blockIdx);
+  closeAllComplexPickers();
+}
+
+/* Выбор отмеченных упражнений мини-группы */
+function selectComplexItems(blockIdx, complexName) {
+  const ctx = __sessionEditContext;
+  if (!ctx || !ctx.blocks[blockIdx]) return;
+
+  const found = findSubgroupByName(complexName);
+  if (!found) { toast('Не удалось найти мини-группу'); return; }
+
+  const subId = found.subgroup.id;
+  const subEl = document.querySelector(`.complex-picker-sub[data-sub-id="${subId}"]`);
+  if (!subEl) return;
+
+  const checkedItems = [];
+  subEl.querySelectorAll('.complex-picker-item-cb').forEach(cb => {
+    if (cb.checked) checkedItems.push(cb.dataset.item);
+  });
+
+  if (!checkedItems.length) {
+    alert('Отметьте хотя бы одно упражнение или нажмите на кружок мини-группы, чтобы выбрать комплекс целиком.');
+    return;
+  }
+
+  const totalItems = (found.subgroup.items || []).length;
+
+  // Если выбраны ВСЕ упражнения — сохраняем как «вся мини-группа»
+  if (checkedItems.length === totalItems) {
+    ctx.blocks[blockIdx].complex = complexName;
+    ctx.blocks[blockIdx].complexItems = [];
+  } else {
+    ctx.blocks[blockIdx].complex = complexName;
+    ctx.blocks[blockIdx].complexItems = checkedItems.slice();
+  }
+
+  updateComplexPickerButton(blockIdx);
+  closeAllComplexPickers();
+}
+
+function updateComplexPickerButton(blockIdx) {
+  const ctx = __sessionEditContext;
+  if (!ctx || !ctx.blocks[blockIdx]) return;
+  const b = ctx.blocks[blockIdx];
+  const label = blockComplexLabel(b) || '— не выбрано —';
+
+  const picker = document.querySelector(`.complex-picker[data-block-index="${blockIdx}"]`);
+  if (picker) {
+    const btn = picker.querySelector('.complex-picker-btn');
+    const txt = picker.querySelector('.complex-picker-text');
+    if (txt) txt.textContent = label;
+    if (btn) btn.classList.toggle('has-value', !!b.complex);
+  }
+}
+
+function filterComplexPicker(query) {
+  const pop = document.getElementById('complex-popover-' + __openComplexPopoverIdx);
+  if (!pop) return;
+  const q = (query || '').trim().toLowerCase();
+
+  pop.querySelectorAll('.complex-picker-group').forEach(grEl => {
+    const searchStr = grEl.dataset.search || '';
+    const groupMatch = !q || searchStr.includes(q);
+
+    if (groupMatch && q) {
+      const gid = grEl.dataset.groupId;
+      if (gid) __openComplexGroups.add(gid);
+      const body = grEl.querySelector('.complex-picker-group-body');
+      const arrow = grEl.querySelector('.complex-picker-group-arrow');
+      if (body) body.style.display = 'block';
+      if (arrow && gid) arrow.textContent = '▼';
+    }
+
+    if (q) {
+      grEl.querySelectorAll('.complex-picker-sub').forEach(subEl => {
+        const subSearch = subEl.dataset.search || '';
+        const visible = subSearch.includes(q) || searchStr.includes(q);
+        subEl.style.display = visible ? 'block' : 'none';
+      });
+    } else {
+      grEl.querySelectorAll('.complex-picker-sub').forEach(subEl => {
+        subEl.style.display = 'block';
+      });
+    }
+
+    grEl.style.display = groupMatch ? 'block' : 'none';
+  });
+
+  if (!q) {
+    pop.querySelectorAll('.complex-picker-group').forEach(grEl => {
+      const gid = grEl.dataset.groupId;
+      if (!gid) return;
+      const body = grEl.querySelector('.complex-picker-group-body');
+      const arrow = grEl.querySelector('.complex-picker-group-arrow');
+      const isOpen = __openComplexGroups.has(gid);
+      if (body) body.style.display = isOpen ? 'block' : 'none';
+      if (arrow) arrow.textContent = isOpen ? '▼' : '▶';
+    });
+  }
+}
+
+/* ============================================================
+   СИНХРОНИЗАЦИЯ ФОРМЫ С КОНТЕКСТОМ
+   ============================================================ */
+
 function syncFormToContext() {
   const ctx = __sessionEditContext;
   if (!ctx) return;
@@ -703,12 +812,10 @@ function syncFormToContext() {
     const i = parseInt(el.dataset.blockIndex);
     const b = ctx.blocks[i];
     if (!b) return;
-    const complex = el.querySelector('.blk-complex')?.value;
     const format  = el.querySelector('.blk-format')?.value;
     const start   = el.querySelector('.blk-start')?.value;
     const dur     = el.querySelector('.blk-dur')?.value;
     const note    = el.querySelector('.blk-note')?.value;
-    if (complex !== undefined) b.complex = complex;
     if (format  !== undefined) b.format  = format;
     if (start   !== undefined) b.startTime = start;
     if (dur     !== undefined) b.duration = Number(dur) || 0;
@@ -755,7 +862,7 @@ function addBlockToForm() {
     duration = Number(last.duration) || 60;
   }
   ctx.blocks.push({
-    complex: '', format: '', startTime, duration, note: '', fact: '', comment: ''
+    complex: '', complexItems: [], format: '', startTime, duration, note: '', fact: '', comment: ''
   });
   renderSessionForm();
 }
@@ -766,9 +873,7 @@ function removeBlockFromForm(idx) {
   if (!ctx) return;
 
   if (ctx.blocks.length <= 1) {
-    ctx.blocks[0] = {
-      complex: '', format: '', startTime: '18:00', duration: 60, note: '', fact: '', comment: ''
-    };
+    ctx.blocks[0] = newEmptyBlock();
   } else {
     ctx.blocks.splice(idx, 1);
   }
@@ -846,11 +951,8 @@ function onRepeatDayToggle(dow, checked) {
   } else {
     ctx.repeatDays.delete(dow);
   }
-
-  // локально показываем/скрываем time input
   const el = document.querySelector(`.cs-repeat-day-time[data-dow="${dow}"]`);
   if (el) el.style.display = checked ? 'inline-block' : 'none';
-
   updateRepeatPreview();
 }
 
@@ -877,20 +979,18 @@ function onRepeatStartChange(value) {
 function computeRepeatDates() {
   const ctx = __sessionEditContext;
   if (!ctx) return [];
-
   if (!ctx.repeatDays.size) return [];
 
   const start = new Date((ctx.repeatStartDate || nextDayStr(ctx.ds)) + 'T00:00:00');
   const weeks = ctx.repeatWeeks || 4;
 
-  const result = []; // { dateStr, dow, time }
-  // идём день за днём от start
+  const result = [];
   const end = new Date(start);
   end.setDate(end.getDate() + weeks * 7);
 
   const cur = new Date(start);
   while (cur < end) {
-    const dow = (cur.getDay() + 6) % 7; // Пн=0
+    const dow = (cur.getDay() + 6) % 7;
     if (ctx.repeatDays.has(dow)) {
       const ds = localDateStr(cur);
       const time = ctx.repeatTimes[dow] || (ctx.blocks[0] && ctx.blocks[0].startTime) || '18:00';
@@ -909,14 +1009,11 @@ function updateRepeatPreview() {
     el.innerHTML = '<span class="cs-repeat-empty">Дни недели не выбраны</span>';
     return;
   }
-
   const preview = dates.slice(0, 12).map(d => `${formatDate(d.dateStr)} ${d.time}`).join(' · ');
   const more = dates.length > 12 ? ` … и ещё ${dates.length - 12}` : '';
-
   el.innerHTML = `Будет создано: <strong>${dates.length}</strong> тренировок<br><span class="cs-repeat-preview-list">${escapeHtml(preview)}${more}</span>`;
 }
 
-/* Применяем повторы: сразу добавляем в БД и в контекст формы */
 function applyRepeatToForm() {
   syncFormToContext();
   const ctx = __sessionEditContext;
@@ -925,38 +1022,29 @@ function applyRepeatToForm() {
   const dates = computeRepeatDates();
   if (!dates.length) { alert('Выберите хотя бы один день недели'); return; }
 
-  // Проверим, что основная форма валидна
   const validBlocks = collectValidBlocksFromCtx(ctx);
   if (!validBlocks) return;
   if (!ctx.playerIds.length) { alert('Выберите хотя бы одного игрока'); return; }
 
-  // seriesId — общий для всей серии
   const seriesId = ctx.originalSeriesId || uid('ser');
 
-  // Сохраняем основную тренировку (если ещё не сохраняли)
   if (!ctx.isEdit) {
-    // создаём основную как часть серии
     createSessionForDate(ctx.ds, ctx.name, ctx.note, validBlocks, ctx.playerIds, ctx.originalGroupId, seriesId);
     ctx.isEdit = true;
-    ctx.originalId = ctx.originalId || null; // будет проставлено ниже через fact? — оставим null, но сохраним без обновления
   }
 
-  // Создаём копии на каждую дату
   dates.forEach(d => {
-    // клонируем блоки с новой стартовой датой (время берём по дню недели)
-    const blocksCopy = validBlocks.map(b => {
-      // для первого блока (или всех) — если указано своё время по дню — поменяем startTime
-      return { ...b, id: uid('blk'), startTime: b.startTime };
-    });
-    // Подмена времени: если пользователь указал время для этого дня недели —
-    // сдвигаем первый блок на это время, остальные — с сохранением относительного сдвига
+    const blocksCopy = validBlocks.map(b => ({
+      ...b,
+      id: uid('blk'),
+      complexItems: Array.isArray(b.complexItems) ? b.complexItems.slice() : []
+    }));
     const baseFirst = validBlocks[0] && validBlocks[0].startTime || '18:00';
     const newFirst = d.time || baseFirst;
     const delta = timeToMinutes(newFirst) - timeToMinutes(baseFirst);
     blocksCopy.forEach(b => {
       b.startTime = minutesToTime(Math.max(0, timeToMinutes(b.startTime) + delta));
     });
-
     createSessionForDate(d.dateStr, ctx.name, ctx.note, blocksCopy, ctx.playerIds, null, seriesId);
   });
 
@@ -980,6 +1068,7 @@ function collectValidBlocksFromCtx(ctx) {
     validBlocks.push({
       id: b.id || uid('blk'),
       complex: (b.complex || '').trim(),
+      complexItems: Array.isArray(b.complexItems) ? b.complexItems.slice() : [],
       format: b.format || '',
       startTime: b.startTime,
       duration: Number(b.duration),
@@ -1007,13 +1096,15 @@ function createSessionForDate(ds, name, note, blocks, playerIds, groupId, series
       note: note || '',
       groupId: finalGroupId,
       seriesId: seriesId || null,
-      blocks: blocks.map(b => ({ ...b }))
+      blocks: blocks.map(b => ({
+        ...b,
+        complexItems: Array.isArray(b.complexItems) ? b.complexItems.slice() : []
+      }))
     });
   });
   return sessId;
 }
 
-/* ===== Сохранение тренировки (без повторов) ===== */
 function saveSessionFromForm() {
   syncFormToContext();
   const ctx = __sessionEditContext;
@@ -1026,13 +1117,12 @@ function saveSessionFromForm() {
   if (!validBlocks) return;
   if (!ctx.playerIds.length) { alert('Выберите хотя бы одного игрока'); return; }
 
-  const seriesId = ctx.originalSeriesId || null;
   const newSession = {
     id: ctx.originalId || uid('sess'),
     name: (ctx.name || '').trim(),
     note: (ctx.note || '').trim(),
     groupId: ctx.originalGroupId || (ctx.playerIds.length > 1 ? uid('grp') : null),
-    seriesId: seriesId,
+    seriesId: ctx.originalSeriesId || null,
     blocks: validBlocks
   };
 
@@ -1060,7 +1150,10 @@ function saveSessionFromForm() {
       note: newSession.note,
       groupId: newSession.groupId,
       seriesId: newSession.seriesId,
-      blocks: newSession.blocks.map(b => ({ ...b }))
+      blocks: newSession.blocks.map(b => ({
+        ...b,
+        complexItems: Array.isArray(b.complexItems) ? b.complexItems.slice() : []
+      }))
     });
   });
 
@@ -1094,7 +1187,6 @@ function deleteSessionFromDay(ds, idx, ev) {
   const s = sessions[idx];
   if (!s) return;
 
-  // Если это часть серии — спросим, что удалять
   if (s.seriesId) {
     openModal(`
       <h3>Удалить тренировку</h3>
@@ -1102,7 +1194,7 @@ function deleteSessionFromDay(ds, idx, ev) {
       <div class="btn-row" style="margin-top:16px">
         <button class="btn btn-red" onclick="deleteSessionOnlyThisDay('${ds}', '${s.seriesId}', ${idx})">Только этот день</button>
         <button class="btn btn-red" onclick="deleteSessionWholeSeries('${s.seriesId}')">Всю серию</button>
-        <button class="btn-ghost btn" onclick="renderDaySessionsModal('${ds}')">Отмена</button>
+        <button class="btn-ghost btn" onclick="openDaySessions('${ds}')">Отмена</button>
       </div>
     `);
     return;
@@ -1111,7 +1203,7 @@ function deleteSessionFromDay(ds, idx, ev) {
   if (!confirm('Удалить тренировку у всех игроков?')) return;
   deleteSessionsByPredicate(session => sessionMatchesOriginal(session, s.id, s.groupId, s.blocks));
   saveDB();
-  renderDaySessionsModal(ds);
+  openDaySessions(ds);
   renderCoachCalendar();
   updateNotifBadge();
 }
@@ -1120,10 +1212,9 @@ function deleteSessionOnlyThisDay(ds, seriesId, idx) {
   const sessions = collectDaySessions(ds);
   const s = sessions[idx];
   if (!s) return;
-
   deleteSessionsByPredicate(session => sessionMatchesOriginal(session, s.id, s.groupId, s.blocks));
   saveDB();
-  renderDaySessionsModal(ds);
+  openDaySessions(ds);
   renderCoachCalendar();
   updateNotifBadge();
   toast('Удалена одна тренировка из серии');
@@ -1149,7 +1240,6 @@ function deleteSessionWholeSeries(seriesId) {
   toast(`Удалена вся серия (${removed} записей)`);
 }
 
-/* Удаление по предикату — во всех календарях всех игроков */
 function deleteSessionsByPredicate(predicate) {
   DB.players.forEach(p => {
     if (!p.calendar) return;
@@ -1163,7 +1253,7 @@ function deleteSessionsByPredicate(predicate) {
 }
 
 /* ============================================================
-   ГРУППИРОВАННЫЙ СПИСОК ИГРОКОВ (для редактора)
+   ГРУППИРОВАННЫЙ СПИСОК ИГРОКОВ
    ============================================================ */
 function renderCoachGroupedPlayers(players, preselectedIds) {
   const selected = new Set(preselectedIds || []);

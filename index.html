@@ -11,7 +11,6 @@
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
-<!-- СТИЛИ (5 файлов) -->
 <link rel="stylesheet" href="styles-01-base.css">
 <link rel="stylesheet" href="styles-02-players.css">
 <link rel="stylesheet" href="styles-03-calendar.css">
@@ -60,17 +59,14 @@
 
   <nav id="main-nav">
     <button data-screen="dashboard">Дашборд</button>
-    <button data-screen="coach-calendar">Календарь тренера</button>
+    <button data-screen="coach-calendar" class="active">Календарь тренера</button>
     <button data-screen="coach-report">Отчёт тренера</button>
-    <button data-screen="players" class="active">Игроки</button>
+    <button data-screen="players">Игроки</button>
     <button data-screen="report">Отчёт по игрокам</button>
     <button data-screen="exercises">Упражнения</button>
     <button data-screen="data">Данные</button>
     <button class="notif-btn" onclick="toggleNotif(event)">🔔<span id="notif-badge" class="notif-badge" style="display:none">0</span></button>
-
-    <!-- Селектор сезона -->
     <div class="season-selector" id="season-selector"></div>
-
     <div class="sync-status" id="sync-status"><span class="dot"></span><span id="sync-text">Готово</span></div>
     <div class="user-pill">
       <span class="email" id="user-email">—</span>
@@ -79,9 +75,7 @@
   </nav>
 </header>
 
-<!-- ПЛАШКА АРХИВНОГО СЕЗОНА -->
 <div id="archive-badge" class="archive-badge" style="display:none"></div>
-
 <div class="notif-panel" id="notif-panel"></div>
 
 <main>
@@ -91,7 +85,7 @@
     <div id="dashboard-content"></div>
   </section>
 
-  <section id="screen-coach-calendar" class="screen">
+  <section id="screen-coach-calendar" class="screen active">
     <h1>Календарь тренера</h1>
     <p class="subtitle">Общее расписание всех игроков · Нажмите на день, чтобы назначить тренировку</p>
     <div id="coach-calendar-content"></div>
@@ -103,7 +97,7 @@
     <div id="coach-report-content"></div>
   </section>
 
-  <section id="screen-players" class="screen active">
+  <section id="screen-players" class="screen">
     <div class="flex-between">
       <div><h1>Игроки</h1><p class="subtitle">Группа развития · Академия «Ак Барс»</p></div>
       <div class="btn-row" style="margin:0">
@@ -156,8 +150,7 @@
       </div>
       <div class="btn-row" style="margin:0">
         <button class="btn btn-ghost" onclick="toggleAllAccordions()" id="toggle-all-btn">Развернуть все</button>
-        <button class="btn btn-ghost" onclick="addGroup()">+ Новая группа</button>
-        <button class="btn" onclick="addExercise()">+ Упражнение</button>
+        <button class="btn btn-ghost" onclick="addParent()">+ Большая группа</button>
       </div>
     </div>
     <div id="exercises-list"></div>
@@ -231,7 +224,6 @@
 <div class="modal-bg" id="modal-bg"><div class="modal" id="modal-content"></div></div>
 <div id="pdf-stage"></div>
 
-<!-- СКРИПТЫ -->
 <script src="01-config.js"></script>
 <script src="02-utils.js"></script>
 <script src="03-sync.js"></script>

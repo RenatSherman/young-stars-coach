@@ -1,20 +1,9 @@
 /* ============================================================
    13-seasons.js
-   Ядро системы сезонов + UI:
+   Ядро системы сезонов + UI.
 
-   Логика:
-   - migrateToSeasons()         — перенос старых данных в первый сезон
-   - switchSeason()             — переключение текущего сезона
-   - createSeason()             — создание нового сезона с переносом игроков
-   - deleteSeason(), renameSeason()
-   - setSeasonsEditable()       — режим редактирования архива
-
-   UI:
-   - renderSeasonSelector()     — селектор в шапке
-   - updateSeasonSelector()     — обновить селектор
-   - updateArchiveBadge()       — плашка «Архивный сезон»
-   - openCreateSeasonModal()    — модалка создания
-   - openManageSeasonsModal()   — модалка управления (удаление, переименование)
+   Приоритет currentSeason: localStorage > облако > календарь.
+   switchSeason() сохраняет выбор в localStorage.
    ============================================================ */
 
 /* ============================================================
@@ -30,15 +19,22 @@ function migrateToSeasons() {
   const legacyPlayers = Array.isArray(DB.players) ? DB.players : [];
   const now = new Date().toISOString();
 
+  // Если в localStorage уже есть валидный выбор — используем его
+  const stored = (() => { try { return localStorage.getItem(STORAGE_SEASON_KEY); } catch (e) { return null; } })();
+  const initialKey = (stored && /^\d{4}\/\d{2}$/.test(stored))
+    ? stored
+    : (currentSeasonKey() || DEFAULT_SEASON);
+
   DB.seasons = {
-    [DEFAULT_SEASON]: {
+    [initialKey]: {
       players: legacyPlayers,
       createdAt: now,
       archived: false
     }
   };
-  currentSeason = DEFAULT_SEASON;
+  currentSeason = initialKey;
   DB.players = legacyPlayers;
+  persistCurrentSeason();
 
   console.log('[seasons] migrateToSeasons: сезон', currentSeason, '| игроков:', legacyPlayers.length);
 }
@@ -54,9 +50,17 @@ function switchSeason(key) {
   }
   if (key === currentSeason) return;
 
+  // Сначала сохраняем players в старый сезон
+  if (DB.seasons[currentSeason]) {
+    DB.seasons[currentSeason].players = DB.players;
+  }
+
   currentSeason = key;
   DB.players = DB.seasons[key].players || [];
   seasonsEditable = false;
+
+  // Фиксируем выбор в localStorage немедленно
+  persistCurrentSeason();
 
   currentPlayerId = null;
   currentTab = 'skills';
@@ -69,8 +73,8 @@ function switchSeason(key) {
   updateSeasonSelector();
   updateArchiveBadge();
 
-  if (typeof goHome === 'function')        goHome();
-  if (typeof renderPlayers === 'function') renderPlayers();
+  if (typeof showScreen === 'function')       showScreen('coach-calendar');
+  if (typeof renderPlayers === 'function')    renderPlayers();
   if (typeof updateNotifBadge === 'function') updateNotifBadge();
 
   toast('Сезон: ' + formatSeasonLabel(key));
@@ -97,7 +101,6 @@ function createSeason(opts) {
   if (fromSeason && DB.seasons[fromSeason]) {
     const sourcePlayers = DB.seasons[fromSeason].players || [];
     const ids = new Set(playerIds || []);
-
     players = sourcePlayers
       .filter(p => ids.has(p.id))
       .map(p => copyPlayerForNewSeason(p, copy));
@@ -196,7 +199,10 @@ function renameSeason(oldKey, newKey) {
 
   DB.seasons[newKey] = DB.seasons[oldKey];
   delete DB.seasons[oldKey];
-  if (currentSeason === oldKey) currentSeason = newKey;
+  if (currentSeason === oldKey) {
+    currentSeason = newKey;
+    persistCurrentSeason();
+  }
 
   saveDB();
   updateSeasonSelector();

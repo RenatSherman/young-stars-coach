@@ -1,32 +1,41 @@
 /* ============================================================
    05a-player-core.js
-   Ядро карточки игрока:
-   - сохранение / загрузка / демо-данные
-   - подсчёт оценок (tehn / fiz / takt / psih)
-   - создание, удаление, открытие карточки
-   - рендер карточки: паспорт, профили навыков, вкладки
-     (вкладка «Навыки» вместо двух: «Техника» и «Физ/Такт/Псих»)
-   - общие утилиты обновления полей
-
-   Разбиение 05-player.js:
-     05a-player-core.js       ← этот файл
-     05b-player-calendar.js   — календарь игрока
-     05c-player-tables.js     — таблицы, графики, аккордеоны навыков
+   Ядро карточки игрока.
+   saveDB дебаунсится — не блокирует UI на каждом изменении.
    ============================================================ */
 
-/* ===== Сохранение и загрузка ===== */
+/* ===== Debounce сохранения в localStorage ===== */
+let __saveDBTimer = null;
 
 function saveDB() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(DB));
   scheduleSync();
+  if (__saveDBTimer) clearTimeout(__saveDBTimer);
+  __saveDBTimer = setTimeout(() => {
+    __saveDBTimer = null;
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(DB)); }
+    catch (e) { console.warn('saveDB: не удалось сохранить', e); }
+  }, 400);
 }
 
+function saveDBNow() {
+  if (__saveDBTimer) { clearTimeout(__saveDBTimer); __saveDBTimer = null; }
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(DB)); }
+  catch (e) { console.warn('saveDBNow: не удалось сохранить', e); }
+}
+
+window.addEventListener('beforeunload', () => { saveDBNow(); });
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') saveDBNow();
+});
+
+/* ===== Загрузка ===== */
 function loadDB() {
   const raw = localStorage.getItem(STORAGE_KEY) || localStorage.getItem('akbars_hockey_v1');
   if (raw) { try { DB = JSON.parse(raw); } catch (e) { console.error(e); } }
   if (!DB.players)   DB.players = [];
   if (!DB.exercises) DB.exercises = [];
   if (!DB.meta)      DB.meta = {};
+  if (!DB.seasons)   DB.seasons = {};
   DB.players.forEach(p => {
     migrateCalendar(p);
     if (!Array.isArray(p.developmentPlans)) p.developmentPlans = [];
@@ -34,17 +43,22 @@ function loadDB() {
 }
 
 function seedDemoData() {
-  if (DB.players.length > 0 || DB.exercises.length > 0) return;
+  if (DB.players.length > 0 || (Array.isArray(DB.exercises) && DB.exercises.length > 0)) return;
   DB.exercises = [
-    { id: 'ex_posadka1', group: 'Посадка 1', items: ['Прокат в посадке на двух ногах (лицом)', 'Прокат в посадке на правой ноге (лицом)'] },
-    { id: 'ex_ottalk1',  group: 'Отталкивания 1', items: ['Отталкивание внутренним ребром', 'Отталкивание внешним ребром'] },
-    { id: 'ex_fonar1',   group: 'Фонарики 1', items: ['Фонарики', 'Полуфонарики правой ногой'] }
+    { id: 'g_posadka', name: 'Посадка', subgroups: [
+      { id: 'sg_pos1', name: 'Посадка 1', items: ['Прокат в посадке на двух ногах (лицом)', 'Прокат в посадке на правой ноге (лицом)'], links: {} }
+    ]},
+    { id: 'g_ottalk', name: 'Отталкивания', subgroups: [
+      { id: 'sg_ott1', name: 'Отталкивания 1', items: ['Отталкивание внутренним ребром', 'Отталкивание внешним ребром'], links: {} }
+    ]},
+    { id: 'g_fonar', name: 'Фонарики', subgroups: [
+      { id: 'sg_fon1', name: 'Фонарики 1', items: ['Фонарики', 'Полуфонарики правой ногой'], links: {} }
+    ]}
   ];
   saveDB();
 }
 
 /* ===== Оценки ===== */
-
 function computeScores(p, mode) {
   if (!p || !p.techDetail || !p.otherDetail) return { tehn: null, fiz: null, takt: null, psih: null };
   const isEnd = mode === 'end';
@@ -63,17 +77,14 @@ function computeScores(p, mode) {
     psih: groupAvg('Психологические характеристики')
   };
 }
-
 function getCurrentScores(p) { return computeScores(p, 'start'); }
 function getEndScores(p)     { return computeScores(p, 'end'); }
-
 function overallScore(p) {
   const s = getCurrentScores(p);
   const vals = [s.tehn, s.fiz, s.takt, s.psih].filter(v => v != null);
   if (!vals.length) return '—';
   return (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1);
 }
-
 function overallScoreEnd(p) {
   const s = getEndScores(p);
   const vals = [s.tehn, s.fiz, s.takt, s.psih].filter(v => v != null);
@@ -82,7 +93,6 @@ function overallScoreEnd(p) {
 }
 
 /* ===== Создание ===== */
-
 function addPlayer() {
   openModal(`<h3>Новый игрок</h3>
     <div class="field"><label>ФИО</label><input id="np-fio" autofocus></div>
@@ -114,12 +124,16 @@ function saveNewPlayer() {
     plans: {}, calendar: {}, stats: [], tests: [],
     developmentPlans: []
   });
+
+  if (DB.seasons && currentSeason && DB.seasons[currentSeason]) {
+    DB.seasons[currentSeason].players = DB.players;
+  }
+
   saveDB(); closeModal(); renderPlayers();
   toast(`Игрок «${fio}» добавлен`);
 }
 
 /* ===== Удаление ===== */
-
 function confirmDeletePlayer(pid) {
   const p = DB.players.find(x => x.id === pid);
   if (!p) return;
@@ -181,34 +195,33 @@ function confirmDeletePlayer(pid) {
     }, 100);
   }
 }
-
 function doDeletePlayer(pid) {
   const p = DB.players.find(x => x.id === pid);
   if (!p) return;
   DB.players = DB.players.filter(x => x.id !== pid);
+  if (DB.seasons && currentSeason && DB.seasons[currentSeason]) {
+    DB.seasons[currentSeason].players = DB.players;
+  }
   saveDB(); closeModal();
   currentPlayerId = null;
   showScreen('players'); renderPlayers(); updateNotifBadge();
   toast(`Игрок «${p.fio}» удалён`);
 }
-
 function deletePlayerFromTile(event, pid) { event.stopPropagation(); confirmDeletePlayer(pid); }
 
 /* ===== Открытие карточки ===== */
-
 function openPlayer(id) {
   currentPlayerId = id;
   currentTab = 'skills';
   const p = DB.players.find(x => x.id === id);
   if (!p) return;
   currentPlanMonth = null;
-  playerCalMonth = null;
+  if (typeof playerCalMonth !== 'undefined') playerCalMonth = null;
   showScreen('player');
   renderPlayerCard(p);
 }
 
 /* ===== Рендер карточки ===== */
-
 function renderPlayerCard(p) {
   const el = document.getElementById('player-card');
   if (!el) return;
@@ -316,15 +329,13 @@ function renderPlayerCard(p) {
   if (currentTab === 'skills')      renderSkillsContent(p);
 }
 
-/* ===== Поля и перерисовка ===== */
-
+/* ===== Утилиты ===== */
 function updateField(playerId, field, val) {
   const p = DB.players.find(x => x.id === playerId);
   if (!p || p[field] === val) return;
   p[field] = val;
   saveDB();
 }
-
 function scoreDisplay(label, val, hint) {
   const v = val != null ? val : 0;
   return `<div class="score-item">
@@ -334,7 +345,6 @@ function scoreDisplay(label, val, hint) {
     <span class="hint">${hint || ''}</span>
   </div>`;
 }
-
 function refreshProfile(pid) {
   const p = DB.players.find(x => x.id === pid);
   if (!p) return;
