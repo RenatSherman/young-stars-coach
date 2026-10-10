@@ -2,7 +2,10 @@
    02-utils.js
    Утилиты: экранирование, toast, модалки, даты, возраст, время.
    + хелперы сезонов.
-   Загружается после 01-config.js.
+
+   Оптимизация модалок: без transition, мгновенное открытие/закрытие,
+   показ через requestAnimationFrame, чтобы избежать лишних
+   пересчётов layout.
    ============================================================ */
 
 /* ===== Экранирование ===== */
@@ -48,21 +51,43 @@ function toast(msg) {
   document.body.appendChild(el);
   setTimeout(() => {
     el.style.opacity = '0';
-    el.style.transition = 'opacity .3s';
-    setTimeout(() => el.remove(), 300);
-  }, 2500);
+    el.style.transition = 'opacity .2s';
+    setTimeout(() => el.remove(), 220);
+  }, 2200);
 }
 
-/* ===== Модальные окна ===== */
+/* ===== Модальные окна (оптимизированные) ===== */
 function openModal(html) {
-  document.getElementById('modal-content').innerHTML = html;
-  document.getElementById('modal-bg').classList.add('active');
-  document.body.classList.add('modal-open');
+  const bg = document.getElementById('modal-bg');
+  const content = document.getElementById('modal-content');
+  if (!bg || !content) return;
+
+  // 1. Мгновенно скрываем, чтобы не было мигания старого содержимого
+  bg.classList.remove('active');
+
+  // 2. Кладём HTML
+  content.innerHTML = html;
+
+  // 3. Показываем через rAF — браузер сначала отрисует новый контент,
+  //    потом применит display:flex. Одна перерисовка, без transition.
+  requestAnimationFrame(() => {
+    bg.classList.add('active');
+    document.body.classList.add('modal-open');
+  });
 }
 
 function closeModal() {
-  document.getElementById('modal-bg').classList.remove('active');
+  const bg = document.getElementById('modal-bg');
+  if (!bg) return;
+  bg.classList.remove('active');
   document.body.classList.remove('modal-open');
+  // Очищаем содержимое в следующем кадре, чтобы не было мигания
+  const content = document.getElementById('modal-content');
+  if (content) {
+    requestAnimationFrame(() => {
+      if (!bg.classList.contains('active')) content.innerHTML = '';
+    });
+  }
 }
 
 /* Закрытие кликом по затемнённому фону */
@@ -222,12 +247,6 @@ function formatDowDate(d) {
 
 /**
  * Определяет сезон по дате.
- * Сезон: с 1 июля по 31 мая следующего года.
- * Примеры:
- *   '2026-08-15' → '2026/27'
- *   '2027-03-10' → '2026/27'
- *   '2027-06-20' → '2027/28'   (июнь — это межсезонье, уже следующий сезон)
- *   '2027-07-01' → '2027/28'
  */
 function seasonOfDate(dateStr) {
   if (!dateStr || typeof dateStr !== 'string') return null;
@@ -235,69 +254,50 @@ function seasonOfDate(dateStr) {
   if (!m) return null;
   const year = parseInt(m[1], 10);
   const month = parseInt(m[2], 10);
-  // Июнь (6) — межсезонье, относим к следующему сезону.
-  // Июль (7) — старт нового сезона.
-  // Январь–май (1–5) — конец текущего сезона (начавшегося в прошлом году).
   let startYear;
-  if (month >= 7) {
-    // июль–декабрь — текущий сезон начался в этом году
-    startYear = year;
-  } else if (month === 6) {
-    // июнь — межсезонье, уже следующий сезон
-    startYear = year;
-  } else {
-    // январь–май — сезон начался в прошлом году
-    startYear = year - 1;
-  }
+  if (month >= 7) startYear = year;
+  else if (month === 6) startYear = year;
+  else startYear = year - 1;
   return makeSeasonKey(startYear);
 }
 
-/** Формирует ключ сезона: '2026/27' из 2026 */
 function makeSeasonKey(startYear) {
   const y1 = startYear;
   const y2 = (startYear + 1) % 100;
   return `${y1}/${String(y2).padStart(2, '0')}`;
 }
 
-/** Разбирает '2026/27' → { startYear: 2026, endYear: 2027 } */
 function parseSeasonKey(key) {
   if (!key || typeof key !== 'string') return null;
   const m = key.match(/^(\d{4})\/(\d{2})$/);
   if (!m) return null;
   const startYear = parseInt(m[1], 10);
   const endShort = parseInt(m[2], 10);
-  // endShort — это последние 2 цифры конечного года
   const endYear = Math.floor(startYear / 100) * 100 + endShort;
   return { startYear, endYear };
 }
 
-/** Текущий сезон по календарю (например, сегодня 2026-10-06 → '2026/27') */
 function currentSeasonKey() {
   return seasonOfDate(localDateStr(new Date()));
 }
 
-/** Красивая метка сезона для отображения */
 function formatSeasonLabel(key) {
   if (!key) return '';
-  return key;  // '2026/27' — уже красиво
+  return key;
 }
 
-/** Возвращает true, если сезон архивный (не текущий по календарю) */
 function isArchiveSeason(key) {
   return key !== currentSeasonKey();
 }
 
-/** Проверяет и при необходимости чинит структуру DB.seasons */
 function ensureSeasonState() {
   if (!DB.seasons || typeof DB.seasons !== 'object') {
     DB.seasons = {};
   }
   if (!currentSeason || !DB.seasons[currentSeason]) {
-    // Если текущий сезон невалиден — берём по календарю, либо DEFAULT_SEASON
     const def = DB.seasons[currentSeasonKey()] ? currentSeasonKey() : DEFAULT_SEASON;
     currentSeason = DB.seasons[def] ? def : (Object.keys(DB.seasons)[0] || DEFAULT_SEASON);
   }
-  // Синхронизируем DB.players с текущим сезоном
   if (DB.seasons[currentSeason]) {
     DB.players = DB.seasons[currentSeason].players || [];
   } else {
@@ -305,18 +305,15 @@ function ensureSeasonState() {
   }
 }
 
-/** Возвращает отсортированный список ключей сезонов */
 function getSeasonKeys() {
   if (!DB.seasons) return [];
   return Object.keys(DB.seasons).sort((a, b) => {
-    // Сортируем по году начала (по убыванию, новые сверху)
     const pa = parseSeasonKey(a), pb = parseSeasonKey(b);
     if (!pa || !pb) return 0;
     return pb.startYear - pa.startYear;
   });
 }
 
-/** Возвращает true, если сезон редактируемый (текущий или явно разрешён) */
 function canEditSeason(key) {
   if (key === currentSeason) return true;
   return seasonsEditable === true;

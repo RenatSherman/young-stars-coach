@@ -1,7 +1,7 @@
 /* ============================================================
    styles-03-calendar.css
-   Календари, план развития, поповер комплексов, блок «Повторить»,
-   кастомный поповер «Комплекс упражнений», блок упражнений в модалке дня.
+   Календари, план развития, поповеры, тренировки-аккордеоны.
+   Оптимизация: быстрые модалки, короткие анимации аккордеонов.
    ============================================================ */
 
 /* ============================================================
@@ -282,7 +282,7 @@
 }
 
 /* ============================================================
-   4. ПОПОВЕР КОМПЛЕКСОВ (в плане развития)
+   4. ПОПОВЕР КОМПЛЕКСОВ
    ============================================================ */
 .cc-popover{
   display:none;
@@ -607,7 +607,8 @@
 }
 
 /* ============================================================
-   7. МОДАЛКА ДНЯ
+   7. МОДАЛКА ДНЯ — ТРЕНИРОВКИ-АККОРДЕОНЫ
+   Быстрое раскрытие (0.15s), без больших max-height.
    ============================================================ */
 .cc-day-list{
   display:flex;
@@ -617,19 +618,55 @@
   overflow:auto;
   padding-right:4px;
 }
+
 .cc-sess-item{
-  display:flex;
-  align-items:stretch;
-  flex-wrap:wrap;
-  gap:8px;
   background:var(--ak-gray-light);
   border-radius:6px;
   border-left:5px solid var(--ak-green);
-  padding:12px 14px;
-  transition:.15s;
+  overflow:hidden;
+  flex-shrink:0;
 }
-.cc-sess-item:hover{background:var(--ak-gray-mid)}
-.cc-sess-main{flex:1;min-width:0;cursor:pointer;}
+
+.cc-sess-head{
+  display:flex;
+  align-items:stretch;
+  gap:8px;
+  padding:12px 14px;
+  cursor:pointer;
+  user-select:none;
+  transition:background .1s;
+}
+.cc-sess-head:hover{background:var(--ak-gray-mid)}
+.cc-sess-head-left{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  flex:1;
+  min-width:0;
+}
+.cc-sess-arrow{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width:24px;
+  height:24px;
+  border-radius:50%;
+  background:rgba(200,16,46,.1);
+  color:var(--ak-red);
+  font-size:10px;
+  flex-shrink:0;
+  transition:transform .15s, background .1s;
+}
+.cc-sess-item.open .cc-sess-arrow{
+  transform:rotate(90deg);
+  background:var(--ak-green);
+  color:#fff;
+}
+.cc-sess-head-info{
+  flex:1;
+  min-width:0;
+}
+
 .cc-sess-time{
   font-family:var(--font-display);
   font-size:11px;
@@ -642,6 +679,16 @@
   color:var(--ak-green);
   font-size:13px;
   margin-bottom:2px;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.cc-sess-draft-badge{
+  display:inline-block;
+  color:var(--ak-red);
+  font-size:14px;
+  margin-left:6px;
+  font-weight:900;
 }
 .cc-sess-meta{font-size:11px;color:var(--ak-gray-dark)}
 .cc-sess-note{font-size:11px;color:var(--ak-gray-dark);font-style:italic;margin-top:4px}
@@ -656,10 +703,60 @@
   cursor:pointer;
   padding:4px 8px;
   border-radius:4px;
-  transition:.15s;
+  transition:.1s;
 }
 .cc-sess-edit:hover{background:var(--ak-gray-light);color:var(--ak-green)}
 .cc-sess-del:hover{background:#fce8ec;color:var(--ak-red)}
+
+/* Тело тренировки — раскрывается быстро */
+.cc-sess-body{
+  display:grid;
+  grid-template-rows:0fr;
+  transition:grid-template-rows .15s ease;
+}
+.cc-sess-item.open .cc-sess-body{
+  grid-template-rows:1fr;
+}
+.cc-sess-body > .cc-sess-body-inner{
+  overflow:hidden;
+  min-height:0;
+}
+
+.cc-sess-body-inner{
+  padding:12px 14px 14px 14px;
+  border-top:1px dashed var(--ak-gray-mid);
+  background:#fff;
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+}
+
+/* Ряд сохранения */
+.cc-sess-save-row{
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  gap:12px;
+  margin-top:6px;
+  padding-top:10px;
+  border-top:1px dashed var(--ak-gray-mid);
+  flex-wrap:wrap;
+}
+.cc-sess-save-hint{
+  font-size:12px;
+  color:var(--ak-gray-dark);
+  font-style:italic;
+}
+.cc-sess-save-btn{
+  min-width:170px;
+  justify-content:center;
+}
+.cc-sess-save-btn.has-changes{
+  background:var(--ak-red);
+}
+.cc-sess-save-btn.has-changes:hover{
+  background:var(--ak-red-dark);
+}
 
 .cc-fact-pill{
   display:inline-block;
@@ -676,7 +773,171 @@
 .cc-fact-pill.unmarked{background:#E6E8EA;color:var(--ak-gray-dark)}
 
 /* ============================================================
-   8. ПАНЕЛЬ ИГРОКОВ С ФАКТОМ (ccpf-*)
+   8. БЛОК ТРЕНИРОВКИ С ИНЛАЙН-ОЦЕНКОЙ ФАКТА
+   ============================================================ */
+
+.cc-sess-block{
+  padding:10px 12px;
+  background:#fff;
+  border-radius:6px;
+  border-left:4px solid var(--ak-green);
+  border:1px solid var(--ak-gray-mid);
+}
+.cc-sess-block-head{
+  display:flex;
+  justify-content:space-between;
+  gap:8px;
+  margin-bottom:4px;
+  flex-wrap:wrap;
+}
+.cc-sess-block-time{
+  font-family:var(--font-display);
+  font-size:11px;
+  font-weight:900;
+  color:var(--ak-red);
+}
+.cc-sess-block-format{
+  font-size:11px;
+  color:var(--ak-gray-dark);
+  background:var(--ak-gray-light);
+  padding:2px 8px;
+  border-radius:10px;
+}
+.cc-sess-block-name{
+  font-size:13px;
+  font-weight:700;
+  color:var(--ak-green);
+  margin-bottom:4px;
+  display:flex;
+  gap:8px;
+  align-items:center;
+  flex-wrap:wrap;
+}
+.cc-sess-block-partial{
+  font-size:10px;
+  font-weight:700;
+  text-transform:uppercase;
+  letter-spacing:.3px;
+  color:#b8860b;
+  background:#fdf3dd;
+  padding:1px 8px;
+  border-radius:10px;
+}
+
+.cc-sess-block-players{
+  margin-top:10px;
+  padding-top:8px;
+  border-top:1px dashed var(--ak-gray-mid);
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+}
+.cc-sess-block-player{
+  padding:8px 10px;
+  background:var(--ak-gray-light);
+  border-radius:6px;
+  border-left:3px solid var(--ak-red);
+}
+.cc-sess-block-player-head{
+  display:flex;
+  align-items:baseline;
+  gap:10px;
+  flex-wrap:wrap;
+  margin-bottom:6px;
+}
+.cc-sess-block-player-fio{
+  font-family:var(--font-display);
+  font-size:12px;
+  font-weight:900;
+  color:var(--ak-green);
+  text-transform:uppercase;
+  letter-spacing:.3px;
+}
+.cc-sess-block-player-team{
+  font-size:10px;
+  color:var(--ak-gray-dark);
+}
+.cc-sess-block-player-fields{
+  display:flex;
+  gap:6px;
+  flex-wrap:wrap;
+  align-items:center;
+}
+
+.pde-fact{
+  padding:6px 10px;
+  border-radius:6px;
+  border:1.5px solid var(--ak-gray-mid);
+  background:#fff;
+  font-family:inherit;
+  font-size:13px;
+  min-width:200px;
+}
+.pde-fact.done    {border-color:#1e7a3f;background:#E3F3E8;color:#1e7a3f;font-weight:700}
+.pde-fact.partial {border-color:#b8860b;background:#FDF3DD;color:#b8860b;font-weight:700}
+.pde-fact.notdone {border-color:var(--ak-red);background:#FCE8EC;color:var(--ak-red);font-weight:700}
+.pde-comment{
+  flex:1;
+  min-width:200px;
+  padding:6px 10px;
+  border-radius:6px;
+  border:1.5px solid var(--ak-red);
+  background:#fff6f8;
+  font-family:inherit;
+  font-size:13px;
+}
+.pde-comment:focus{
+  outline:none;
+  border-color:var(--ak-red-dark);
+  box-shadow:0 0 0 3px rgba(200,16,46,.12);
+}
+.pde-comment::placeholder{color:var(--ak-red);font-weight:700;}
+
+.bx-block{
+  margin-top:8px;
+  padding:8px 12px;
+  background:#fff;
+  border-radius:6px;
+  border-left:3px solid var(--ak-green);
+  border:1px solid var(--ak-gray-light);
+}
+.bx-head{
+  font-size:11px;
+  font-weight:700;
+  color:var(--ak-green);
+  margin-bottom:6px;
+  text-transform:uppercase;
+  letter-spacing:.3px;
+}
+.bx-list{
+  list-style:none;
+  margin:0;
+  padding:0;
+  display:flex;
+  flex-direction:column;
+  gap:3px;
+}
+.bx-list li{
+  display:flex;
+  align-items:flex-start;
+  gap:8px;
+  font-size:12px;
+  color:var(--ak-text);
+  line-height:1.4;
+}
+.bx-dot{
+  display:inline-block;
+  width:6px;
+  height:6px;
+  border-radius:50%;
+  background:var(--ak-red);
+  margin-top:6px;
+  flex-shrink:0;
+}
+.bx-text{flex:1;min-width:0;}
+
+/* ============================================================
+   9. ПАНЕЛЬ ИГРОКОВ С ФАКТОМ (ccpf-*)
    ============================================================ */
 .ccpf-panel{
   margin-top:12px;
@@ -803,6 +1064,7 @@
   border-top:1px dashed var(--ak-gray-mid);
   display:flex;
   justify-content:flex-end;
+  gap:8px;
 }
 .ccpf-footer .btn{min-width:180px;justify-content:center;}
 
@@ -816,7 +1078,7 @@
 }
 
 /* ============================================================
-   9. БЛОК «ПОВТОРИТЬ НА ДРУГИЕ ДНИ» (cs-repeat-*)
+   10. БЛОК «ПОВТОРИТЬ НА ДРУГИЕ ДНИ»
    ============================================================ */
 .cs-repeat-block{
   margin-top:18px;
@@ -907,7 +1169,7 @@
 .cs-repeat-empty{color:var(--ak-gray-dark);font-size:12px;font-style:italic;}
 
 /* ============================================================
-   10. РЕДАКТОР БЛОКА
+   11. РЕДАКТОР БЛОКА
    ============================================================ */
 .cc-time-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
 .cc-block-end{
@@ -951,13 +1213,14 @@
   cursor:pointer;
   padding:2px 8px;
   border-radius:4px;
-  transition:.15s;
+  transition:.1s;
   line-height:1;
 }
 .cc-block-del:hover{background:#fce8ec;color:var(--ak-red)}
 
 /* ============================================================
-   11. КАСТОМНЫЙ ПОПОВЕР «КОМПЛЕКС УПРАЖНЕНИЙ»
+   12. КАСТОМНЫЙ ПОПОВЕР «КОМПЛЕКС УПРАЖНЕНИЙ»
+   Без transition — мгновенное открытие.
    ============================================================ */
 
 .complex-picker{position:relative;}
@@ -977,7 +1240,7 @@
   font-size:13px;
   cursor:pointer;
   text-align:left;
-  transition:.15s;
+  transition:.1s;
   min-height:40px;
 }
 .complex-picker-btn:hover{
@@ -1078,7 +1341,6 @@
   font-style:italic;
 }
 
-/* Большая группа */
 .complex-picker-group{
   border-bottom:1px solid var(--ak-gray-light);
 }
@@ -1139,7 +1401,6 @@
   background:#fafbfc;
 }
 
-/* Мини-группа */
 .complex-picker-sub{
   padding:1px 0;
   border-bottom:1px dashed rgba(0,0,0,.05);
@@ -1198,7 +1459,7 @@
   border-radius:50%;
   border:2px solid var(--ak-gray-mid);
   flex-shrink:0;
-  transition:.15s;
+  transition:.1s;
 }
 .complex-picker-sub-btn:hover .complex-picker-radio{border-color:var(--ak-green);}
 
@@ -1220,7 +1481,6 @@
   flex-shrink:0;
 }
 
-/* Упражнения внутри мини-группы */
 .complex-picker-sub-body{
   padding:4px 10px 8px 44px;
   background:#fdfdfd;
@@ -1276,7 +1536,7 @@
   letter-spacing:.3px;
   text-transform:uppercase;
   cursor:pointer;
-  transition:.15s;
+  transition:.1s;
   white-space:nowrap;
 }
 .complex-picker-sub-action:hover{background:var(--ak-gray-dark);color:#fff;}
@@ -1315,126 +1575,6 @@
     flex-direction:column;
   }
   .complex-picker-sub-action{width:100%;text-align:center;}
-}
-
-/* ============================================================
-   12. БЛОК УПРАЖНЕНИЙ В МОДАЛКЕ ДНЯ (тренер и игрок)
-   ============================================================ */
-
-/* Полный блок в модалке дня (тренер) */
-.cc-sess-blocks-full{
-  width:100%;
-  margin-top:10px;
-  padding-top:10px;
-  border-top:1px dashed var(--ak-gray-mid);
-  display:flex;
-  flex-direction:column;
-  gap:10px;
-}
-.cc-sess-block{
-  padding:10px 12px;
-  background:#fff;
-  border-radius:6px;
-  border-left:4px solid var(--ak-green);
-  border:1px solid var(--ak-gray-mid);
-}
-.cc-sess-block-head{
-  display:flex;
-  justify-content:space-between;
-  gap:8px;
-  margin-bottom:4px;
-  flex-wrap:wrap;
-}
-.cc-sess-block-time{
-  font-family:var(--font-display);
-  font-size:11px;
-  font-weight:900;
-  color:var(--ak-red);
-}
-.cc-sess-block-format{
-  font-size:11px;
-  color:var(--ak-gray-dark);
-  background:var(--ak-gray-light);
-  padding:2px 8px;
-  border-radius:10px;
-}
-.cc-sess-block-name{
-  font-size:13px;
-  font-weight:700;
-  color:var(--ak-green);
-  margin-bottom:4px;
-  display:flex;
-  gap:8px;
-  align-items:center;
-  flex-wrap:wrap;
-}
-.cc-sess-block-partial{
-  font-size:10px;
-  font-weight:700;
-  text-transform:uppercase;
-  letter-spacing:.3px;
-  color:#b8860b;
-  background:#fdf3dd;
-  padding:1px 8px;
-  border-radius:10px;
-}
-.cc-sess-block-fact{
-  font-size:11px;
-  color:var(--ak-gray-dark);
-  margin-top:6px;
-}
-
-/* Список упражнений блока (общий класс .bx-*) */
-.bx-block{
-  margin-top:8px;
-  padding:8px 12px;
-  background:#fff;
-  border-radius:6px;
-  border-left:3px solid var(--ak-green);
-}
-.bx-head{
-  font-size:11px;
-  font-weight:700;
-  color:var(--ak-green);
-  margin-bottom:6px;
-  text-transform:uppercase;
-  letter-spacing:.3px;
-}
-.bx-list{
-  list-style:none;
-  margin:0;
-  padding:0;
-  display:flex;
-  flex-direction:column;
-  gap:3px;
-}
-.bx-list li{
-  display:flex;
-  align-items:flex-start;
-  gap:8px;
-  font-size:12px;
-  color:var(--ak-text);
-  line-height:1.4;
-}
-.bx-dot{
-  display:inline-block;
-  width:6px;
-  height:6px;
-  border-radius:50%;
-  background:var(--ak-red);
-  margin-top:6px;
-  flex-shrink:0;
-}
-.bx-text{flex:1;min-width:0;}
-
-/* В карточке игрока */
-.pde-block-fact-label{
-  font-size:11px;
-  color:var(--ak-gray-dark);
-  margin-top:6px;
-  font-weight:700;
-  text-transform:uppercase;
-  letter-spacing:.3px;
 }
 
 /* ============================================================
@@ -1495,27 +1635,6 @@
 .pde-block-session{font-size:11px;color:var(--ak-gray-dark)}
 .pde-block-name{font-size:12px;margin-bottom:8px}
 .pde-block-fields{display:flex;gap:6px;flex-wrap:wrap}
-.pde-fact{
-  padding:6px 10px;
-  border-radius:6px;
-  border:1.5px solid var(--ak-gray-mid);
-  background:#fff;
-  font-family:inherit;
-  font-size:13px;
-  min-width:160px;
-}
-.pde-fact.done    {border-color:#1e7a3f;background:#E3F3E8;color:#1e7a3f}
-.pde-fact.partial {border-color:#b8860b;background:#FDF3DD;color:#b8860b}
-.pde-fact.notdone {border-color:var(--ak-red);background:#FCE8EC;color:var(--ak-red)}
-.pde-comment{
-  flex:1;
-  min-width:160px;
-  padding:6px 10px;
-  border-radius:6px;
-  border:1.5px solid var(--ak-gray-mid);
-  font-family:inherit;
-  font-size:13px;
-}
 
 /* ============================================================
    15. СТАРАЯ МОДАЛКА ОТМЕТКИ (fm-*)
@@ -1561,7 +1680,7 @@
   letter-spacing:.4px;
   text-transform:uppercase;
   cursor:pointer;
-  transition:.15s;
+  transition:.1s;
   color:var(--ak-gray-dark);
   white-space:nowrap;
 }
@@ -1596,12 +1715,19 @@
   .ccpf-buttons{flex-direction:column}
   .ccpf-btn{width:100%;justify-content:center}
   .ccpf-open{margin-left:0;width:100%;text-align:center}
+  .ccpf-footer{flex-direction:column}
+  .ccpf-footer .btn{width:100%;min-width:0}
   .cs-repeat-options{grid-template-columns:1fr}
   .cs-repeat-day{width:100%}
   .cs-repeat-day-time{flex:1;width:auto}
-  .cc-sess-item{flex-direction:column}
-  .cc-sess-actions{flex-direction:row;justify-content:flex-end}
-  .cc-sess-blocks-full{margin-top:8px}
+  .cc-sess-head{padding:10px 12px}
+  .cc-sess-body-inner{padding:10px 12px}
+  .cc-sess-block-player-fields{flex-direction:column;align-items:stretch}
+  .pde-fact{width:100%;min-width:0}
+  .pde-comment{width:100%;min-width:0}
+  .cc-sess-save-row{flex-direction:column;align-items:stretch}
+  .cc-sess-save-btn{width:100%}
+  .cc-sess-save-hint{text-align:center}
   .fm-buttons{flex-direction:column}
   .fm-btn{width:100%;justify-content:center}
 }

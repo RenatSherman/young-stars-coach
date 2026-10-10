@@ -1,14 +1,83 @@
 /* ============================================================
-   11-dashboard-calendar.js
+   11-dashboard-calendar.js  v7
    Календарь тренера.
    - месячная сетка
-   - модалка дня (с показом выбранных упражнений)
+   - модалка дня: список тренировок-аккордеонов
+       клик по тренировке → раскрываются блоки + автоскролл к ней
+       в каждом блоке → игроки с селектом факта и комментарием
+       кнопка «Сохранить» внизу каждой тренировки
+   - черновик (draft) фактов: изменения применяются к DB только по кнопке
    - создание/редактирование тренировки
    - блок «Повторить на другие дни»
-   - поле «Комплекс упражнений» — кастомный поповер-дерево
+   - кастомный поповер «Комплекс упражнений»
+   - БЕЗ бейджа «частично» у названия блока (см. renderCoachSessionBlock)
    ============================================================ */
 
-/* ===== Месячная сетка ===== */
+/* Состояние: какие тренировки раскрыты (ключ = ds|sessId) */
+let __coachOpenSessions = new Set();
+
+/* Черновик оценок: ключ = ds|sessId → Map(pid|blockIdx → {fact, comment}) */
+let __coachFactDraft = new Map();
+
+/* Отслеживание модалки дня — чтобы не путать состояния при переоткрытии */
+let __coachDayCurrentDs = null;
+
+/* ============================================================
+   ХЕЛПЕР: реальный блок игрока в его календаре
+   ============================================================ */
+function findPlayerBlockRef(player, ds, sessionId, blockIndex) {
+  if (!player.calendar || !player.calendar[ds]) return null;
+  const day = player.calendar[ds];
+  if (!Array.isArray(day)) return null;
+
+  const sess = day.find(s => s.id === sessionId);
+  if (!sess || !Array.isArray(sess.blocks)) return null;
+
+  const block = sess.blocks[blockIndex];
+  if (!block) return null;
+
+  return { session: sess, block };
+}
+
+function cssEscapeSimple(s) {
+  return String(s).replace(/([^\w-])/g, '\\$1');
+}
+
+/* Ключи черновика */
+function draftKey(ds, sessId) { return ds + '|' + sessId; }
+function draftEntryKey(pid, blockIdx) { return pid + '::' + blockIdx; }
+
+/* Получить черновик сессии (создаёт, если нет) */
+function getFactDraft(ds, sessId) {
+  const k = draftKey(ds, sessId);
+  if (!__coachFactDraft.has(k)) __coachFactDraft.set(k, new Map());
+  return __coachFactDraft.get(k);
+}
+
+/* Очистить черновик */
+function clearFactDraft(ds, sessId) {
+  __coachFactDraft.delete(draftKey(ds, sessId));
+}
+
+/* Есть ли несохранённые изменения в сессии */
+function hasUnsavedDraft(ds, sessId) {
+  const d = __coachFactDraft.get(draftKey(ds, sessId));
+  return d && d.size > 0;
+}
+
+/* Список всех сессий с несохранёнными изменениями в текущем дне */
+function listUnsavedSessions(ds) {
+  const result = [];
+  __coachFactDraft.forEach((map, key) => {
+    if (!key.startsWith(ds + '|')) return;
+    if (map.size > 0) result.push(key.slice(ds.length + 1));
+  });
+  return result;
+}
+
+/* ============================================================
+   МЕСЯЧНАЯ СЕТКА
+   ============================================================ */
 function renderCoachCalendar() {
   const el = document.getElementById('coach-calendar-content');
   if (!el) return;
@@ -211,9 +280,6 @@ function findSubgroupByName(name) {
   return null;
 }
 
-/* Возвращает HTML со списком выбранных упражнений блока.
-   Если выбрана вся мини-группа (complexItems пусто) — показываем все упражнения
-   мини-группы со статусом «все». */
 function renderBlockExercisesLine(b) {
   const name = b.complex || '';
   if (!name) return '';
@@ -244,63 +310,384 @@ function renderBlockExercisesLine(b) {
 }
 
 /* ============================================================
-   МОДАЛКА ДНЯ
+   МОДАЛКА ДНЯ — список тренировок-аккордеонов
    ============================================================ */
 function openDaySessions(ds) {
+  // Если открываем другой день — предупредим о несохранённых изменениях
+  if (__coachDayCurrentDs && __coachDayCurrentDs !== ds) {
+    const unsaved = listUnsavedSessions(__coachDayCurrentDs);
+    if (unsaved.length) {
+      const ok = confirm(`В дне ${formatDateFull(__coachDayCurrentDs)} есть несохранённые оценки (${unsaved.length} тренировк(и)). Продолжить без сохранения?`);
+      if (!ok) return;
+      __coachFactDraft.clear();
+    }
+  }
+
+  __coachDayCurrentDs = ds;
+  if (typeof closeAllComplexPickers === 'function') closeAllComplexPickers();
+
+  // сбрасываем раскрытые тренировки для нового дня
+  __coachOpenSessions = new Set(
+    Array.from(__coachOpenSessions).filter(k => k.startsWith(ds + '|'))
+  );
+
   const sessions = collectDaySessions(ds);
   const title = formatDateFull(ds);
 
   const listHtml = sessions.length
-    ? sessions.map((s, i) => {
-        const color = sessionColor(s);
-        const total = sessionTotalMinutes(s);
-        const range = sessionTimeRange(s);
-        const facts = computeSessionFactsSummary(s, ds);
-        const factHtml = `
-          <span class="cc-fact-pill done">${facts.done}</span>
-          <span class="cc-fact-pill partial">${facts.partial}</span>
-          <span class="cc-fact-pill notdone">${facts.notdone}</span>
-          ${facts.unmarked ? `<span class="cc-fact-pill unmarked">${facts.unmarked}</span>` : ''}
-        `;
-
-        const blocksHtml = (s.blocks || []).map(b => {
-          const end = minutesToTime(timeToMinutes(b.startTime) + (Number(b.duration) || 0));
-          const fact = b.fact ? factLabel(b.fact) : '— не отмечено —';
-          const factCls = factClass(b.fact);
-          return `<div class="cc-sess-block">
-            <div class="cc-sess-block-head">
-              <span class="cc-sess-block-time">${escapeHtml(b.startTime || '')}–${end} · ${Number(b.duration) || 0} мин</span>
-              <span class="cc-sess-block-format">${escapeHtml(b.format || '—')}</span>
-            </div>
-            <div class="cc-sess-block-name">${escapeHtml(b.complex || 'Блок')} ${b.complexItems && b.complexItems.length ? `<span class="cc-sess-block-partial">частично</span>` : ''}</div>
-            ${renderBlockExercisesLine(b)}
-            <div class="cc-sess-block-fact">Оценка (на весь блок): <span class="pcs-fact ${factCls}" style="display:inline-block;padding:2px 10px;font-size:11px">${escapeHtml(fact)}</span></div>
-            ${b.comment ? `<div class="cc-sess-note">Примечание: ${escapeHtml(b.comment)}</div>` : ''}
-          </div>`;
-        }).join('');
-
-        return `<div class="cc-sess-item" style="border-left-color:${color}">
-          <div class="cc-sess-main" onclick="openSessionEditor('${ds}', ${i}, event)">
-            <div class="cc-sess-time">${escapeHtml(range)} · ${total} мин</div>
-            <div class="cc-sess-name">${escapeHtml(s.name || 'Тренировка')}</div>
-            <div class="cc-sess-meta" style="margin-top:4px">${s.players.length} ${plural(s.players.length, 'игрок', 'игрока', 'игроков')} · ${factHtml}</div>
-            ${s.note ? `<div class="cc-sess-note">${escapeHtml(s.note)}</div>` : ''}
-          </div>
-          <div class="cc-sess-actions">
-            <button class="cc-sess-edit" title="Редактировать тренировку" onclick="openSessionEditor('${ds}', ${i}, event)">✎</button>
-            <button class="cc-sess-del" title="Удалить тренировку" onclick="deleteSessionFromDay('${ds}', ${i}, event)">🗑</button>
-          </div>
-          <div class="cc-sess-blocks-full">${blocksHtml}</div>
-        </div>`;
-      }).join('')
+    ? sessions.map((s, i) => renderCoachSessionItem(s, i, ds)).join('')
     : '<p class="subtitle" style="text-align:center;padding:20px 0">На этот день тренировок нет.</p>';
 
   openModal(`<h3>${escapeHtml(title)}</h3>
     <div class="cc-day-list">${listHtml}</div>
     <div class="btn-row" style="margin-top:16px">
       <button class="btn" onclick="openNewSessionForDate('${ds}')">+ Добавить тренировку</button>
-      <button class="btn-ghost btn" onclick="closeModal()">Закрыть</button>
+      <button class="btn-ghost btn" onclick="closeDaySessions()">Закрыть</button>
     </div>`);
+}
+
+/* Закрыть модалку дня с проверкой несохранённых изменений */
+function closeDaySessions() {
+  const ds = __coachDayCurrentDs;
+  if (ds) {
+    const unsaved = listUnsavedSessions(ds);
+    if (unsaved.length) {
+      const ok = confirm(`Есть несохранённые оценки в ${unsaved.length} тренировк(е/ах). Закрыть без сохранения?`);
+      if (!ok) return;
+    }
+  }
+  __coachFactDraft.clear();
+  __coachDayCurrentDs = null;
+  closeModal();
+}
+
+/* Одна тренировка — аккордеон */
+function renderCoachSessionItem(s, idx, ds) {
+  const color = sessionColor(s);
+  const total = sessionTotalMinutes(s);
+  const range = sessionTimeRange(s);
+  const facts = computeSessionFactsSummary(s, ds);
+  const factHtml = `
+    <span class="cc-fact-pill done">${facts.done}</span>
+    <span class="cc-fact-pill partial">${facts.partial}</span>
+    <span class="cc-fact-pill notdone">${facts.notdone}</span>
+    ${facts.unmarked ? `<span class="cc-fact-pill unmarked">${facts.unmarked}</span>` : ''}
+  `;
+
+  const key = ds + '|' + s.id;
+  const isOpen = __coachOpenSessions.has(key);
+  const hasDraft = hasUnsavedDraft(ds, s.id);
+
+  const blocksHtml = (s.blocks || []).map((b, bi) => renderCoachSessionBlock(s, b, bi, ds)).join('');
+
+  return `<div class="cc-sess-item ${isOpen ? 'open' : ''}"
+              data-sess-id="${escapeAttr(s.id)}"
+              style="border-left-color:${color}">
+
+    <div class="cc-sess-head" onclick="toggleCoachSessionAccordion('${ds}', '${s.id}')">
+      <div class="cc-sess-head-left">
+        <span class="cc-sess-arrow">▶</span>
+        <div class="cc-sess-head-info">
+          <div class="cc-sess-time">${escapeHtml(range)} · ${total} мин</div>
+          <div class="cc-sess-name">
+            ${escapeHtml(s.name || 'Тренировка')}
+            ${hasDraft ? '<span class="cc-sess-draft-badge" title="Есть несохранённые изменения">●</span>' : ''}
+          </div>
+          <div class="cc-sess-meta">${s.players.length} ${plural(s.players.length, 'игрок', 'игрока', 'игроков')} · ${factHtml}</div>
+        </div>
+      </div>
+      <div class="cc-sess-actions" onclick="event.stopPropagation()">
+        <button class="cc-sess-edit" title="Редактировать тренировку" onclick="openSessionEditor('${ds}', ${idx}, event)">✎</button>
+        <button class="cc-sess-del" title="Удалить тренировку" onclick="deleteSessionFromDay('${ds}', ${idx}, event)">🗑</button>
+      </div>
+    </div>
+
+    <div class="cc-sess-body">
+      <div class="cc-sess-body-inner">
+        ${s.note ? `<div class="cc-sess-note" style="margin-bottom:8px">${escapeHtml(s.note)}</div>` : ''}
+        ${blocksHtml || '<div class="cc-players-empty">В тренировке нет блоков</div>'}
+
+        <div class="cc-sess-save-row">
+          <span class="cc-sess-save-hint" id="save-hint-${escapeAttr(s.id)}">
+            ${hasDraft ? `Несохранённых изменений: ${(__coachFactDraft.get(draftKey(ds, s.id)) || new Map()).size}` : 'Все изменения сохранены'}
+          </span>
+          <button type="button"
+                  class="btn cc-sess-save-btn ${hasDraft ? 'has-changes' : ''}"
+                  id="save-btn-${escapeAttr(s.id)}"
+                  onclick="saveCoachSessionFacts('${ds}', '${s.id}')">
+            💾 Сохранить
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+/* Один блок тренировки */
+function renderCoachSessionBlock(sess, block, blockIdx, ds) {
+  const end = minutesToTime(timeToMinutes(block.startTime) + (Number(block.duration) || 0));
+
+  const playersHtml = sess.players.map(p => {
+    const player = DB.players.find(x => x.id === p.id);
+    if (!player) return '';
+
+    const ref = findPlayerBlockRef(player, ds, sess.id, blockIdx);
+    const dbFact = ref ? (ref.block.fact || '') : '';
+    const dbComment = ref ? (ref.block.comment || '') : '';
+
+    // Черновик имеет приоритет
+    const draft = getFactDraft(ds, sess.id);
+    const dKey = draftEntryKey(player.id, blockIdx);
+    const curFact = draft.has(dKey) ? draft.get(dKey).fact : dbFact;
+    const curComment = draft.has(dKey) ? draft.get(dKey).comment : dbComment;
+
+    const needComment = (curFact === 'partial' || curFact === 'notdone');
+    const factCls = factClass(curFact);
+
+    const factOptions = FACT_OPTIONS.map(f => {
+      const sel = (f.value === curFact) ? 'selected' : '';
+      return `<option value="${f.value}" ${sel}>${f.label}</option>`;
+    }).join('');
+
+    return `<div class="cc-sess-block-player">
+      <div class="cc-sess-block-player-head">
+        <span class="cc-sess-block-player-fio">${escapeHtml(player.fio || '')}</span>
+        ${player.team ? `<span class="cc-sess-block-player-team">${escapeHtml(player.team)}</span>` : ''}
+      </div>
+      <div class="cc-sess-block-player-fields">
+        <select class="pde-fact ${factCls}"
+                data-pid="${escapeAttr(player.id)}"
+                data-block="${blockIdx}"
+                onchange="onCoachDayBlockFactChange('${ds}', '${player.id}', '${sess.id}', ${blockIdx}, this.value)">
+          ${factOptions}
+        </select>
+        <input type="text"
+               class="pde-comment"
+               data-pid="${escapeAttr(player.id)}"
+               data-block="${blockIdx}"
+               placeholder="${needComment ? 'Комментарий (обязательно)' : 'Комментарий'}"
+               value="${escapeAttr(curComment)}"
+               style="display:${needComment ? 'block' : 'none'}"
+               oninput="onCoachDayBlockCommentChange('${ds}', '${player.id}', '${sess.id}', ${blockIdx}, this.value)">
+      </div>
+    </div>`;
+  }).join('');
+
+  return `<div class="cc-sess-block" data-block-idx="${blockIdx}">
+    <div class="cc-sess-block-head">
+      <span class="cc-sess-block-time">${escapeHtml(block.startTime || '')}–${end} · ${Number(block.duration) || 0} мин</span>
+      <span class="cc-sess-block-format">${escapeHtml(block.format || '—')}</span>
+    </div>
+    <div class="cc-sess-block-name">${escapeHtml(block.complex || 'Блок')}</div>
+    ${renderBlockExercisesLine(block)}
+    ${playersHtml ? `<div class="cc-sess-block-players">${playersHtml}</div>` : '<div class="cc-players-empty" style="margin-top:8px">В тренировке нет игроков</div>'}
+  </div>`;
+}
+
+/* Раскрыть/свернуть тренировку + плавный автоскролл */
+function toggleCoachSessionAccordion(ds, sessId) {
+  const key = ds + '|' + sessId;
+  const wasOpen = __coachOpenSessions.has(key);
+
+  // Если закрываем — спросим, если есть несохранённые
+  if (wasOpen && hasUnsavedDraft(ds, sessId)) {
+    const ok = confirm('В тренировке есть несохранённые оценки. Свернуть без сохранения?');
+    if (!ok) return;
+    clearFactDraft(ds, sessId);
+    // перерисовываем тренировку из БД
+    reRenderCoachSession(ds, sessId);
+    __coachOpenSessions.delete(key);
+    const item = document.querySelector(`.cc-sess-item[data-sess-id="${cssEscapeSimple(sessId)}"]`);
+    if (item) item.classList.remove('open');
+    return;
+  }
+
+  if (wasOpen) __coachOpenSessions.delete(key);
+  else __coachOpenSessions.add(key);
+
+  const item = document.querySelector(`.cc-sess-item[data-sess-id="${cssEscapeSimple(sessId)}"]`);
+  if (!item) return;
+
+  const isOpenNow = __coachOpenSessions.has(key);
+  item.classList.toggle('open', isOpenNow);
+
+  if (isOpenNow) {
+    setTimeout(() => {
+      const list = document.querySelector('.cc-day-list');
+      if (!list) return;
+      const itemTop = item.offsetTop;
+      list.scrollTo({
+        top: Math.max(0, itemTop - 8),
+        behavior: 'smooth'
+      });
+    }, 60);
+
+    setTimeout(() => {
+      const firstSaveRow = item.querySelector('.cc-sess-save-row');
+      if (firstSaveRow) {
+        firstSaveRow.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    }, 400);
+  }
+}
+
+/* Перерисовка одной тренировки (без перерисовки всей модалки) */
+function reRenderCoachSession(ds, sessId) {
+  const sessions = collectDaySessions(ds);
+  const idx = sessions.findIndex(s => s.id === sessId);
+  if (idx < 0) return;
+  const s = sessions[idx];
+
+  const item = document.querySelector(`.cc-sess-item[data-sess-id="${cssEscapeSimple(sessId)}"]`);
+  if (!item) return;
+
+  const wasOpen = item.classList.contains('open');
+  const tmp = document.createElement('div');
+  tmp.innerHTML = renderCoachSessionItem(s, idx, ds);
+  const newItem = tmp.firstElementChild;
+  if (wasOpen) newOpenAndScroll(newItem, ds, sessId);
+  item.replaceWith(newItem);
+}
+
+function newOpenAndScroll(item, ds, sessId) {
+  item.classList.add('open');
+  __coachOpenSessions.add(ds + '|' + sessId);
+}
+
+/* ============================================================
+   ЧЕРНОВИК ФАКТОВ + СОХРАНЕНИЕ
+   ============================================================ */
+
+function onCoachDayBlockFactChange(ds, playerId, sessId, blockIndex, value) {
+  const draft = getFactDraft(ds, sessId);
+  const k = draftEntryKey(playerId, blockIndex);
+
+  const player = DB.players.find(x => x.id === playerId);
+  let curComment = '';
+  if (player) {
+    const ref = findPlayerBlockRef(player, ds, sessId, blockIndex);
+    if (ref) curComment = ref.block.comment || '';
+  }
+  const existing = draft.get(k);
+  if (existing && existing.comment) curComment = existing.comment;
+
+  if (value !== 'partial' && value !== 'notdone') curComment = '';
+
+  draft.set(k, { fact: value, comment: curComment });
+
+  const sel = document.querySelector(
+    `.cc-sess-item[data-sess-id="${cssEscapeSimple(sessId)}"] .cc-sess-block[data-block-idx="${blockIndex}"] .pde-fact[data-pid="${cssEscapeSimple(playerId)}"]`
+  );
+  if (sel) {
+    sel.classList.remove('done', 'partial', 'notdone');
+    if (value === 'done') sel.classList.add('done');
+    else if (value === 'partial') sel.classList.add('partial');
+    else if (value === 'notdone') sel.classList.add('notdone');
+  }
+
+  const inp = document.querySelector(
+    `.cc-sess-item[data-sess-id="${cssEscapeSimple(sessId)}"] .cc-sess-block[data-block-idx="${blockIndex}"] .pde-comment[data-pid="${cssEscapeSimple(playerId)}"]`
+  );
+  if (inp) {
+    const need = (value === 'partial' || value === 'notdone');
+    inp.style.display = need ? 'block' : 'none';
+    inp.placeholder = need ? 'Комментарий (обязательно)' : 'Комментарий';
+    if (!need) inp.value = '';
+    else inp.value = curComment;
+  }
+
+  updateDraftBadge(ds, sessId);
+}
+
+function onCoachDayBlockCommentChange(ds, playerId, sessId, blockIndex, value) {
+  const draft = getFactDraft(ds, sessId);
+  const k = draftEntryKey(playerId, blockIndex);
+  const existing = draft.get(k);
+  if (existing) {
+    existing.comment = (value || '').trim();
+  } else {
+    const player = DB.players.find(x => x.id === playerId);
+    if (!player) return;
+    const ref = findPlayerBlockRef(player, ds, sessId, blockIndex);
+    if (!ref) return;
+    draft.set(k, { fact: ref.block.fact || '', comment: (value || '').trim() });
+  }
+  updateDraftBadge(ds, sessId);
+}
+
+function updateDraftBadge(ds, sessId) {
+  const hasDraft = hasUnsavedDraft(ds, sessId);
+  const count = hasDraft ? (__coachFactDraft.get(draftKey(ds, sessId)) || new Map()).size : 0;
+
+  const item = document.querySelector(`.cc-sess-item[data-sess-id="${cssEscapeSimple(sessId)}"]`);
+  if (!item) return;
+
+  const nameEl = item.querySelector('.cc-sess-name');
+  if (nameEl) {
+    const existing = nameEl.querySelector('.cc-sess-draft-badge');
+    if (hasDraft && !existing) {
+      const badge = document.createElement('span');
+      badge.className = 'cc-sess-draft-badge';
+      badge.title = 'Есть несохранённые изменения';
+      badge.textContent = '●';
+      nameEl.appendChild(badge);
+    } else if (!hasDraft && existing) {
+      existing.remove();
+    }
+  }
+
+  const hint = document.getElementById(`save-hint-${sessId}`);
+  if (hint) {
+    hint.textContent = hasDraft
+      ? `Несохранённых изменений: ${count}`
+      : 'Все изменения сохранены';
+  }
+  const btn = document.getElementById(`save-btn-${sessId}`);
+  if (btn) {
+    btn.classList.toggle('has-changes', hasDraft);
+  }
+}
+
+function saveCoachSessionFacts(ds, sessId) {
+  const draft = __coachFactDraft.get(draftKey(ds, sessId));
+  if (!draft || !draft.size) {
+    toast('Нечего сохранять');
+    return;
+  }
+
+  const errors = [];
+  draft.forEach((val, k) => {
+    if ((val.fact === 'partial' || val.fact === 'notdone') && !(val.comment || '').trim()) {
+      const [pid, bi] = k.split('::');
+      const player = DB.players.find(x => x.id === pid);
+      errors.push(`• ${player ? player.fio : pid} — блок #${Number(bi) + 1}`);
+    }
+  });
+  if (errors.length) {
+    alert('Для «Частично» и «Не выполнено» обязателен комментарий:\n\n' + errors.join('\n'));
+    return;
+  }
+
+  draft.forEach((val, k) => {
+    const [pid, biStr] = k.split('::');
+    const bi = parseInt(biStr, 10);
+    const player = DB.players.find(x => x.id === pid);
+    if (!player) return;
+    const ref = findPlayerBlockRef(player, ds, sessId, bi);
+    if (!ref) return;
+    ref.block.fact = val.fact || '';
+    ref.block.comment = (val.comment || '').trim();
+  });
+
+  clearFactDraft(ds, sessId);
+  saveDB();
+  updateNotifBadge();
+
+  reRenderCoachSession(ds, sessId);
+  const item = document.querySelector(`.cc-sess-item[data-sess-id="${cssEscapeSimple(sessId)}"]`);
+  if (item) item.classList.add('open');
+
+  toast('Факт сохранён');
 }
 
 function computeSessionFactsSummary(sess, ds) {
@@ -331,6 +718,14 @@ let __sessionEditContext = null;
 
 function openSessionEditor(ds, idx, ev) {
   if (ev) ev.stopPropagation();
+
+  const unsaved = listUnsavedSessions(ds);
+  const currentSess = collectDaySessions(ds)[idx];
+  if (unsaved.length && currentSess && !unsaved.includes(currentSess.id)) {
+    if (!confirm(`Есть несохранённые оценки в ${unsaved.length} тренировк(е/ах). Продолжить без сохранения?`)) return;
+    __coachFactDraft.clear();
+  }
+
   const sessions = collectDaySessions(ds);
   const s = sessions[idx];
   if (!s) return;
@@ -459,9 +854,8 @@ function renderSessionForm() {
 }
 
 /* ============================================================
-   РЕНДЕР БЛОКА
+   РЕНДЕР БЛОКА В ФОРМЕ РЕДАКТОРА
    ============================================================ */
-
 function renderBlockEditor(block, idx) {
   const formatOptions = ['<option value="">— не выбрано —</option>']
     .concat(WORK_TYPES.map(v => `<option value="${escapeAttr(v)}" ${block.format === v ? 'selected' : ''}>${escapeHtml(v)}</option>`))
@@ -1205,7 +1599,11 @@ function saveSessionFromForm() {
   saveDB();
   closeModal();
   __sessionEditContext = null;
-  renderCoachCalendar();
+
+  const ds2 = __coachDayCurrentDs;
+  if (ds2) openDaySessions(ds2);
+  else renderCoachCalendar();
+
   updateNotifBadge();
   toast(ctx.isEdit ? 'Тренировка обновлена' : `Тренировка назначена: ${ctx.playerIds.length} ${plural(ctx.playerIds.length, 'игрок', 'игрока', 'игроков')}`);
 }
@@ -1246,6 +1644,7 @@ function deleteSessionFromDay(ds, idx, ev) {
   }
 
   if (!confirm('Удалить тренировку у всех игроков?')) return;
+  clearFactDraft(ds, s.id);
   deleteSessionsByPredicate(session => sessionMatchesOriginal(session, s.id, s.groupId, s.blocks));
   saveDB();
   openDaySessions(ds);
@@ -1257,6 +1656,7 @@ function deleteSessionOnlyThisDay(ds, seriesId, idx) {
   const sessions = collectDaySessions(ds);
   const s = sessions[idx];
   if (!s) return;
+  clearFactDraft(ds, s.id);
   deleteSessionsByPredicate(session => sessionMatchesOriginal(session, s.id, s.groupId, s.blocks));
   saveDB();
   openDaySessions(ds);
