@@ -5,6 +5,7 @@
    - по умолчанию открывается ТЕКУЩИЙ месяц
    - клик по дню → редактируемая модалка с отметкой факта
    - в модалке дня видны выбранные упражнения для каждого блока
+   - блоки сортируются по времени начала
    ============================================================ */
 
 let playerCalMonth = null;
@@ -42,8 +43,6 @@ function renderPlayerCalendarContent(p) {
   const months = collectPlayerPlanMonthsLocal(p);
   const hasAny = months.length > 0;
 
-  // ВСЕГДА открываем ТЕКУЩИЙ месяц, если пользователь сам ничего не выбрал
-  // или если выбранный месяц невалиден
   if (!playerCalMonth || !/^\d{4}-\d{2}$/.test(playerCalMonth)) {
     playerCalMonth = currentMonth;
   }
@@ -119,6 +118,29 @@ function onPlayerCalMonthChange(pid, month) {
   if (p) renderPlayerCalendarContent(p);
 }
 
+/* Возвращает массив всех блоков игрока за день, отсортированный по времени начала */
+function collectPlayerDayBlocks(p, ds) {
+  if (!p || !p.calendar || !p.calendar[ds]) return [];
+  const day = p.calendar[ds];
+  if (!Array.isArray(day)) return [];
+
+  const blocks = [];
+  day.forEach(sess => {
+    (sess.blocks || []).forEach(b => {
+      blocks.push({ ...b, sessionId: sess.id, sessionName: sess.name || '' });
+    });
+  });
+
+  // Сортировка по startTime, при пустом — в конец, стабильно по порядку
+  blocks.sort((a, b) => {
+    const ta = a.startTime || '99:99';
+    const tb = b.startTime || '99:99';
+    return ta.localeCompare(tb);
+  });
+
+  return blocks;
+}
+
 function renderPlayerMonthGrid(p, year, month) {
   const grid = document.getElementById('player-month-grid');
   if (!grid) return;
@@ -147,10 +169,7 @@ function renderPlayerMonthGrid(p, year, month) {
     const isWeekend = (d.getDay() === 0 || d.getDay() === 6);
     const isToday = ds === today;
 
-    const day = (p.calendar && p.calendar[ds]) || [];
-    const sessions = Array.isArray(day) ? day : [];
-    const allBlocks = [];
-    sessions.forEach(sess => (sess.blocks || []).forEach(b => allBlocks.push({ ...b, sessionId: sess.id })));
+    const allBlocks = collectPlayerDayBlocks(p, ds);
     const visible = allBlocks.slice(0, 3);
 
     html += `<div class="cc-day ${isOther ? 'other-month' : ''} ${isWeekend ? 'weekend' : ''} ${isToday ? 'today' : ''}"
@@ -192,28 +211,9 @@ let __playerDayFactCtx = null;
 function openPlayerDaySessions(pid, ds) {
   const p = DB.players.find(x => x.id === pid);
   if (!p) return;
-  const day = (p.calendar && p.calendar[ds]) || [];
-  const sessions = Array.isArray(day) ? day : [];
-  const title = formatDateFull(ds);
 
-  const blocks = [];
-  sessions.forEach(sess => {
-    (sess.blocks || []).forEach((b, bi) => {
-      blocks.push({
-        sessionId: sess.id,
-        sessionName: sess.name || '',
-        blockIndex: bi,
-        complex: b.complex || '',
-        complexItems: Array.isArray(b.complexItems) ? b.complexItems.slice() : [],
-        format: b.format || '',
-        startTime: b.startTime || '',
-        duration: Number(b.duration) || 0,
-        note: b.note || '',
-        fact: b.fact || '',
-        comment: b.comment || ''
-      });
-    });
-  });
+  const blocks = collectPlayerDayBlocks(p, ds);
+  const title = formatDateFull(ds);
 
   if (!blocks.length) {
     openModal(`<h3>${escapeHtml(title)}</h3>
@@ -224,8 +224,23 @@ function openPlayerDaySessions(pid, ds) {
     return;
   }
 
+  // Для сохранения факта нужен sessionId и индекс блока в этой сессии
+  // Поэтому для каждого блока находим ссылку на реальный объект в p.calendar[ds]
+  const realBlocks = blocks.map((b, ui) => {
+    const day = p.calendar[ds] || [];
+    const sess = day.find(s => s.id === b.sessionId);
+    if (!sess) return null;
+    const blockIndex = (sess.blocks || []).findIndex(rb =>
+      (rb.id && b.id && rb.id === b.id) ||
+      ((rb.startTime || '') === (b.startTime || '') && (rb.complex || '') === (b.complex || ''))
+    );
+    if (blockIndex < 0) return null;
+    return { sessionId: sess.id, blockIndex, ui };
+  });
+
   const rowsHtml = blocks.map((b, i) => {
-    const end = minutesToTime(timeToMinutes(b.startTime) + b.duration);
+    const ref = realBlocks[i];
+    const end = minutesToTime(timeToMinutes(b.startTime) + (Number(b.duration) || 0));
     const factOptions = FACT_OPTIONS.map(f => {
       const sel = (f.value === (b.fact || '')) ? 'selected' : '';
       return `<option value="${f.value}" ${sel}>${f.label}</option>`;
@@ -233,7 +248,6 @@ function openPlayerDaySessions(pid, ds) {
     const needComment = (b.fact === 'partial' || b.fact === 'notdone');
     const factCls = factClass(b.fact);
 
-    // Список упражнений: либо вся мини-группа, либо выбранные
     const exHtml = renderBlockExercisesLineForPlayer(b);
 
     return `<div class="pde-block" data-block-index="${i}">
@@ -258,7 +272,10 @@ function openPlayerDaySessions(pid, ds) {
 
   __playerDayFactCtx = {
     pid, ds,
-    blocks: blocks.map(b => ({ ...b }))
+    blocks: blocks.map((b, i) => ({
+      ...b,
+      realRef: realBlocks[i]
+    }))
   };
 
   openModal(`<h3>${escapeHtml(title)}</h3>
@@ -270,7 +287,6 @@ function openPlayerDaySessions(pid, ds) {
     </div>`);
 }
 
-/* Список упражнений для модалки дня игрока */
 function renderBlockExercisesLineForPlayer(b) {
   const name = b.complex || '';
   if (!name) return '';
@@ -341,20 +357,28 @@ function savePlayerDayFact() {
     }
   }
 
-  if (typeof saveBlockFact !== 'function') {
-    alert('Ошибка: saveBlockFact не найдена.');
-    return;
-  }
+  const pid = ctx.pid;
+  const p = DB.players.find(x => x.id === pid);
+  if (!p) { closeModal(); return; }
 
+  // Применяем правки напрямую к реальным блокам
   ctx.blocks.forEach(b => {
-    saveBlockFact(ctx.pid, ctx.ds, b.sessionId, b.blockIndex, b.fact, b.comment);
+    if (!b.realRef) return;
+    const day = p.calendar[ctx.ds] || [];
+    const sess = day.find(s => s.id === b.realRef.sessionId);
+    if (!sess || !Array.isArray(sess.blocks)) return;
+    const block = sess.blocks[b.realRef.blockIndex];
+    if (!block) return;
+    block.fact = b.fact || '';
+    block.comment = (b.comment || '').trim();
   });
 
-  const pid = ctx.pid;
+  saveDB();
+  updateNotifBadge();
+
   __playerDayFactCtx = null;
   closeModal();
 
-  const p = DB.players.find(x => x.id === pid);
-  if (p) renderPlayerCalendarContent(p);
+  renderPlayerCalendarContent(p);
   toast('Факт сохранён');
 }

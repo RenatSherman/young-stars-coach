@@ -1,5 +1,5 @@
 /* ============================================================
-   11-dashboard-calendar.js  v7
+   11-dashboard-calendar.js  v8
    Календарь тренера.
    - месячная сетка
    - модалка дня: список тренировок-аккордеонов
@@ -10,7 +10,8 @@
    - создание/редактирование тренировки
    - блок «Повторить на другие дни»
    - кастомный поповер «Комплекс упражнений»
-   - БЕЗ бейджа «частично» у названия блока (см. renderCoachSessionBlock)
+   - Блоки в сессии сортируются по времени начала
+   - Без бейджа «частично» у названия блока
    ============================================================ */
 
 /* Состояние: какие тренировки раскрыты (ключ = ds|sessId) */
@@ -19,7 +20,7 @@ let __coachOpenSessions = new Set();
 /* Черновик оценок: ключ = ds|sessId → Map(pid|blockIdx → {fact, comment}) */
 let __coachFactDraft = new Map();
 
-/* Отслеживание модалки дня — чтобы не путать состояния при переоткрытии */
+/* Отслеживание модалки дня */
 let __coachDayCurrentDs = null;
 
 /* ============================================================
@@ -43,29 +44,24 @@ function cssEscapeSimple(s) {
   return String(s).replace(/([^\w-])/g, '\\$1');
 }
 
-/* Ключи черновика */
 function draftKey(ds, sessId) { return ds + '|' + sessId; }
 function draftEntryKey(pid, blockIdx) { return pid + '::' + blockIdx; }
 
-/* Получить черновик сессии (создаёт, если нет) */
 function getFactDraft(ds, sessId) {
   const k = draftKey(ds, sessId);
   if (!__coachFactDraft.has(k)) __coachFactDraft.set(k, new Map());
   return __coachFactDraft.get(k);
 }
 
-/* Очистить черновик */
 function clearFactDraft(ds, sessId) {
   __coachFactDraft.delete(draftKey(ds, sessId));
 }
 
-/* Есть ли несохранённые изменения в сессии */
 function hasUnsavedDraft(ds, sessId) {
   const d = __coachFactDraft.get(draftKey(ds, sessId));
   return d && d.size > 0;
 }
 
-/* Список всех сессий с несохранёнными изменениями в текущем дне */
 function listUnsavedSessions(ds) {
   const result = [];
   __coachFactDraft.forEach((map, key) => {
@@ -192,7 +188,10 @@ function renderCoachMonthGrid(year, month) {
 
 function sessionFirstTime(sess) {
   if (!sess || !Array.isArray(sess.blocks) || !sess.blocks.length) return '';
-  return sess.blocks[0].startTime || '';
+  // Возвращаем минимальное время среди блоков
+  const times = sess.blocks.map(b => b.startTime).filter(Boolean);
+  if (!times.length) return '';
+  return times.sort()[0];
 }
 
 /* ===== Сбор тренировок за день ===== */
@@ -212,11 +211,16 @@ function collectDaySessions(ds) {
           seriesId: sess.seriesId || null,
           name: sess.name || '',
           note: sess.note || '',
-          blocks: Array.isArray(sess.blocks) ? sess.blocks.map(b => ({ ...b })) : [],
+          blocks: [],
           players: []
         });
       }
       const entry = map.get(key);
+      // Клонируем блоки И СОРТИРУЕМ по времени
+      const cloned = (Array.isArray(sess.blocks) ? sess.blocks : []).map(b => ({ ...b }));
+      cloned.sort((a, b) => (a.startTime || '99:99').localeCompare(b.startTime || '99:99'));
+      entry.blocks = cloned;
+
       if (!entry.players.find(x => x.id === p.id)) {
         entry.players.push({ id: p.id, fio: p.fio, team: p.team || '' });
       }
@@ -310,10 +314,9 @@ function renderBlockExercisesLine(b) {
 }
 
 /* ============================================================
-   МОДАЛКА ДНЯ — список тренировок-аккордеонов
+   МОДАЛКА ДНЯ
    ============================================================ */
 function openDaySessions(ds) {
-  // Если открываем другой день — предупредим о несохранённых изменениях
   if (__coachDayCurrentDs && __coachDayCurrentDs !== ds) {
     const unsaved = listUnsavedSessions(__coachDayCurrentDs);
     if (unsaved.length) {
@@ -326,7 +329,6 @@ function openDaySessions(ds) {
   __coachDayCurrentDs = ds;
   if (typeof closeAllComplexPickers === 'function') closeAllComplexPickers();
 
-  // сбрасываем раскрытые тренировки для нового дня
   __coachOpenSessions = new Set(
     Array.from(__coachOpenSessions).filter(k => k.startsWith(ds + '|'))
   );
@@ -346,7 +348,6 @@ function openDaySessions(ds) {
     </div>`);
 }
 
-/* Закрыть модалку дня с проверкой несохранённых изменений */
 function closeDaySessions() {
   const ds = __coachDayCurrentDs;
   if (ds) {
@@ -361,7 +362,6 @@ function closeDaySessions() {
   closeModal();
 }
 
-/* Одна тренировка — аккордеон */
 function renderCoachSessionItem(s, idx, ds) {
   const color = sessionColor(s);
   const total = sessionTotalMinutes(s);
@@ -423,7 +423,6 @@ function renderCoachSessionItem(s, idx, ds) {
   </div>`;
 }
 
-/* Один блок тренировки */
 function renderCoachSessionBlock(sess, block, blockIdx, ds) {
   const end = minutesToTime(timeToMinutes(block.startTime) + (Number(block.duration) || 0));
 
@@ -435,7 +434,6 @@ function renderCoachSessionBlock(sess, block, blockIdx, ds) {
     const dbFact = ref ? (ref.block.fact || '') : '';
     const dbComment = ref ? (ref.block.comment || '') : '';
 
-    // Черновик имеет приоритет
     const draft = getFactDraft(ds, sess.id);
     const dKey = draftEntryKey(player.id, blockIdx);
     const curFact = draft.has(dKey) ? draft.get(dKey).fact : dbFact;
@@ -484,17 +482,14 @@ function renderCoachSessionBlock(sess, block, blockIdx, ds) {
   </div>`;
 }
 
-/* Раскрыть/свернуть тренировку + плавный автоскролл */
 function toggleCoachSessionAccordion(ds, sessId) {
   const key = ds + '|' + sessId;
   const wasOpen = __coachOpenSessions.has(key);
 
-  // Если закрываем — спросим, если есть несохранённые
   if (wasOpen && hasUnsavedDraft(ds, sessId)) {
     const ok = confirm('В тренировке есть несохранённые оценки. Свернуть без сохранения?');
     if (!ok) return;
     clearFactDraft(ds, sessId);
-    // перерисовываем тренировку из БД
     reRenderCoachSession(ds, sessId);
     __coachOpenSessions.delete(key);
     const item = document.querySelector(`.cc-sess-item[data-sess-id="${cssEscapeSimple(sessId)}"]`);
@@ -531,7 +526,6 @@ function toggleCoachSessionAccordion(ds, sessId) {
   }
 }
 
-/* Перерисовка одной тренировки (без перерисовки всей модалки) */
 function reRenderCoachSession(ds, sessId) {
   const sessions = collectDaySessions(ds);
   const idx = sessions.findIndex(s => s.id === sessId);
@@ -545,13 +539,11 @@ function reRenderCoachSession(ds, sessId) {
   const tmp = document.createElement('div');
   tmp.innerHTML = renderCoachSessionItem(s, idx, ds);
   const newItem = tmp.firstElementChild;
-  if (wasOpen) newOpenAndScroll(newItem, ds, sessId);
+  if (wasOpen) {
+    newItem.classList.add('open');
+    __coachOpenSessions.add(ds + '|' + sessId);
+  }
   item.replaceWith(newItem);
-}
-
-function newOpenAndScroll(item, ds, sessId) {
-  item.classList.add('open');
-  __coachOpenSessions.add(ds + '|' + sessId);
 }
 
 /* ============================================================
@@ -853,9 +845,6 @@ function renderSessionForm() {
   }, 0);
 }
 
-/* ============================================================
-   РЕНДЕР БЛОКА В ФОРМЕ РЕДАКТОРА
-   ============================================================ */
 function renderBlockEditor(block, idx) {
   const formatOptions = ['<option value="">— не выбрано —</option>']
     .concat(WORK_TYPES.map(v => `<option value="${escapeAttr(v)}" ${block.format === v ? 'selected' : ''}>${escapeHtml(v)}</option>`))
