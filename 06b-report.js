@@ -1,6 +1,14 @@
 /* ============================================================
    06b-report.js
    Отчёт по итогам месяца.
+
+   Правки:
+   - По умолчанию выбирается ТЕКУЩИЙ календарный месяц, если он
+     есть в списке. Иначе — ближайший прошлый.
+   - Уникальная сигнатура блока — date|sessIdx|blockIdx, чтобы
+     НЕ терять блоки с одинаковым sess.id.
+   - Колонка «Время» в таблице отчёта.
+   - Пустой формат отображается как «— не выбрано —».
    ============================================================ */
 
 function collectAllPlanMonths() {
@@ -25,6 +33,21 @@ function monthLabelFromKey(ym) {
   return `${MONTH_NAMES_RU[m - 1]} ${y}`;
 }
 
+function getCurrentMonthKey() {
+  const today = new Date();
+  return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+}
+
+/* Текущий календарный месяц в приоритете, иначе — ближайший прошлый */
+function pickDefaultReportMonth(months) {
+  if (!months || !months.length) return getCurrentMonthKey();
+  const current = getCurrentMonthKey();
+  if (months.includes(current)) return current;
+  const past = months.filter(m => m <= current);
+  if (past.length) return past[past.length - 1];
+  return months[0];
+}
+
 function computePlayerMonthStats(p, month) {
   if (!p || !p.calendar) {
     return { total: 0, done: 0, partial: 0, notdone: 0, volume: 0, items: [], completion: 0 };
@@ -37,15 +60,21 @@ function computePlayerMonthStats(p, month) {
     const day = p.calendar[date];
     if (!Array.isArray(day)) return;
 
-    day.forEach(sess => {
-      (sess.blocks || []).forEach(b => {
+    day.forEach((sess, sessIdx) => {
+      (sess.blocks || []).forEach((b, bi) => {
         total++;
         volume += Number(b.duration) || 0;
         if (b.fact === 'done') done++;
         else if (b.fact === 'partial') partial++;
         else if (b.fact === 'notdone') notdone++;
+
         items.push({
+          sig: date + '|' + sessIdx + '|' + bi,
           date,
+          sessIdx,
+          blockIndex: bi,
+          sessId: sess.id || ('no_id_' + sessIdx),
+          sessionName: sess.name || '',
           complex: b.complex || '',
           format: b.format || '',
           startTime: b.startTime || '',
@@ -55,6 +84,12 @@ function computePlayerMonthStats(p, month) {
         });
       });
     });
+  });
+
+  // Сортировка: по дате → по времени начала блока
+  items.sort((a, b) => {
+    if (a.date !== b.date) return a.date.localeCompare(b.date);
+    return (a.startTime || '99:99').localeCompare(b.startTime || '99:99');
   });
 
   const completion = total ? Math.round((done + partial * 0.5) / total * 100) : 0;
@@ -85,10 +120,15 @@ function renderReport() {
   if (monthSel) {
     const prev = monthSel.value || reportMonth;
     monthSel.innerHTML = months.map(m => `<option value="${m}">${monthLabelFromKey(m)}</option>`).join('');
-    reportMonth = (prev && months.includes(prev)) ? prev : months[months.length - 1];
+
+    if (prev && months.includes(prev)) {
+      reportMonth = prev;
+    } else {
+      reportMonth = pickDefaultReportMonth(months);
+    }
     monthSel.value = reportMonth;
   } else {
-    if (!reportMonth) reportMonth = months[months.length - 1];
+    if (!reportMonth) reportMonth = pickDefaultReportMonth(months);
   }
 
   if (playerSel) {
@@ -127,10 +167,12 @@ function renderReport() {
                    : it.fact === 'partial' ? 'fact-partial'
                    : it.fact === 'notdone' ? 'fact-notdone'
                    : '';
-      return `<tr class="${factCls}">
+      const formatDisplay = it.format ? escapeHtml(it.format) : '— не выбрано —';
+      return `<tr class="${factCls}" data-sig="${escapeAttr(it.sig)}">
         <td>${formatDate(it.date)}</td>
+        <td>${escapeHtml(it.startTime || '')}</td>
         <td>${escapeHtml(it.complex || '')}</td>
-        <td>${escapeHtml(it.format || '')}</td>
+        <td>${formatDisplay}</td>
         <td>${it.duration}</td>
         <td>${factLabel(it.fact)}</td>
         <td>${escapeHtml(it.comment || '')}</td>
@@ -151,7 +193,15 @@ function renderReport() {
         <div class="report-progress"><span style="width:${st.completion}%"></span></div>
         <div style="font-size:12px;font-weight:700;color:var(--ak-green);margin-bottom:10px">Выполнение: ${st.completion}%</div>
         <table class="report-table">
-          <thead><tr><th>Дата</th><th>Комплекс</th><th>Формат</th><th>Мин</th><th>Факт</th><th>Примечание</th></tr></thead>
+          <thead><tr>
+            <th>Дата</th>
+            <th>Время</th>
+            <th>Комплекс</th>
+            <th>Формат</th>
+            <th>Мин</th>
+            <th>Факт</th>
+            <th>Примечание</th>
+          </tr></thead>
           <tbody>${rows}</tbody>
         </table>
       </div>`;

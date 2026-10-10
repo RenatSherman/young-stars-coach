@@ -1,45 +1,74 @@
 /* ============================================================
-   11-dashboard-calendar.js  v8
+   11-dashboard-calendar.js  v14
    Календарь тренера.
-   - месячная сетка
-   - модалка дня: список тренировок-аккордеонов
-       клик по тренировке → раскрываются блоки + автоскролл к ней
-       в каждом блоке → игроки с селектом факта и комментарием
-       кнопка «Сохранить» внизу каждой тренировки
-   - черновик (draft) фактов: изменения применяются к DB только по кнопке
-   - создание/редактирование тренировки
-   - блок «Повторить на другие дни»
-   - кастомный поповер «Комплекс упражнений»
-   - Блоки в сессии сортируются по времени начала
-   - Без бейджа «частично» у названия блока
+   Никаких alert/confirm — только свои модалки.
+
+   v14:
+   - saveSessionFromForm() переписан: сначала closeModal(),
+     затем полная перерисовка календаря и модалки дня.
+   - closeDaySessions / openDaySessionsInner корректно работают
+     при открытии после сохранения.
    ============================================================ */
 
-/* Состояние: какие тренировки раскрыты (ключ = ds|sessId) */
 let __coachOpenSessions = new Set();
-
-/* Черновик оценок: ключ = ds|sessId → Map(pid|blockIdx → {fact, comment}) */
 let __coachFactDraft = new Map();
-
-/* Отслеживание модалки дня */
 let __coachDayCurrentDs = null;
 
 /* ============================================================
-   ХЕЛПЕР: реальный блок игрока в его календаре
+   КАСТОМНЫЕ МОДАЛКИ ПОДТВЕРЖДЕНИЯ И УВЕДОМЛЕНИЙ
    ============================================================ */
-function findPlayerBlockRef(player, ds, sessionId, blockIndex) {
-  if (!player.calendar || !player.calendar[ds]) return null;
-  const day = player.calendar[ds];
-  if (!Array.isArray(day)) return null;
 
-  const sess = day.find(s => s.id === sessionId);
-  if (!sess || !Array.isArray(sess.blocks)) return null;
-
-  const block = sess.blocks[blockIndex];
-  if (!block) return null;
-
-  return { session: sess, block };
+/* Своя замена alert — открывает модалку с кнопкой «OK» */
+function uiAlert(message, onClose) {
+  const bg = document.getElementById('modal-bg');
+  const content = document.getElementById('modal-content');
+  if (!bg || !content) return;
+  content.innerHTML = `
+    <h3>Внимание</h3>
+    <p style="margin-bottom:16px;line-height:1.5;white-space:pre-wrap">${escapeHtml(message || '')}</p>
+    <div class="btn-row" style="margin:0">
+      <button class="btn" id="ui-alert-ok">OK</button>
+    </div>`;
+  bg.classList.add('active');
+  document.body.classList.add('modal-open');
+  const close = () => {
+    bg.classList.remove('active');
+    document.body.classList.remove('modal-open');
+    content.innerHTML = '';
+    if (typeof onClose === 'function') onClose();
+  };
+  const btn = document.getElementById('ui-alert-ok');
+  if (btn) btn.onclick = close;
 }
 
+/* Своя замена confirm — открывает модалку с «OK» и «Отмена» */
+function uiConfirm(message, onConfirm, onCancel) {
+  const bg = document.getElementById('modal-bg');
+  const content = document.getElementById('modal-content');
+  if (!bg || !content) return;
+  content.innerHTML = `
+    <h3>Подтверждение</h3>
+    <p style="margin-bottom:16px;line-height:1.5;white-space:pre-wrap">${escapeHtml(message || '')}</p>
+    <div class="btn-row" style="margin:0">
+      <button class="btn btn-red" id="ui-confirm-ok">Подтвердить</button>
+      <button class="btn-ghost btn" id="ui-confirm-cancel">Отмена</button>
+    </div>`;
+  bg.classList.add('active');
+  document.body.classList.add('modal-open');
+  const close = () => {
+    bg.classList.remove('active');
+    document.body.classList.remove('modal-open');
+    content.innerHTML = '';
+  };
+  const okBtn = document.getElementById('ui-confirm-ok');
+  const cancelBtn = document.getElementById('ui-confirm-cancel');
+  if (okBtn) okBtn.onclick = () => { close(); if (typeof onConfirm === 'function') onConfirm(); };
+  if (cancelBtn) cancelBtn.onclick = () => { close(); if (typeof onCancel === 'function') onCancel(); };
+}
+
+/* ============================================================
+   ХЕЛПЕРЫ
+   ============================================================ */
 function cssEscapeSimple(s) {
   return String(s).replace(/([^\w-])/g, '\\$1');
 }
@@ -188,26 +217,30 @@ function renderCoachMonthGrid(year, month) {
 
 function sessionFirstTime(sess) {
   if (!sess || !Array.isArray(sess.blocks) || !sess.blocks.length) return '';
-  // Возвращаем минимальное время среди блоков
   const times = sess.blocks.map(b => b.startTime).filter(Boolean);
   if (!times.length) return '';
   return times.sort()[0];
 }
 
-/* ===== Сбор тренировок за день ===== */
+/* ============================================================
+   СБОР ТРЕНИРОВОК ЗА ДЕНЬ
+   ============================================================ */
 function collectDaySessions(ds) {
   const map = new Map();
 
   DB.players.forEach(p => {
     const day = p.calendar && p.calendar[ds];
     if (!Array.isArray(day)) return;
-    day.forEach(sess => {
+    day.forEach((sess, sessIdxInPlayer) => {
       if (!sess) return;
-      const key = sess.id || (sess.groupId ? sess.groupId + '|' + ds : ('solo_' + p.id + '_' + ds + '_' + (sess.name || '')));
+
+      const key = makeSessionGroupKey(sess, p, ds, sessIdxInPlayer);
+
       if (!map.has(key)) {
         map.set(key, {
-          id: sess.id,
-          groupId: sess.groupId,
+          id: sess.id || (ds + '::' + key),
+          realId: sess.id || null,
+          groupId: sess.groupId || null,
           seriesId: sess.seriesId || null,
           name: sess.name || '',
           note: sess.note || '',
@@ -216,10 +249,15 @@ function collectDaySessions(ds) {
         });
       }
       const entry = map.get(key);
-      // Клонируем блоки И СОРТИРУЕМ по времени
-      const cloned = (Array.isArray(sess.blocks) ? sess.blocks : []).map(b => ({ ...b }));
-      cloned.sort((a, b) => (a.startTime || '99:99').localeCompare(b.startTime || '99:99'));
-      entry.blocks = cloned;
+
+      const existingKeys = new Set(entry.blocks.map(b => blockIdentityKey(b)));
+      const incoming = Array.isArray(sess.blocks) ? sess.blocks : [];
+      incoming.forEach(b => {
+        const k = blockIdentityKey(b);
+        if (existingKeys.has(k)) return;
+        existingKeys.add(k);
+        entry.blocks.push({ ...b });
+      });
 
       if (!entry.players.find(x => x.id === p.id)) {
         entry.players.push({ id: p.id, fio: p.fio, team: p.team || '' });
@@ -227,11 +265,33 @@ function collectDaySessions(ds) {
     });
   });
 
+  map.forEach(entry => {
+    entry.blocks.sort((a, b) => (a.startTime || '99:99').localeCompare(b.startTime || '99:99'));
+  });
+
   return Array.from(map.values()).sort((a, b) => {
     const ta = sessionFirstTime(a);
     const tb = sessionFirstTime(b);
     return (ta || '').localeCompare(tb || '');
   });
+}
+
+function makeSessionGroupKey(sess, player, ds, sessIdxInPlayer) {
+  if (sess.id) return 'id:' + sess.id;
+  if (sess.groupId) return 'grp:' + sess.groupId + '|' + ds;
+
+  const blocks = Array.isArray(sess.blocks) ? sess.blocks : [];
+  const sigParts = blocks.map(b =>
+    (b.id || '') + '|' + (b.startTime || '') + '|' + (b.complex || '') + '|' + (b.format || '') + '|' + (b.duration || '')
+  ).sort().join(';');
+
+  return 'solo:' + player.id + '|' + ds + '|' + sessIdxInPlayer + '|' + (sess.name || '') + '|' + sigParts;
+}
+
+function blockIdentityKey(b) {
+  if (!b) return 'empty';
+  if (b.id) return 'id:' + b.id;
+  return 'sig:' + (b.startTime || '') + '|' + (b.complex || '') + '|' + (b.format || '') + '|' + (b.duration || '');
 }
 
 function sessionColor(sess) {
@@ -259,7 +319,9 @@ function sessionTimeRange(sess) {
   return `${firstStart}–${end}`;
 }
 
-/* ===== Отображение complexItems ===== */
+/* ============================================================
+   complexItems
+   ============================================================ */
 function blockComplexLabel(block) {
   const name = (block && block.complex) ? block.complex : '';
   const items = (block && Array.isArray(block.complexItems)) ? block.complexItems : [];
@@ -320,13 +382,20 @@ function openDaySessions(ds) {
   if (__coachDayCurrentDs && __coachDayCurrentDs !== ds) {
     const unsaved = listUnsavedSessions(__coachDayCurrentDs);
     if (unsaved.length) {
-      const ok = confirm(`В дне ${formatDateFull(__coachDayCurrentDs)} есть несохранённые оценки (${unsaved.length} тренировк(и)). Продолжить без сохранения?`);
-      if (!ok) return;
-      __coachFactDraft.clear();
+      uiConfirm(
+        `В дне ${formatDateFull(__coachDayCurrentDs)} есть несохранённые оценки (${unsaved.length} тренировк(и)).\nПродолжить без сохранения?`,
+        () => { __coachFactDraft.clear(); __coachDayCurrentDs = ds; openDaySessionsInner(ds); },
+        () => {}
+      );
+      return;
     }
   }
 
   __coachDayCurrentDs = ds;
+  openDaySessionsInner(ds);
+}
+
+function openDaySessionsInner(ds) {
   if (typeof closeAllComplexPickers === 'function') closeAllComplexPickers();
 
   __coachOpenSessions = new Set(
@@ -353,8 +422,12 @@ function closeDaySessions() {
   if (ds) {
     const unsaved = listUnsavedSessions(ds);
     if (unsaved.length) {
-      const ok = confirm(`Есть несохранённые оценки в ${unsaved.length} тренировк(е/ах). Закрыть без сохранения?`);
-      if (!ok) return;
+      uiConfirm(
+        `Есть несохранённые оценки в ${unsaved.length} тренировк(е/ах).\nЗакрыть без сохранения?`,
+        () => { __coachFactDraft.clear(); __coachDayCurrentDs = null; closeModal(); },
+        () => {}
+      );
+      return;
     }
   }
   __coachFactDraft.clear();
@@ -382,6 +455,7 @@ function renderCoachSessionItem(s, idx, ds) {
 
   return `<div class="cc-sess-item ${isOpen ? 'open' : ''}"
               data-sess-id="${escapeAttr(s.id)}"
+              data-sess-idx="${idx}"
               style="border-left-color:${color}">
 
     <div class="cc-sess-head" onclick="toggleCoachSessionAccordion('${ds}', '${s.id}')">
@@ -397,8 +471,18 @@ function renderCoachSessionItem(s, idx, ds) {
         </div>
       </div>
       <div class="cc-sess-actions" onclick="event.stopPropagation()">
-        <button class="cc-sess-edit" title="Редактировать тренировку" onclick="openSessionEditor('${ds}', ${idx}, event)">✎</button>
-        <button class="cc-sess-del" title="Удалить тренировку" onclick="deleteSessionFromDay('${ds}', ${idx}, event)">🗑</button>
+        <button class="cc-sess-edit"
+                title="Изменить тренировку"
+                onclick="event.stopPropagation(); openSessionEditor('${ds}', ${idx}, event)">
+          <span class="cc-sess-action-icon">✎</span>
+          <span class="cc-sess-action-text">Изменить</span>
+        </button>
+        <button class="cc-sess-del"
+                title="Удалить тренировку"
+                onclick="event.stopPropagation(); deleteSessionFromDay('${ds}', ${idx}, event)">
+          <span class="cc-sess-action-icon">🗑</span>
+          <span class="cc-sess-action-text">Удалить</span>
+        </button>
       </div>
     </div>
 
@@ -425,14 +509,15 @@ function renderCoachSessionItem(s, idx, ds) {
 
 function renderCoachSessionBlock(sess, block, blockIdx, ds) {
   const end = minutesToTime(timeToMinutes(block.startTime) + (Number(block.duration) || 0));
+  const formatDisplay = block.format ? escapeHtml(block.format) : '— не выбрано —';
 
   const playersHtml = sess.players.map(p => {
     const player = DB.players.find(x => x.id === p.id);
     if (!player) return '';
 
-    const ref = findPlayerBlockRef(player, ds, sess.id, blockIdx);
-    const dbFact = ref ? (ref.block.fact || '') : '';
-    const dbComment = ref ? (ref.block.comment || '') : '';
+    const realRef = findMatchingPlayerBlock(player, ds, sess, block);
+    const dbFact = realRef ? (realRef.block.fact || '') : '';
+    const dbComment = realRef ? (realRef.block.comment || '') : '';
 
     const draft = getFactDraft(ds, sess.id);
     const dKey = draftEntryKey(player.id, blockIdx);
@@ -474,7 +559,7 @@ function renderCoachSessionBlock(sess, block, blockIdx, ds) {
   return `<div class="cc-sess-block" data-block-idx="${blockIdx}">
     <div class="cc-sess-block-head">
       <span class="cc-sess-block-time">${escapeHtml(block.startTime || '')}–${end} · ${Number(block.duration) || 0} мин</span>
-      <span class="cc-sess-block-format">${escapeHtml(block.format || '—')}</span>
+      <span class="cc-sess-block-format">${formatDisplay}</span>
     </div>
     <div class="cc-sess-block-name">${escapeHtml(block.complex || 'Блок')}</div>
     ${renderBlockExercisesLine(block)}
@@ -482,18 +567,61 @@ function renderCoachSessionBlock(sess, block, blockIdx, ds) {
   </div>`;
 }
 
+function findMatchingPlayerBlock(player, ds, session, displayBlock) {
+  if (!player.calendar || !player.calendar[ds]) return null;
+  const day = player.calendar[ds];
+  if (!Array.isArray(day)) return null;
+
+  let candidates = [];
+  if (session.realId) {
+    candidates = day.filter(s => s.id === session.realId);
+  }
+  if (!candidates.length) {
+    const sessName = session.name || '';
+    const sessSig = (session.blocks || []).map(b =>
+      (b.startTime || '') + '|' + (b.complex || '') + '|' + (b.format || '') + '|' + (b.duration || '')
+    ).sort().join(';');
+    candidates = day.filter(s => {
+      if ((s.name || '') !== sessName) return false;
+      const sig = (s.blocks || []).map(b =>
+        (b.startTime || '') + '|' + (b.complex || '') + '|' + (b.format || '') + '|' + (b.duration || '')
+      ).sort().join(';');
+      return sig === sessSig;
+    });
+  }
+  if (!candidates.length) return null;
+
+  const sess = candidates[0];
+
+  if (displayBlock.id) {
+    const byId = sess.blocks.findIndex(b => b.id === displayBlock.id);
+    if (byId >= 0) return { session: sess, block: sess.blocks[byId], index: byId };
+  }
+
+  const sig = (b) => (b.startTime || '') + '|' + (b.complex || '') + '|' + (b.format || '') + '|' + (b.duration || '');
+  const target = sig(displayBlock);
+  const bySig = sess.blocks.findIndex(b => sig(b) === target);
+  if (bySig >= 0) return { session: sess, block: sess.blocks[bySig], index: bySig };
+
+  return null;
+}
+
 function toggleCoachSessionAccordion(ds, sessId) {
   const key = ds + '|' + sessId;
   const wasOpen = __coachOpenSessions.has(key);
 
   if (wasOpen && hasUnsavedDraft(ds, sessId)) {
-    const ok = confirm('В тренировке есть несохранённые оценки. Свернуть без сохранения?');
-    if (!ok) return;
-    clearFactDraft(ds, sessId);
-    reRenderCoachSession(ds, sessId);
-    __coachOpenSessions.delete(key);
-    const item = document.querySelector(`.cc-sess-item[data-sess-id="${cssEscapeSimple(sessId)}"]`);
-    if (item) item.classList.remove('open');
+    uiConfirm(
+      'В тренировке есть несохранённые оценки.\nСвернуть без сохранения?',
+      () => {
+        clearFactDraft(ds, sessId);
+        reRenderCoachSession(ds, sessId);
+        __coachOpenSessions.delete(key);
+        const item = document.querySelector(`.cc-sess-item[data-sess-id="${cssEscapeSimple(sessId)}"]`);
+        if (item) item.classList.remove('open');
+      },
+      () => {}
+    );
     return;
   }
 
@@ -511,17 +639,12 @@ function toggleCoachSessionAccordion(ds, sessId) {
       const list = document.querySelector('.cc-day-list');
       if (!list) return;
       const itemTop = item.offsetTop;
-      list.scrollTo({
-        top: Math.max(0, itemTop - 8),
-        behavior: 'smooth'
-      });
+      list.scrollTo({ top: Math.max(0, itemTop - 8), behavior: 'smooth' });
     }, 60);
 
     setTimeout(() => {
       const firstSaveRow = item.querySelector('.cc-sess-save-row');
-      if (firstSaveRow) {
-        firstSaveRow.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      }
+      if (firstSaveRow) firstSaveRow.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }, 400);
   }
 }
@@ -557,8 +680,13 @@ function onCoachDayBlockFactChange(ds, playerId, sessId, blockIndex, value) {
   const player = DB.players.find(x => x.id === playerId);
   let curComment = '';
   if (player) {
-    const ref = findPlayerBlockRef(player, ds, sessId, blockIndex);
-    if (ref) curComment = ref.block.comment || '';
+    const sessions = collectDaySessions(ds);
+    const s = sessions.find(x => x.id === sessId);
+    const b = s && s.blocks[blockIndex];
+    if (b && s) {
+      const ref = findMatchingPlayerBlock(player, ds, s, b);
+      if (ref) curComment = ref.block.comment || '';
+    }
   }
   const existing = draft.get(k);
   if (existing && existing.comment) curComment = existing.comment;
@@ -600,9 +728,15 @@ function onCoachDayBlockCommentChange(ds, playerId, sessId, blockIndex, value) {
   } else {
     const player = DB.players.find(x => x.id === playerId);
     if (!player) return;
-    const ref = findPlayerBlockRef(player, ds, sessId, blockIndex);
-    if (!ref) return;
-    draft.set(k, { fact: ref.block.fact || '', comment: (value || '').trim() });
+    const sessions = collectDaySessions(ds);
+    const s = sessions.find(x => x.id === sessId);
+    const b = s && s.blocks[blockIndex];
+    let curFact = '';
+    if (b && s) {
+      const ref = findMatchingPlayerBlock(player, ds, s, b);
+      if (ref) curFact = ref.block.fact || '';
+    }
+    draft.set(k, { fact: curFact, comment: (value || '').trim() });
   }
   updateDraftBadge(ds, sessId);
 }
@@ -635,9 +769,7 @@ function updateDraftBadge(ds, sessId) {
       : 'Все изменения сохранены';
   }
   const btn = document.getElementById(`save-btn-${sessId}`);
-  if (btn) {
-    btn.classList.toggle('has-changes', hasDraft);
-  }
+  if (btn) btn.classList.toggle('has-changes', hasDraft);
 }
 
 function saveCoachSessionFacts(ds, sessId) {
@@ -656,16 +788,23 @@ function saveCoachSessionFacts(ds, sessId) {
     }
   });
   if (errors.length) {
-    alert('Для «Частично» и «Не выполнено» обязателен комментарий:\n\n' + errors.join('\n'));
+    uiAlert('Для «Частично» и «Не выполнено» обязателен комментарий:\n\n' + errors.join('\n'));
     return;
   }
+
+  const sessions = collectDaySessions(ds);
+  const sess = sessions.find(x => x.id === sessId);
 
   draft.forEach((val, k) => {
     const [pid, biStr] = k.split('::');
     const bi = parseInt(biStr, 10);
     const player = DB.players.find(x => x.id === pid);
     if (!player) return;
-    const ref = findPlayerBlockRef(player, ds, sessId, bi);
+    if (!sess) return;
+    const displayBlock = sess.blocks[bi];
+    if (!displayBlock) return;
+
+    const ref = findMatchingPlayerBlock(player, ds, sess, displayBlock);
     if (!ref) return;
     ref.block.fact = val.fact || '';
     ref.block.comment = (val.comment || '').trim();
@@ -684,19 +823,17 @@ function saveCoachSessionFacts(ds, sessId) {
 
 function computeSessionFactsSummary(sess, ds) {
   let done = 0, partial = 0, notdone = 0, unmarked = 0;
-  const sessionId = sess.id;
 
-  DB.players.forEach(p => {
-    const day = p.calendar && p.calendar[ds];
-    if (!Array.isArray(day)) return;
-    day.forEach(s => {
-      if (s.id !== sessionId) return;
-      (s.blocks || []).forEach(b => {
-        if (b.fact === 'done') done++;
-        else if (b.fact === 'partial') partial++;
-        else if (b.fact === 'notdone') notdone++;
-        else unmarked++;
-      });
+  (sess.players || []).forEach(p => {
+    const player = DB.players.find(x => x.id === p.id);
+    if (!player) return;
+    (sess.blocks || []).forEach(b => {
+      const ref = findMatchingPlayerBlock(player, ds, sess, b);
+      if (!ref) return;
+      if (ref.block.fact === 'done') done++;
+      else if (ref.block.fact === 'partial') partial++;
+      else if (ref.block.fact === 'notdone') notdone++;
+      else unmarked++;
     });
   });
 
@@ -714,10 +851,18 @@ function openSessionEditor(ds, idx, ev) {
   const unsaved = listUnsavedSessions(ds);
   const currentSess = collectDaySessions(ds)[idx];
   if (unsaved.length && currentSess && !unsaved.includes(currentSess.id)) {
-    if (!confirm(`Есть несохранённые оценки в ${unsaved.length} тренировк(е/ах). Продолжить без сохранения?`)) return;
-    __coachFactDraft.clear();
+    uiConfirm(
+      `Есть несохранённые оценки в ${unsaved.length} тренировк(е/ах).\nПродолжить без сохранения?`,
+      () => { __coachFactDraft.clear(); openSessionEditorInner(ds, idx); },
+      () => {}
+    );
+    return;
   }
 
+  openSessionEditorInner(ds, idx);
+}
+
+function openSessionEditorInner(ds, idx) {
   const sessions = collectDaySessions(ds);
   const s = sessions[idx];
   if (!s) return;
@@ -725,14 +870,16 @@ function openSessionEditor(ds, idx, ev) {
   __sessionEditContext = {
     ds,
     isEdit: true,
-    originalId: s.id,
+    originalId: s.realId,
     originalGroupId: s.groupId,
     originalSeriesId: s.seriesId || null,
     originalBlocks: s.blocks.map(b => ({ ...b })),
+    originalName: s.name || '',
     name: s.name || '',
     note: s.note || '',
     playerIds: s.players.map(p => p.id),
     blocks: s.blocks.length ? s.blocks.map(b => ({
+      id: b.id || null,
       complex: b.complex || '',
       complexItems: Array.isArray(b.complexItems) ? b.complexItems.slice() : [],
       format: b.format || '',
@@ -759,6 +906,7 @@ function openNewSessionForDate(ds) {
     originalGroupId: null,
     originalSeriesId: null,
     originalBlocks: null,
+    originalName: '',
     name: '',
     note: '',
     playerIds: [],
@@ -773,9 +921,10 @@ function openNewSessionForDate(ds) {
 
 function newEmptyBlock() {
   return {
+    id: null,
     complex: '',
     complexItems: [],
-    format: '',
+    format: 'Самостоятельная',
     startTime: '18:00',
     duration: 60,
     note: '',
@@ -1126,7 +1275,7 @@ function assignComplexItemsFromSub(event, btn) {
   });
 
   if (!checkedItems.length) {
-    alert('Отметьте хотя бы одно упражнение. Если нужно выбрать всю мини-группу — кликните по кружку рядом с названием.');
+    uiAlert('Отметьте хотя бы одно упражнение. Если нужно выбрать всю мини-группу — кликните по кружку рядом с названием.');
     return;
   }
 
@@ -1290,7 +1439,15 @@ function addBlockToForm() {
     duration = Number(last.duration) || 60;
   }
   ctx.blocks.push({
-    complex: '', complexItems: [], format: '', startTime, duration, note: '', fact: '', comment: ''
+    id: null,
+    complex: '',
+    complexItems: [],
+    format: 'Самостоятельная',
+    startTime,
+    duration,
+    note: '',
+    fact: '',
+    comment: ''
   });
   renderSessionForm();
 }
@@ -1448,11 +1605,11 @@ function applyRepeatToForm() {
   if (!ctx) return;
 
   const dates = computeRepeatDates();
-  if (!dates.length) { alert('Выберите хотя бы один день недели'); return; }
+  if (!dates.length) { toast('Выберите хотя бы один день недели'); return; }
 
   const validBlocks = collectValidBlocksFromCtx(ctx);
   if (!validBlocks) return;
-  if (!ctx.playerIds.length) { alert('Выберите хотя бы одного игрока'); return; }
+  if (!ctx.playerIds.length) { toast('Выберите хотя бы одного игрока'); return; }
 
   const seriesId = ctx.originalSeriesId || uid('ser');
 
@@ -1490,8 +1647,8 @@ function collectValidBlocksFromCtx(ctx) {
     const b = ctx.blocks[i];
     const hasAny = (b.complex || '').trim() || (b.format || '').trim() || (b.note || '').trim();
     if (!hasAny) continue;
-    if (!b.startTime) { alert(`Блок #${i + 1}: укажите время начала`); return null; }
-    if (!b.duration || Number(b.duration) <= 0) { alert(`Блок #${i + 1}: укажите продолжительность`); return null; }
+    if (!b.startTime) { toast(`Блок #${i + 1}: укажите время начала`); return null; }
+    if (!b.duration || Number(b.duration) <= 0) { toast(`Блок #${i + 1}: укажите продолжительность`); return null; }
 
     validBlocks.push({
       id: b.id || uid('blk'),
@@ -1505,7 +1662,7 @@ function collectValidBlocksFromCtx(ctx) {
       comment: b.comment || ''
     });
   }
-  if (!validBlocks.length) { alert('Добавьте хотя бы один блок'); return null; }
+  if (!validBlocks.length) { toast('Добавьте хотя бы один блок'); return null; }
   return validBlocks;
 }
 
@@ -1533,25 +1690,45 @@ function createSessionForDate(ds, name, note, blocks, playerIds, groupId, series
   return sessId;
 }
 
+/* ============================================================
+   СОХРАНЕНИЕ ТРЕНИРОВКИ (создание/редактирование)
+
+   Порядок действий:
+   1. Закрываем модалку редактора (closeModal синхронный).
+   2. Сохраняем данные в DB.
+   3. Полностью перерисовываем основную сетку календаря.
+   4. Если модалка дня была открыта — перерисовываем её заново.
+   5. Тост.
+   ============================================================ */
 function saveSessionFromForm() {
   syncFormToContext();
   const ctx = __sessionEditContext;
   if (!ctx) return;
 
   const ds = ctx.ds;
-  if (!ds) { alert('Укажите дату'); return; }
+  if (!ds) { toast('Укажите дату'); return; }
 
   const validBlocks = collectValidBlocksFromCtx(ctx);
   if (!validBlocks) return;
-  if (!ctx.playerIds.length) { alert('Выберите хотя бы одного игрока'); return; }
+  if (!ctx.playerIds.length) { toast('Выберите хотя бы одного игрока'); return; }
 
-  const newSession = {
-    id: ctx.originalId || uid('sess'),
-    name: (ctx.name || '').trim(),
-    note: (ctx.note || '').trim(),
-    groupId: ctx.originalGroupId || (ctx.playerIds.length > 1 ? uid('grp') : null),
-    seriesId: ctx.originalSeriesId || null,
-    blocks: validBlocks
+  const newSessionId = ctx.originalId || uid('sess');
+  const newGroupId = ctx.originalGroupId || (ctx.playerIds.length > 1 ? uid('grp') : null);
+
+  const matchOriginal = (s) => {
+    if (!s) return false;
+    if (ctx.originalId && s.id === ctx.originalId) return true;
+    if (ctx.originalGroupId && s.groupId === ctx.originalGroupId) return true;
+    if (!ctx.originalId && !ctx.originalGroupId && ctx.originalBlocks) {
+      if ((s.name || '') !== (ctx.originalName || '')) return false;
+      const a = s.blocks || [];
+      const b = ctx.originalBlocks || [];
+      if (a.length !== b.length) return false;
+      const sigA = a.map(x => (x.startTime||'') + '|' + (x.complex||'') + '|' + (x.format||'') + '|' + (x.duration||'')).sort().join(';');
+      const sigB = b.map(x => (x.startTime||'') + '|' + (x.complex||'') + '|' + (x.format||'') + '|' + (x.duration||'')).sort().join(';');
+      return sigA === sigB;
+    }
+    return false;
   };
 
   if (ctx.isEdit) {
@@ -1560,7 +1737,7 @@ function saveSessionFromForm() {
       Object.keys(p.calendar).forEach(date => {
         const day = p.calendar[date];
         if (!Array.isArray(day)) return;
-        p.calendar[date] = day.filter(s => !sessionMatchesOriginal(s, ctx.originalId, ctx.originalGroupId, ctx.originalBlocks));
+        p.calendar[date] = day.filter(s => !matchOriginal(s));
         if (!p.calendar[date].length) delete p.calendar[date];
       });
     });
@@ -1571,14 +1748,13 @@ function saveSessionFromForm() {
     if (!p) return;
     if (!p.calendar) p.calendar = {};
     if (!p.calendar[ds]) p.calendar[ds] = [];
-    p.calendar[ds] = p.calendar[ds].filter(s => s.id !== newSession.id);
     p.calendar[ds].push({
-      id: newSession.id,
-      name: newSession.name,
-      note: newSession.note,
-      groupId: newSession.groupId,
-      seriesId: newSession.seriesId,
-      blocks: newSession.blocks.map(b => ({
+      id: newSessionId,
+      name: (ctx.name || '').trim(),
+      note: (ctx.note || '').trim(),
+      groupId: newGroupId,
+      seriesId: ctx.originalSeriesId || null,
+      blocks: validBlocks.map(b => ({
         ...b,
         complexItems: Array.isArray(b.complexItems) ? b.complexItems.slice() : []
       }))
@@ -1586,28 +1762,25 @@ function saveSessionFromForm() {
   });
 
   saveDB();
+
+  // Запоминаем до сброса контекста
+  const wasDayOpen = !!__coachDayCurrentDs;
+  const dayDs = __coachDayCurrentDs;
+
+  // 1. Синхронно закрываем редактор.
   closeModal();
   __sessionEditContext = null;
 
-  const ds2 = __coachDayCurrentDs;
-  if (ds2) openDaySessions(ds2);
-  else renderCoachCalendar();
+  // 2. Полностью перерисовываем основную сетку календаря.
+  renderCoachCalendar();
+
+  // 3. Если модалка дня была открыта — перерисовываем и её.
+  if (wasDayOpen && dayDs) {
+    openDaySessionsInner(dayDs);
+  }
 
   updateNotifBadge();
   toast(ctx.isEdit ? 'Тренировка обновлена' : `Тренировка назначена: ${ctx.playerIds.length} ${plural(ctx.playerIds.length, 'игрок', 'игрока', 'игроков')}`);
-}
-
-function sessionMatchesOriginal(s, originalId, originalGroupId, originalBlocks) {
-  if (!s) return false;
-  if (originalId && s.id && s.id === originalId) return true;
-  if (originalGroupId && s.groupId && s.groupId === originalGroupId) return true;
-  if (originalBlocks && Array.isArray(s.blocks) && s.blocks.length && originalBlocks.length) {
-    const a = s.blocks[0], b = originalBlocks[0];
-    return (a.startTime || '') === (b.startTime || '')
-        && (a.complex || '')   === (b.complex || '')
-        && (a.format || '')    === (b.format || '');
-  }
-  return false;
 }
 
 /* ============================================================
@@ -1620,25 +1793,23 @@ function deleteSessionFromDay(ds, idx, ev) {
   if (!s) return;
 
   if (s.seriesId) {
-    openModal(`
-      <h3>Удалить тренировку</h3>
-      <p class="subtitle">Эта тренировка — часть серии. Что удалить?</p>
-      <div class="btn-row" style="margin-top:16px">
-        <button class="btn btn-red" onclick="deleteSessionOnlyThisDay('${ds}', '${s.seriesId}', ${idx})">Только этот день</button>
-        <button class="btn btn-red" onclick="deleteSessionWholeSeries('${s.seriesId}')">Всю серию</button>
-        <button class="btn-ghost btn" onclick="openDaySessions('${ds}')">Отмена</button>
-      </div>
-    `);
+    uiConfirm(
+      'Эта тренировка — часть серии.\nУдалить только этот день или всю серию?',
+      () => { deleteSessionOnlyThisDay(ds, s.seriesId, idx); },
+      () => {}
+    );
     return;
   }
 
-  if (!confirm('Удалить тренировку у всех игроков?')) return;
-  clearFactDraft(ds, s.id);
-  deleteSessionsByPredicate(session => sessionMatchesOriginal(session, s.id, s.groupId, s.blocks));
-  saveDB();
-  openDaySessions(ds);
-  renderCoachCalendar();
-  updateNotifBadge();
+  uiConfirm('Удалить тренировку у всех игроков?', () => {
+    clearFactDraft(ds, s.id);
+    deleteSessionsByFilter(s);
+    saveDB();
+    renderCoachCalendar();
+    if (__coachDayCurrentDs === ds) openDaySessionsInner(ds);
+    updateNotifBadge();
+    toast('Тренировка удалена');
+  }, () => {});
 }
 
 function deleteSessionOnlyThisDay(ds, seriesId, idx) {
@@ -1646,10 +1817,10 @@ function deleteSessionOnlyThisDay(ds, seriesId, idx) {
   const s = sessions[idx];
   if (!s) return;
   clearFactDraft(ds, s.id);
-  deleteSessionsByPredicate(session => sessionMatchesOriginal(session, s.id, s.groupId, s.blocks));
+  deleteSessionsByFilter(s);
   saveDB();
-  openDaySessions(ds);
   renderCoachCalendar();
+  if (__coachDayCurrentDs === ds) openDaySessionsInner(ds);
   updateNotifBadge();
   toast('Удалена одна тренировка из серии');
 }
@@ -1674,13 +1845,31 @@ function deleteSessionWholeSeries(seriesId) {
   toast(`Удалена вся серия (${removed} записей)`);
 }
 
-function deleteSessionsByPredicate(predicate) {
+function deleteSessionsByFilter(s) {
+  const targetId = s.realId;
+  const targetGroupId = s.groupId;
+  const targetName = s.name || '';
+  const targetSig = (s.blocks || []).map(b =>
+    (b.startTime || '') + '|' + (b.complex || '') + '|' + (b.format || '') + '|' + (b.duration || '')
+  ).sort().join(';');
+
   DB.players.forEach(p => {
     if (!p.calendar) return;
     Object.keys(p.calendar).forEach(ds => {
       const day = p.calendar[ds];
       if (!Array.isArray(day)) return;
-      p.calendar[ds] = day.filter(s => !predicate(s));
+      p.calendar[ds] = day.filter(sess => {
+        if (targetId && sess.id === targetId) return false;
+        if (targetGroupId && sess.groupId === targetGroupId) return false;
+        if (!targetId && !targetGroupId) {
+          if ((sess.name || '') !== targetName) return true;
+          const sig = (sess.blocks || []).map(b =>
+            (b.startTime || '') + '|' + (b.complex || '') + '|' + (b.format || '') + '|' + (b.duration || '')
+          ).sort().join(';');
+          return sig !== targetSig;
+        }
+        return true;
+      });
       if (!p.calendar[ds].length) delete p.calendar[ds];
     });
   });

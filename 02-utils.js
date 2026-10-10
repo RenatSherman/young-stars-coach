@@ -3,9 +3,9 @@
    Утилиты: экранирование, toast, модалки, даты, возраст, время.
    + хелперы сезонов.
 
-   Оптимизация модалок: без transition, мгновенное открытие/закрытие,
-   показ через requestAnimationFrame, чтобы избежать лишних
-   пересчётов layout.
+   Оптимизация модалок: без transition, мгновенное открытие/закрытие.
+   openModal/closeModal синхронные: сначала полностью закрываем
+   предыдущее окно, затем открываем новое. Никаких rAF-гонок.
    ============================================================ */
 
 /* ===== Экранирование ===== */
@@ -56,38 +56,43 @@ function toast(msg) {
   }, 2200);
 }
 
-/* ===== Модальные окна (оптимизированные) ===== */
+/* ============================================================
+   МОДАЛЬНЫЕ ОКНА
+   Синхронные операции. Гарантированно убирают содержимое
+   перед открытием нового окна, чтобы не оставалось «залипших»
+   пустых плашек.
+   ============================================================ */
+
 function openModal(html) {
   const bg = document.getElementById('modal-bg');
   const content = document.getElementById('modal-content');
   if (!bg || !content) return;
 
-  // 1. Мгновенно скрываем, чтобы не было мигания старого содержимого
+  // 1. Полностью закрываем предыдущее окно синхронно.
   bg.classList.remove('active');
+  document.body.classList.remove('modal-open');
+  content.innerHTML = '';
 
-  // 2. Кладём HTML
+  // 2. Форсируем reflow, чтобы браузер применил display:none до
+  //    следующего display:flex — иначе возможны визуальные артефакты.
+  void bg.offsetWidth;
+
+  // 3. Кладём новый HTML и открываем.
   content.innerHTML = html;
-
-  // 3. Показываем через rAF — браузер сначала отрисует новый контент,
-  //    потом применит display:flex. Одна перерисовка, без transition.
-  requestAnimationFrame(() => {
-    bg.classList.add('active');
-    document.body.classList.add('modal-open');
-  });
+  bg.classList.add('active');
+  document.body.classList.add('modal-open');
 }
 
 function closeModal() {
   const bg = document.getElementById('modal-bg');
+  const content = document.getElementById('modal-content');
   if (!bg) return;
+
   bg.classList.remove('active');
   document.body.classList.remove('modal-open');
-  // Очищаем содержимое в следующем кадре, чтобы не было мигания
-  const content = document.getElementById('modal-content');
-  if (content) {
-    requestAnimationFrame(() => {
-      if (!bg.classList.contains('active')) content.innerHTML = '';
-    });
-  }
+
+  // Синхронная очистка — никаких rAF-гонок с последующим openModal.
+  if (content) content.innerHTML = '';
 }
 
 /* Закрытие кликом по затемнённому фону */
@@ -245,9 +250,6 @@ function formatDowDate(d) {
    СЕЗОНЫ: хелперы
    ============================================================ */
 
-/**
- * Определяет сезон по дате.
- */
 function seasonOfDate(dateStr) {
   if (!dateStr || typeof dateStr !== 'string') return null;
   const m = dateStr.match(/^(\d{4})-(\d{2})/);

@@ -1,11 +1,9 @@
 /* ============================================================
    05b-player-calendar.js
-   Календарь игрока в карточке:
-   - месячная сетка (всегда, даже без тренировок)
-   - по умолчанию открывается ТЕКУЩИЙ месяц
-   - клик по дню → редактируемая модалка с отметкой факта
-   - в модалке дня видны выбранные упражнения для каждого блока
-   - блоки сортируются по времени начала
+   Календарь игрока:
+   - месячная сетка (одна строка = одна сессия)
+   - клик по дню → модалка с плоским списком блоков и отметкой факта
+   - прямые ссылки на блоки (без поиска по индексам) — гарантия сохранения
    ============================================================ */
 
 let playerCalMonth = null;
@@ -41,7 +39,6 @@ function renderPlayerCalendarContent(p) {
   const today = new Date();
   const currentMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
   const months = collectPlayerPlanMonthsLocal(p);
-  const hasAny = months.length > 0;
 
   if (!playerCalMonth || !/^\d{4}-\d{2}$/.test(playerCalMonth)) {
     playerCalMonth = currentMonth;
@@ -118,7 +115,35 @@ function onPlayerCalMonthChange(pid, month) {
   if (p) renderPlayerCalendarContent(p);
 }
 
-/* Возвращает массив всех блоков игрока за день, отсортированный по времени начала */
+/* ============================================================
+   СЕССИИ ИГРОКА ЗА ДЕНЬ (для сетки месяца)
+   ============================================================ */
+function collectPlayerDaySessions(p, ds) {
+  if (!p || !p.calendar || !p.calendar[ds]) return [];
+  const day = p.calendar[ds];
+  if (!Array.isArray(day)) return [];
+
+  return day.map(sess => {
+    const blocks = Array.isArray(sess.blocks) ? sess.blocks.slice() : [];
+    blocks.sort((a, b) => (a.startTime || '99:99').localeCompare(b.startTime || '99:99'));
+    const total = blocks.reduce((acc, b) => acc + (Number(b.duration) || 0), 0);
+    return {
+      id: sess.id,
+      groupId: sess.groupId || null,
+      name: sess.name || '',
+      note: sess.note || '',
+      blocks,
+      firstTime: blocks[0] ? (blocks[0].startTime || '') : '',
+      totalMinutes: total
+    };
+  }).sort((a, b) => (a.firstTime || '').localeCompare(b.firstTime || ''));
+}
+
+/* ============================================================
+   БЛОКИ ИГРОКА ЗА ДЕНЬ (для модалки дня)
+   Возвращает плоский список блоков с ПРЯМЫМИ ссылками на
+   объекты sess и block в p.calendar[ds].
+   ============================================================ */
 function collectPlayerDayBlocks(p, ds) {
   if (!p || !p.calendar || !p.calendar[ds]) return [];
   const day = p.calendar[ds];
@@ -126,19 +151,48 @@ function collectPlayerDayBlocks(p, ds) {
 
   const blocks = [];
   day.forEach(sess => {
-    (sess.blocks || []).forEach(b => {
-      blocks.push({ ...b, sessionId: sess.id, sessionName: sess.name || '' });
+    const sessBlocks = Array.isArray(sess.blocks) ? sess.blocks : [];
+    sessBlocks.forEach((b, bi) => {
+      blocks.push({
+        // прямые ссылки
+        sessionRef: sess,
+        blockRef: b,
+        blockIndexInSession: bi,
+        // данные для отображения
+        sessionId: sess.id,
+        sessionName: sess.name || '',
+        complex: b.complex || '',
+        complexItems: Array.isArray(b.complexItems) ? b.complexItems.slice() : [],
+        format: b.format || '',
+        startTime: b.startTime || '',
+        duration: Number(b.duration) || 0,
+        note: b.note || '',
+        fact: b.fact || '',
+        comment: b.comment || ''
+      });
     });
   });
 
-  // Сортировка по startTime, при пустом — в конец, стабильно по порядку
-  blocks.sort((a, b) => {
-    const ta = a.startTime || '99:99';
-    const tb = b.startTime || '99:99';
-    return ta.localeCompare(tb);
-  });
-
+  blocks.sort((a, b) => (a.startTime || '99:99').localeCompare(b.startTime || '99:99'));
   return blocks;
+}
+
+function playerSessionColor(sess) {
+  for (const b of sess.blocks || []) {
+    const f = b.format || '';
+    if (f === 'В группе') return WORK_TYPE_COLORS['В группе'];
+    if (f === 'Индивидуальная с тренером') return WORK_TYPE_COLORS['Индивидуальная с тренером'];
+    if (f === 'Самостоятельная') return WORK_TYPE_COLORS['Самостоятельная'];
+  }
+  return '#5a6169';
+}
+
+function playerBlockColor(b) {
+  const f = b.format || '';
+  if (f === 'В группе') return WORK_TYPE_COLORS['В группе'];
+  if (f === 'Индивидуальная с тренером') return WORK_TYPE_COLORS['Индивидуальная с тренером'];
+  if (f === 'Самостоятельная') return WORK_TYPE_COLORS['Самостоятельная'];
+  return '#5a6169';
 }
 
 function renderPlayerMonthGrid(p, year, month) {
@@ -169,24 +223,27 @@ function renderPlayerMonthGrid(p, year, month) {
     const isWeekend = (d.getDay() === 0 || d.getDay() === 6);
     const isToday = ds === today;
 
-    const allBlocks = collectPlayerDayBlocks(p, ds);
-    const visible = allBlocks.slice(0, 3);
+    const sessions = collectPlayerDaySessions(p, ds);
+    const total = sessions.length;
+    const visible = sessions.slice(0, 3);
 
     html += `<div class="cc-day ${isOther ? 'other-month' : ''} ${isWeekend ? 'weekend' : ''} ${isToday ? 'today' : ''}"
                   onclick="openPlayerDaySessions('${p.id}','${ds}')">
       <div class="cc-day-head">
         <span class="cc-day-num ${isToday ? 'today-badge' : ''}">${d.getDate()}</span>
-        ${allBlocks.length ? `<span class="cc-day-total">${allBlocks.length}</span>` : ''}
+        ${total ? `<span class="cc-day-total">${total}</span>` : ''}
       </div>
       <div class="cc-day-bars">
-        ${visible.map(b => {
-          const color = playerBlockColor(b);
+        ${visible.map(sess => {
+          const color = playerSessionColor(sess);
+          const label = sess.name || (sess.blocks[0] && sess.blocks[0].complex) || 'Тренировка';
+          const t = sess.firstTime;
           return `<div class="cc-day-bar" style="background:${color}">
-            ${b.startTime ? `<span class="cc-bar-time">${escapeHtml(b.startTime)}</span>` : ''}
-            <span class="cc-bar-label">${escapeHtml(b.complex || 'Блок')}</span>
+            ${t ? `<span class="cc-bar-time">${escapeHtml(t)}</span>` : ''}
+            <span class="cc-bar-label">${escapeHtml(label)}</span>
           </div>`;
         }).join('')}
-        ${allBlocks.length > 3 ? `<div class="cc-more">+${allBlocks.length - 3} ещё</div>` : ''}
+        ${total > 3 ? `<div class="cc-more">+${total - 3} ещё</div>` : ''}
       </div>
     </div>`;
   });
@@ -194,16 +251,8 @@ function renderPlayerMonthGrid(p, year, month) {
   grid.innerHTML = html;
 }
 
-function playerBlockColor(b) {
-  const f = b.format || '';
-  if (f === 'В группе') return WORK_TYPE_COLORS['В группе'];
-  if (f === 'Индивидуальная с тренером') return WORK_TYPE_COLORS['Индивидуальная с тренером'];
-  if (f === 'Самостоятельная') return WORK_TYPE_COLORS['Самостоятельная'];
-  return '#5a6169';
-}
-
 /* ============================================================
-   МОДАЛКА ДНЯ: список блоков + отметка факта
+   МОДАЛКА ДНЯ: плоский список блоков с отметкой факта
    ============================================================ */
 
 let __playerDayFactCtx = null;
@@ -224,22 +273,7 @@ function openPlayerDaySessions(pid, ds) {
     return;
   }
 
-  // Для сохранения факта нужен sessionId и индекс блока в этой сессии
-  // Поэтому для каждого блока находим ссылку на реальный объект в p.calendar[ds]
-  const realBlocks = blocks.map((b, ui) => {
-    const day = p.calendar[ds] || [];
-    const sess = day.find(s => s.id === b.sessionId);
-    if (!sess) return null;
-    const blockIndex = (sess.blocks || []).findIndex(rb =>
-      (rb.id && b.id && rb.id === b.id) ||
-      ((rb.startTime || '') === (b.startTime || '') && (rb.complex || '') === (b.complex || ''))
-    );
-    if (blockIndex < 0) return null;
-    return { sessionId: sess.id, blockIndex, ui };
-  });
-
   const rowsHtml = blocks.map((b, i) => {
-    const ref = realBlocks[i];
     const end = minutesToTime(timeToMinutes(b.startTime) + (Number(b.duration) || 0));
     const factOptions = FACT_OPTIONS.map(f => {
       const sel = (f.value === (b.fact || '')) ? 'selected' : '';
@@ -271,10 +305,14 @@ function openPlayerDaySessions(pid, ds) {
   }).join('');
 
   __playerDayFactCtx = {
-    pid, ds,
-    blocks: blocks.map((b, i) => ({
-      ...b,
-      realRef: realBlocks[i]
+    pid,
+    ds,
+    blocks: blocks.map(b => ({
+      // ПРЯМЫЕ ссылки на объекты — сохраняем именно в них
+      sessionRef: b.sessionRef,
+      blockRef: b.blockRef,
+      fact: b.fact || '',
+      comment: b.comment || ''
     }))
   };
 
@@ -320,6 +358,7 @@ function onPlayerDayFactChange(i, value) {
   if (!__playerDayFactCtx || !__playerDayFactCtx.blocks[i]) return;
   const b = __playerDayFactCtx.blocks[i];
   b.fact = value;
+  if (value !== 'partial' && value !== 'notdone') b.comment = '';
 
   const wrap = document.querySelector(`.pde-block[data-block-index="${i}"]`);
   if (!wrap) return;
@@ -329,6 +368,7 @@ function onPlayerDayFactChange(i, value) {
     const need = (value === 'partial' || value === 'notdone');
     inp.style.display = need ? 'block' : 'none';
     inp.placeholder = need ? 'Комментарий (обязательно)' : 'Комментарий';
+    if (!need) inp.value = '';
   }
 
   const sel = wrap.querySelector('.pde-fact');
@@ -357,28 +397,24 @@ function savePlayerDayFact() {
     }
   }
 
-  const pid = ctx.pid;
-  const p = DB.players.find(x => x.id === pid);
-  if (!p) { closeModal(); return; }
-
-  // Применяем правки напрямую к реальным блокам
+  let saved = 0;
   ctx.blocks.forEach(b => {
-    if (!b.realRef) return;
-    const day = p.calendar[ctx.ds] || [];
-    const sess = day.find(s => s.id === b.realRef.sessionId);
-    if (!sess || !Array.isArray(sess.blocks)) return;
-    const block = sess.blocks[b.realRef.blockIndex];
-    if (!block) return;
-    block.fact = b.fact || '';
-    block.comment = (b.comment || '').trim();
+    // Пишем напрямую в объект блока — он живой, потому что это ссылка на DB.
+    if (b.blockRef && typeof b.blockRef === 'object') {
+      b.blockRef.fact = b.fact || '';
+      b.blockRef.comment = (b.comment || '').trim();
+      saved++;
+    }
   });
 
   saveDB();
   updateNotifBadge();
 
+  const pid = ctx.pid;
   __playerDayFactCtx = null;
   closeModal();
 
-  renderPlayerCalendarContent(p);
-  toast('Факт сохранён');
+  const p = DB.players.find(x => x.id === pid);
+  if (p) renderPlayerCalendarContent(p);
+  toast(`Сохранено блоков: ${saved}`);
 }
