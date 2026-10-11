@@ -2,10 +2,9 @@
    02-utils.js
    Утилиты: экранирование, toast, модалки, даты, возраст, время.
    + хелперы сезонов.
+   + кастомные модалки uiAlert / uiConfirm.
 
-   Оптимизация модалок: без transition, мгновенное открытие/закрытие.
-   openModal/closeModal синхронные: сначала полностью закрываем
-   предыдущее окно, затем открываем новое. Никаких rAF-гонок.
+   openModal / closeModal синхронные — без rAF-гонок.
    ============================================================ */
 
 /* ===== Экранирование ===== */
@@ -104,6 +103,56 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 });
+
+/* ============================================================
+   Кастомные модалки подтверждения/уведомления
+   ============================================================ */
+
+function uiAlert(message, onClose) {
+  const bg = document.getElementById('modal-bg');
+  const content = document.getElementById('modal-content');
+  if (!bg || !content) return;
+  content.innerHTML = `
+    <h3>Внимание</h3>
+    <p style="margin-bottom:16px;line-height:1.5;white-space:pre-wrap">${escapeHtml(message || '')}</p>
+    <div class="btn-row" style="margin:0">
+      <button class="btn" id="ui-alert-ok">OK</button>
+    </div>`;
+  bg.classList.add('active');
+  document.body.classList.add('modal-open');
+  const close = () => {
+    bg.classList.remove('active');
+    document.body.classList.remove('modal-open');
+    content.innerHTML = '';
+    if (typeof onClose === 'function') onClose();
+  };
+  const btn = document.getElementById('ui-alert-ok');
+  if (btn) btn.onclick = close;
+}
+
+function uiConfirm(message, onConfirm, onCancel) {
+  const bg = document.getElementById('modal-bg');
+  const content = document.getElementById('modal-content');
+  if (!bg || !content) return;
+  content.innerHTML = `
+    <h3>Подтверждение</h3>
+    <p style="margin-bottom:16px;line-height:1.5;white-space:pre-wrap">${escapeHtml(message || '')}</p>
+    <div class="btn-row" style="margin:0">
+      <button class="btn btn-red" id="ui-confirm-ok">Подтвердить</button>
+      <button class="btn-ghost btn" id="ui-confirm-cancel">Отмена</button>
+    </div>`;
+  bg.classList.add('active');
+  document.body.classList.add('modal-open');
+  const close = () => {
+    bg.classList.remove('active');
+    document.body.classList.remove('modal-open');
+    content.innerHTML = '';
+  };
+  const okBtn = document.getElementById('ui-confirm-ok');
+  const cancelBtn = document.getElementById('ui-confirm-cancel');
+  if (okBtn) okBtn.onclick = () => { close(); if (typeof onConfirm === 'function') onConfirm(); };
+  if (cancelBtn) cancelBtn.onclick = () => { close(); if (typeof onCancel === 'function') onCancel(); };
+}
 
 /* ===== Даты ===== */
 function localDateStr(d) {
