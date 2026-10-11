@@ -2,7 +2,7 @@
    02-utils.js
    Утилиты: экранирование, toast, модалки, даты, возраст, время.
    + хелперы сезонов.
-   + кастомные модалки uiAlert / uiConfirm.
+   + кастомные модалки uiAlert / uiConfirm / uiChoice.
 
    openModal / closeModal синхронные — без rAF-гонок.
    ============================================================ */
@@ -105,7 +105,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 /* ============================================================
-   Кастомные модалки подтверждения/уведомления
+   Кастомные модалки подтверждения/уведомления/выбора
    ============================================================ */
 
 function uiAlert(message, onClose) {
@@ -152,6 +152,71 @@ function uiConfirm(message, onConfirm, onCancel) {
   const cancelBtn = document.getElementById('ui-confirm-cancel');
   if (okBtn) okBtn.onclick = () => { close(); if (typeof onConfirm === 'function') onConfirm(); };
   if (cancelBtn) cancelBtn.onclick = () => { close(); if (typeof onCancel === 'function') onCancel(); };
+}
+
+/* ============================================================
+   Модалка выбора (радиокнопки + Подтвердить / Отмена).
+   Формат:
+     uiChoice(message, options, title)
+     options = [
+       { label: 'Только эту тренировку', hint: 'необязательно', value: 'one' },
+       { label: 'Всю серию (5 дней)',    hint: '',                value: 'all' },
+     ]
+   Возвращает через onSelect(value) — выбранное значение.
+   ============================================================ */
+function uiChoice(message, options, onSelect, title) {
+  const bg = document.getElementById('modal-bg');
+  const content = document.getElementById('modal-content');
+  if (!bg || !content) return;
+
+  const opts = Array.isArray(options) ? options : [];
+  if (!opts.length) return;
+
+  const radioName = 'ui-choice-' + Math.random().toString(36).slice(2, 8);
+
+  const optionsHtml = opts.map((opt, i) => {
+    const value = String(opt.value != null ? opt.value : i);
+    const checked = (opt.checked || i === 0) ? 'checked' : '';
+    return `<label class="ui-choice-row">
+      <input type="radio" name="${radioName}" value="${escapeAttr(value)}" ${checked}>
+      <span class="ui-choice-text">
+        <span class="ui-choice-label">${escapeHtml(opt.label || '')}</span>
+        ${opt.hint ? `<span class="ui-choice-hint">${escapeHtml(opt.hint)}</span>` : ''}
+      </span>
+    </label>`;
+  }).join('');
+
+  content.innerHTML = `
+    <h3>${escapeHtml(title || 'Выберите действие')}</h3>
+    <p style="margin-bottom:14px;line-height:1.5;white-space:pre-wrap">${escapeHtml(message || '')}</p>
+    <div class="ui-choice-list">${optionsHtml}</div>
+    <div class="btn-row" style="margin-top:16px">
+      <button class="btn btn-red" id="ui-choice-ok">Подтвердить</button>
+      <button class="btn-ghost btn" id="ui-choice-cancel">Отмена</button>
+    </div>`;
+
+  bg.classList.add('active');
+  document.body.classList.add('modal-open');
+
+  const close = () => {
+    bg.classList.remove('active');
+    document.body.classList.remove('modal-open');
+    content.innerHTML = '';
+  };
+
+  const okBtn = document.getElementById('ui-choice-ok');
+  const cancelBtn = document.getElementById('ui-choice-cancel');
+
+  if (okBtn) okBtn.onclick = () => {
+    const checked = content.querySelector(`input[name="${radioName}"]:checked`);
+    const value = checked ? checked.value : null;
+    close();
+    if (typeof onSelect === 'function') onSelect(value);
+  };
+  if (cancelBtn) cancelBtn.onclick = () => {
+    close();
+    if (typeof onSelect === 'function') onSelect(null);
+  };
 }
 
 /* ===== Даты ===== */
