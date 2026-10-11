@@ -6,7 +6,7 @@
    - deleteSessionFromDay
    - deleteSessionOnlyThisDay
    - deleteSessionWholeSeries
-   - deleteSessionsByFilter
+   - countSeriesEntries
    ============================================================ */
 
 function deleteSessionFromDay(ds, idx, ev) {
@@ -39,22 +39,17 @@ function deleteSessionFromDay(ds, idx, ev) {
         } else if (choice === 'all') {
           deleteSessionWholeSeries(s.seriesId, ds);
         }
-        /* choice === null → Отмена, ничего не делаем */
+        /* choice === null → Отмена */
       },
       'Удаление тренировки из серии'
     );
     return;
   }
 
-  /* Обычное одиночное удаление */
+  /* Одиночное удаление (не из серии) */
   uiConfirm('Удалить тренировку у всех игроков?', () => {
     clearFactDraft(ds, s.id);
-    deleteSessionsByFilter(s);
-    saveDB();
-    renderCoachCalendar();
-    if (__coachDayCurrentDs === ds) openDaySessionsInner(ds);
-    updateNotifBadge();
-    toast('Тренировка удалена');
+    deleteSessionOnlyThisDay(ds, null, idx);
   }, () => {});
 }
 
@@ -73,7 +68,9 @@ function countSeriesEntries(seriesId) {
   return dates.size;
 }
 
-/* Удаляет тренировку только за один день — остальные дни серии остаются нетронутыми. */
+/* Удаляет тренировку только за один день.
+   Работает и для случая, когда тренировка — часть серии
+   (остальные дни серии остаются нетронутыми). */
 function deleteSessionOnlyThisDay(ds, seriesId, idx) {
   const sessions = collectDaySessions(ds);
   const s = sessions[idx];
@@ -110,7 +107,12 @@ function deleteSessionOnlyThisDay(ds, seriesId, idx) {
   renderCoachCalendar();
   if (__coachDayCurrentDs === ds) openDaySessionsInner(ds);
   updateNotifBadge();
-  toast('Удалена одна тренировка из серии');
+
+  if (seriesId) {
+    toast('Удалена одна тренировка из серии');
+  } else {
+    toast('Тренировка удалена');
+  }
 }
 
 /* Удаляет всю серию целиком — по всем дням и всем игрокам. */
@@ -132,35 +134,4 @@ function deleteSessionWholeSeries(seriesId, ds) {
   if (__coachDayCurrentDs === ds) openDaySessionsInner(ds);
   updateNotifBadge();
   toast(`Удалена вся серия (${removed} записей)`);
-}
-
-/* Общий фильтр удаления — используется в одиночном удалении. */
-function deleteSessionsByFilter(s) {
-  const targetId = s.realId;
-  const targetGroupId = s.groupId;
-  const targetName = s.name || '';
-  const targetSig = (s.blocks || []).map(b =>
-    (b.startTime || '') + '|' + (b.complex || '') + '|' + (b.format || '') + '|' + (b.duration || '')
-  ).sort().join(';');
-
-  DB.players.forEach(p => {
-    if (!p.calendar) return;
-    Object.keys(p.calendar).forEach(ds => {
-      const day = p.calendar[ds];
-      if (!Array.isArray(day)) return;
-      p.calendar[ds] = day.filter(sess => {
-        if (targetId && sess.id === targetId) return false;
-        if (targetGroupId && sess.groupId === targetGroupId) return false;
-        if (!targetId && !targetGroupId) {
-          if ((sess.name || '') !== targetName) return true;
-          const sig = (sess.blocks || []).map(b =>
-            (b.startTime || '') + '|' + (b.complex || '') + '|' + (b.format || '') + '|' + (b.duration || '')
-          ).sort().join(';');
-          return sig !== targetSig;
-        }
-        return true;
-      });
-      if (!p.calendar[ds].length) delete p.calendar[ds];
-    });
-  });
 }

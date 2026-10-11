@@ -1,8 +1,10 @@
 /* ============================================================
    02-utils.js
    Утилиты: экранирование, toast, модалки, даты, возраст, время.
-   + хелперы сезонов.
-   + кастомные модалки uiAlert / uiConfirm / uiChoice.
+
+   Кастомные модалки uiAlert / uiConfirm / uiChoice.
+
+   Хелперы сезонов живут в 01-config.js (единое место).
 
    openModal / closeModal синхронные — без rAF-гонок.
    ============================================================ */
@@ -67,16 +69,12 @@ function openModal(html) {
   const content = document.getElementById('modal-content');
   if (!bg || !content) return;
 
-  // 1. Полностью закрываем предыдущее окно синхронно.
   bg.classList.remove('active');
   document.body.classList.remove('modal-open');
   content.innerHTML = '';
 
-  // 2. Форсируем reflow, чтобы браузер применил display:none до
-  //    следующего display:flex — иначе возможны визуальные артефакты.
   void bg.offsetWidth;
 
-  // 3. Кладём новый HTML и открываем.
   content.innerHTML = html;
   bg.classList.add('active');
   document.body.classList.add('modal-open');
@@ -90,7 +88,6 @@ function closeModal() {
   bg.classList.remove('active');
   document.body.classList.remove('modal-open');
 
-  // Синхронная очистка — никаких rAF-гонок с последующим openModal.
   if (content) content.innerHTML = '';
 }
 
@@ -157,7 +154,7 @@ function uiConfirm(message, onConfirm, onCancel) {
 /* ============================================================
    Модалка выбора (радиокнопки + Подтвердить / Отмена).
    Формат:
-     uiChoice(message, options, title)
+     uiChoice(message, options, onSelect, title)
      options = [
        { label: 'Только эту тренировку', hint: 'необязательно', value: 'one' },
        { label: 'Всю серию (5 дней)',    hint: '',                value: 'all' },
@@ -266,10 +263,6 @@ function minutesToTime(mins) {
   return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
 }
 
-function formatTimeRange(t1, t2) {
-  return `${t1}–${t2}`;
-}
-
 /* ===== Возраст из даты рождения ===== */
 function computeAge(p) {
   if (!p) return '';
@@ -358,79 +351,4 @@ function formatDowDate(d) {
   const day = String(d.getDate()).padStart(2, '0');
   const mon = String(d.getMonth() + 1).padStart(2, '0');
   return `${DOW_SHORT_RU[dow]} ${day}.${mon}`;
-}
-
-/* ============================================================
-   СЕЗОНЫ: хелперы
-   ============================================================ */
-
-function seasonOfDate(dateStr) {
-  if (!dateStr || typeof dateStr !== 'string') return null;
-  const m = dateStr.match(/^(\d{4})-(\d{2})/);
-  if (!m) return null;
-  const year = parseInt(m[1], 10);
-  const month = parseInt(m[2], 10);
-  let startYear;
-  if (month >= 7) startYear = year;
-  else if (month === 6) startYear = year;
-  else startYear = year - 1;
-  return makeSeasonKey(startYear);
-}
-
-function makeSeasonKey(startYear) {
-  const y1 = startYear;
-  const y2 = (startYear + 1) % 100;
-  return `${y1}/${String(y2).padStart(2, '0')}`;
-}
-
-function parseSeasonKey(key) {
-  if (!key || typeof key !== 'string') return null;
-  const m = key.match(/^(\d{4})\/(\d{2})$/);
-  if (!m) return null;
-  const startYear = parseInt(m[1], 10);
-  const endShort = parseInt(m[2], 10);
-  const endYear = Math.floor(startYear / 100) * 100 + endShort;
-  return { startYear, endYear };
-}
-
-function currentSeasonKey() {
-  return seasonOfDate(localDateStr(new Date()));
-}
-
-function formatSeasonLabel(key) {
-  if (!key) return '';
-  return key;
-}
-
-function isArchiveSeason(key) {
-  return key !== currentSeasonKey();
-}
-
-function ensureSeasonState() {
-  if (!DB.seasons || typeof DB.seasons !== 'object') {
-    DB.seasons = {};
-  }
-  if (!currentSeason || !DB.seasons[currentSeason]) {
-    const def = DB.seasons[currentSeasonKey()] ? currentSeasonKey() : DEFAULT_SEASON;
-    currentSeason = DB.seasons[def] ? def : (Object.keys(DB.seasons)[0] || DEFAULT_SEASON);
-  }
-  if (DB.seasons[currentSeason]) {
-    DB.players = DB.seasons[currentSeason].players || [];
-  } else {
-    DB.players = [];
-  }
-}
-
-function getSeasonKeys() {
-  if (!DB.seasons) return [];
-  return Object.keys(DB.seasons).sort((a, b) => {
-    const pa = parseSeasonKey(a), pb = parseSeasonKey(b);
-    if (!pa || !pb) return 0;
-    return pb.startYear - pa.startYear;
-  });
-}
-
-function canEditSeason(key) {
-  if (key === currentSeason) return true;
-  return seasonsEditable === true;
 }

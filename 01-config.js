@@ -96,7 +96,7 @@ function factClass(value) {
 }
 
 /* ============================================================
-   ХЕЛПЕРЫ СЕЗОНОВ
+   ХЕЛПЕРЫ СЕЗОНОВ — ЕДИНОЕ МЕСТО
    ============================================================ */
 
 /* Ключ сезона по календарю: с 1 июля — новый сезон.
@@ -134,10 +134,14 @@ function formatSeasonLabel(key) {
   return key;
 }
 
-/* Список ключей сезонов, отсортированный по возрастанию */
+/* Список ключей сезонов, отсортированный по убыванию (свежие сверху) */
 function getSeasonKeys() {
   if (!DB.seasons || typeof DB.seasons !== 'object') return [];
-  return Object.keys(DB.seasons).sort();
+  return Object.keys(DB.seasons).sort((a, b) => {
+    const pa = parseSeasonKey(a), pb = parseSeasonKey(b);
+    if (!pa || !pb) return 0;
+    return pb.startYear - pa.startYear;
+  });
 }
 
 /* Архивный ли сезон. Архивным считается всё, что не равно текущему по календарю. */
@@ -198,4 +202,10 @@ function ensureSeasonState(preferredKey) {
   currentSeason = last;
   DB.players = DB.seasons[last].players || [];
   persistCurrentSeason();
+}
+
+/* Может ли пользователь редактировать указанный сезон */
+function canEditSeason(key) {
+  if (key === currentSeason) return true;
+  return seasonsEditable === true;
 }
