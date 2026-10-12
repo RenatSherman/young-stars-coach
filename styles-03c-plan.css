@@ -1,0 +1,528 @@
+/* ============================================================
+   styles-03c-plan.css
+   Планы и план развития:
+   - .plan-summary (сводка)
+   - .plan-controls, .plan-table (старая план-таблица)
+   - .plan-day-summary, .plan-block-details
+   - .dev-plan-table (план развития)
+   - .dev-complexes-btn + .cc-popover (поповер комплексов плана)
+   - .fm-* (старая модалка отметки факта)
+
+   Разбиение styles-03-calendar.css:
+     styles-03a-calendar-grid.css  — сетки месяца
+     styles-03b-session.css        — тренировки, шаблоны, поповеры
+     styles-03c-plan.css           ← этот файл
+   ============================================================ */
+
+/* ============================================================
+   1. СВОДКА
+   ============================================================ */
+.plan-summary{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(160px,1fr));
+  gap:12px;
+  margin-bottom:16px;
+}
+.plan-summary-item{
+  background:#fff;
+  border-radius:6px;
+  padding:14px 16px;
+  border-left:4px solid var(--ak-green);
+  box-shadow:var(--shadow);
+}
+.plan-summary-item.red{border-left-color:var(--ak-red)}
+.plan-summary-item .lbl{
+  font-size:10px;
+  text-transform:uppercase;
+  letter-spacing:1px;
+  color:var(--ak-gray-dark);
+  font-weight:900;
+  font-family:var(--font-display);
+  margin-bottom:4px;
+}
+.plan-summary-item .val{
+  font-size:20px;
+  font-weight:900;
+  color:var(--ak-green);
+  font-family:var(--font-display);
+}
+.plan-summary-item .val small{
+  font-size:11px;
+  font-weight:400;
+  color:var(--ak-gray-dark);
+  margin-left:4px;
+}
+
+/* ============================================================
+   2. СТАРАЯ PLAN-ТАБЛИЦА
+   ============================================================ */
+.plan-controls{
+  display:flex;
+  gap:16px;
+  flex-wrap:wrap;
+  align-items:center;
+  margin-bottom:16px;
+  padding:12px;
+  background:var(--ak-gray-light);
+  border-radius:6px;
+  border-left:4px solid var(--ak-red);
+}
+.plan-controls label{
+  font-weight:900;
+  font-size:11px;
+  text-transform:uppercase;
+  letter-spacing:.8px;
+  font-family:var(--font-display);
+  color:var(--ak-green);
+}
+.plan-controls select{
+  padding:9px 12px;
+  border:2px solid var(--ak-gray-mid);
+  border-radius:4px;
+  font-size:13px;
+  font-family:inherit;
+  background:#fff;
+  color:var(--ak-text);
+  font-weight:600;
+}
+.plan-controls select:focus{outline:none;border-color:var(--ak-green)}
+
+.plan-table{
+  width:100%;
+  border-collapse:collapse;
+  font-size:13px;
+}
+.plan-table th,
+.plan-table td{
+  border:1px solid var(--ak-gray-mid);
+  padding:8px 8px;
+  vertical-align:top;
+  word-wrap:break-word;
+}
+.plan-table thead th{
+  background:var(--ak-green);
+  color:#fff;
+  font-family:var(--font-display);
+  font-size:11px;
+  letter-spacing:.5px;
+  padding:10px 8px;
+  font-weight:900;
+  text-align:center;
+  text-transform:uppercase;
+}
+.plan-table tbody td{font-size:12px}
+.plan-table tr.plan-week-row td{
+  background:var(--ak-green-dark);
+  color:#fff;
+  font-family:var(--font-display);
+  font-size:12px;
+  letter-spacing:.5px;
+  text-transform:uppercase;
+  padding:8px 12px;
+}
+
+.pcs-fact{
+  display:inline-block;
+  font-size:11px;
+  font-weight:700;
+  padding:3px 10px;
+  border-radius:12px;
+  background:#e6e8ea;
+  color:var(--ak-gray-dark);
+  text-align:center;
+  white-space:nowrap;
+  transition:.15s;
+}
+.pcs-fact:hover{background:var(--ak-gray-mid)}
+.pcs-fact.done   {background:#e3f3e8;color:#1e7a3f}
+.pcs-fact.partial{background:#fdf3dd;color:#b8860b}
+.pcs-fact.notdone{background:#fce8ec;color:var(--ak-red)}
+
+.plan-day-summary{
+  display:flex;
+  gap:10px;
+  flex-wrap:wrap;
+  margin-bottom:12px;
+}
+.plan-day-summary .badge{
+  background:var(--ak-gray-light);
+  border-radius:4px;
+  padding:6px 12px;
+  font-size:12px;
+  font-weight:700;
+  border-left:4px solid var(--ak-green);
+}
+.plan-day-summary .badge.done{border-left-color:#1e7a3f;color:#1e7a3f;background:#e3f3e8}
+.plan-day-summary .badge.partial{border-left-color:#b8860b;color:#b8860b;background:#fdf3dd}
+.plan-day-summary .badge.notdone{border-left-color:var(--ak-red);color:var(--ak-red);background:#fce8ec}
+
+.plan-block-details{
+  background:var(--ak-gray-light);
+  border-radius:6px;
+  padding:12px 14px;
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+}
+.pbd-row{
+  display:grid;
+  grid-template-columns:140px 1fr;
+  gap:12px;
+  font-size:13px;
+  padding:4px 0;
+  border-bottom:1px solid rgba(0,0,0,.05);
+}
+.pbd-row:last-child{border-bottom:none}
+.pbd-lbl{
+  font-family:var(--font-display);
+  font-weight:900;
+  font-size:10px;
+  text-transform:uppercase;
+  letter-spacing:.5px;
+  color:var(--ak-gray-dark);
+  align-self:center;
+}
+.pbd-val{color:var(--ak-text);font-weight:500}
+
+/* ============================================================
+   3. ПЛАН РАЗВИТИЯ
+   ============================================================ */
+.dev-plan-table{
+  width:100%;
+  border-collapse:collapse;
+  font-size:13px;
+}
+.dev-plan-table thead th{
+  background:var(--ak-green);
+  color:#fff;
+  padding:10px 8px;
+  text-align:left;
+  font-weight:900;
+  font-size:11px;
+  text-transform:uppercase;
+  letter-spacing:.5px;
+  font-family:var(--font-display);
+  white-space:nowrap;
+}
+.dev-plan-table tbody td{
+  padding:6px 6px;
+  border-bottom:1px solid var(--ak-gray-mid);
+  vertical-align:middle;
+}
+.dev-plan-table tbody tr:hover{background:var(--ak-gray-light)}
+
+.dev-plan-table select.cell,
+.dev-plan-table input.cell{
+  width:100%;
+  border:1px solid var(--ak-gray-mid);
+  background:#fff;
+  padding:6px 8px;
+  border-radius:4px;
+  font-size:12px;
+}
+.dev-plan-table select.cell:focus,
+.dev-plan-table input.cell:focus{
+  outline:none;
+  border-color:var(--ak-green);
+  box-shadow:0 0 0 2px rgba(21,71,52,.12);
+}
+.dev-plan-table .dev-current{
+  text-align:center;
+  font-weight:900;
+  color:var(--ak-green);
+  font-family:var(--font-display);
+  font-size:14px;
+  background:var(--ak-gray-light);
+  border-radius:4px;
+  padding:6px 8px;
+}
+.dev-plan-table .dev-comment.required{
+  border-color:var(--ak-red);
+  background:#fff6f8;
+}
+.dev-plan-table .dev-comment.required::placeholder{
+  color:var(--ak-red);
+  font-weight:700;
+}
+.dev-plan-table select.pcs-fact{
+  width:100%;
+  border:1px solid var(--ak-gray-mid);
+  font-weight:700;
+  padding:6px 8px;
+  border-radius:4px;
+  background:#fff;
+}
+.dev-plan-table select.pcs-fact.done   {border-color:#1e7a3f;background:#e3f3e8;color:#1e7a3f}
+.dev-plan-table select.pcs-fact.partial{border-color:#b8860b;background:#fdf3dd;color:#b8860b}
+.dev-plan-table select.pcs-fact.notdone{border-color:var(--ak-red);background:#fce8ec;color:var(--ak-red)}
+
+.dev-plan-cell{position:relative;min-width:180px}
+.dev-complexes-btn{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+  width:100%;
+  padding:6px 10px;
+  border:1px solid var(--ak-gray-mid);
+  border-radius:4px;
+  background:#fff;
+  color:var(--ak-text);
+  font-size:12px;
+  font-family:inherit;
+  cursor:pointer;
+  text-align:left;
+  transition:.15s;
+  min-height:32px;
+}
+.dev-complexes-btn:hover{
+  border-color:var(--ak-green);
+  background:var(--ak-gray-light);
+}
+.dev-complexes-btn .dev-complexes-text{
+  flex:1;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.dev-complexes-btn .dev-complexes-caret{
+  color:var(--ak-gray-dark);
+  font-size:10px;
+  flex-shrink:0;
+}
+
+/* ============================================================
+   4. ПОПОВЕР КОМПЛЕКСОВ ПЛАНА (используется в .dev-plan-table)
+   ============================================================ */
+.cc-popover{
+  display:none;
+  position:fixed;
+  z-index:9999;
+  width:340px;
+  max-width:calc(100vw - 16px);
+  background:#fff;
+  border:2px solid var(--ak-green);
+  border-radius:6px;
+  box-shadow:0 12px 40px rgba(0,0,0,.28);
+  overflow:hidden;
+  flex-direction:column;
+}
+.cc-popover.cc-popover-fixed{display:flex}
+
+.cc-popover-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:8px 12px;
+  background:var(--ak-green);
+  color:#fff;
+  font-family:var(--font-display);
+  font-weight:900;
+  font-size:11px;
+  letter-spacing:.5px;
+  text-transform:uppercase;
+  flex-shrink:0;
+}
+.cc-popover-count{
+  background:var(--ak-red);
+  color:#fff;
+  border-radius:20px;
+  font-size:10px;
+  padding:1px 8px;
+  min-width:22px;
+  text-align:center;
+}
+.cc-popover-tools{
+  display:flex;
+  gap:6px;
+  padding:8px;
+  background:var(--ak-gray-light);
+  border-bottom:1px solid var(--ak-gray-mid);
+  flex-shrink:0;
+}
+.cc-popover-search{
+  flex:1;
+  padding:6px 8px;
+  border:1px solid var(--ak-gray-mid);
+  border-radius:4px;
+  font-size:12px;
+  font-family:inherit;
+}
+.cc-popover-search:focus{outline:none;border-color:var(--ak-green)}
+.cc-popover-tools button{
+  padding:6px 10px;
+  border:1px solid var(--ak-gray-mid);
+  background:#fff;
+  border-radius:4px;
+  font-size:10px;
+  font-family:var(--font-display);
+  font-weight:900;
+  color:var(--ak-gray-dark);
+  letter-spacing:.3px;
+  text-transform:uppercase;
+  cursor:pointer;
+  transition:.15s;
+  white-space:nowrap;
+}
+.cc-popover-tools button:hover{border-color:var(--ak-green);color:var(--ak-green)}
+.cc-popover-body{
+  max-height:260px;
+  overflow-y:auto;
+  padding:6px;
+  flex:1;
+}
+.cc-popover-body label{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  padding:6px 8px;
+  border-radius:4px;
+  cursor:pointer;
+  font-size:13px;
+  transition:.1s;
+}
+.cc-popover-body label:hover{background:var(--ak-gray-light)}
+.cc-popover-body input[type=checkbox]{margin:0;cursor:pointer}
+.cc-popover-empty{
+  padding:20px;
+  text-align:center;
+  color:var(--ak-gray-dark);
+  font-size:12px;
+}
+.cc-popover-foot{
+  padding:8px 12px;
+  background:var(--ak-gray-light);
+  border-top:1px solid var(--ak-gray-mid);
+  display:flex;
+  justify-content:flex-end;
+  flex-shrink:0;
+}
+
+/* ============================================================
+   5. ЧИПЫ ВЫБОРА ФОРМАТА (старая модалка плана)
+   ============================================================ */
+.wt-chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px}
+.wt-chip{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  padding:8px 14px;
+  border-radius:20px;
+  border:2px solid var(--ak-gray-mid);
+  background:#fff;
+  cursor:pointer;
+  font-size:12px;
+  font-weight:700;
+  color:var(--ak-gray-dark);
+  transition:.15s;
+  user-select:none;
+  font-family:var(--font-body);
+}
+.wt-chip:hover{border-color:var(--ak-green);color:var(--ak-green)}
+.wt-chip input{display:none}
+.wt-chip .dot{
+  width:10px;
+  height:10px;
+  border-radius:50%;
+  border:2px solid var(--ak-gray-mid);
+  background:#fff;
+  flex-shrink:0;
+  transition:.15s;
+}
+.wt-chip.checked{
+  background:var(--ak-green);
+  color:#fff;
+  border-color:var(--ak-green);
+  box-shadow:0 2px 6px rgba(21,71,52,.2);
+}
+.wt-chip.checked .dot{background:var(--ak-red);border-color:#fff}
+.wt-chip.checked:hover{background:var(--ak-green-light);color:#fff}
+
+/* ============================================================
+   15. СТАРАЯ МОДАЛКА ОТМЕТКИ (fm-*)
+   ============================================================ */
+.fm-toolbar{
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+  margin-bottom:16px;
+  padding:10px;
+  background:var(--ak-gray-light);
+  border-radius:6px;
+}
+.fm-players{display:flex;flex-direction:column;gap:10px}
+.fm-player-row{
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  padding:12px 14px;
+  background:#fff;
+  border:1.5px solid var(--ak-gray-mid);
+  border-radius:8px;
+}
+.fm-player-info{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.fm-player-fio{
+  font-family:var(--font-display);
+  font-size:14px;
+  font-weight:900;
+  color:var(--ak-green);
+  text-transform:uppercase;
+  letter-spacing:.3px;
+}
+.fm-player-team{font-size:11px;color:var(--ak-gray-dark)}
+.fm-buttons{display:flex;gap:8px;flex-wrap:wrap}
+.fm-btn{
+  padding:8px 14px;
+  border-radius:20px;
+  border:2px solid var(--ak-gray-mid);
+  background:#fff;
+  font-family:var(--font-display);
+  font-size:11px;
+  font-weight:900;
+  letter-spacing:.4px;
+  text-transform:uppercase;
+  cursor:pointer;
+  transition:.1s;
+  color:var(--ak-gray-dark);
+  white-space:nowrap;
+}
+.fm-btn:hover{
+  border-color:var(--ak-green);
+  color:var(--ak-green);
+  background:var(--ak-gray-light);
+}
+.fm-btn.active.done{background:#1e7a3f;border-color:#1e7a3f;color:#fff}
+.fm-btn.active.partial{background:#b8860b;border-color:#b8860b;color:#fff}
+.fm-btn.active.notdone{background:var(--ak-red);border-color:var(--ak-red);color:#fff}
+.fm-comment-wrap{display:none}
+.fm-comment-input{
+  width:100%;
+  padding:8px 12px;
+  border:2px solid var(--ak-red);
+  background:#fff6f8;
+  border-radius:6px;
+  font-family:inherit;
+  font-size:13px;
+}
+.fm-comment-input:focus{
+  outline:none;
+  border-color:var(--ak-red-dark);
+  box-shadow:0 0 0 3px rgba(200,16,46,.12);
+}
+
+/* ============================================================
+   АДАПТИВ (планы)
+   ============================================================ */
+@media (max-width: 900px){
+  .plan-summary{grid-template-columns:1fr 1fr}
+  .pbd-row{grid-template-columns:1fr;gap:4px}
+}
+
+@media (max-width: 700px){
+  .fm-buttons{flex-direction:column}
+  .fm-btn{width:100%;justify-content:center}
+}
+
+@media (max-width: 560px){
+  .plan-summary{grid-template-columns:1fr}
+}

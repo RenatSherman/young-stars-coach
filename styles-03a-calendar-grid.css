@@ -1,0 +1,250 @@
+/* ============================================================
+   styles-03a-calendar-grid.css
+   Месячные сетки (тренер + игрок) и их тулбары:
+   - .cc-toolbar, .cc-nav, .cc-month-title, .cc-legend
+   - .cc-month-head / .cc-month-grid / .cc-day / .cc-day-bar
+   - .player-cal-toolbar
+
+   Разбиение styles-03-calendar.css:
+     styles-03a-calendar-grid.css  ← этот файл
+     styles-03b-session.css        — модалка дня, редактор тренировки, шаблоны, поповер комплексов
+     styles-03c-plan.css           — планы, план развития, старая модалка факта
+   ============================================================ */
+
+/* ============================================================
+   6. МЕСЯЧНАЯ СЕТКА
+   ============================================================ */
+.cc-toolbar-card{
+  padding:14px 18px;
+  border-top-color:var(--ak-red);
+  margin-bottom:12px;
+}
+.cc-toolbar{
+  display:flex;
+  gap:12px;
+  flex-wrap:wrap;
+  align-items:center;
+}
+.cc-nav{display:flex;align-items:center;gap:8px}
+.cc-nav-btn{
+  width:34px;
+  height:34px;
+  border-radius:50%;
+  border:2px solid var(--ak-gray-mid);
+  background:#fff;
+  color:var(--ak-green);
+  font-size:18px;
+  font-weight:900;
+  cursor:pointer;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  transition:.15s;
+  line-height:1;
+}
+.cc-nav-btn:hover{background:var(--ak-green);color:#fff;border-color:var(--ak-green)}
+.cc-month-title{
+  font-family:var(--font-display);
+  font-size:16px;
+  font-weight:900;
+  color:var(--ak-green);
+  letter-spacing:.5px;
+  padding:0 6px;
+  min-width:180px;
+  text-align:center;
+  text-transform:uppercase;
+}
+.cc-legend{
+  display:flex;
+  gap:14px;
+  margin-left:auto;
+  font-size:11px;
+  color:var(--ak-gray-dark);
+  flex-wrap:wrap;
+}
+.cc-legend span{display:inline-flex;align-items:center;gap:6px}
+.cc-dot{display:inline-block;width:12px;height:12px;border-radius:3px}
+.cc-dot-self{background:#f59e0b}
+.cc-dot-ind{background:#C8102E}
+.cc-dot-grp{background:#4f46e5}
+
+.cc-month-card{padding:12px 12px 16px;overflow-x:auto}
+.cc-month-wrap{min-width:640px}
+.cc-month-head{
+  display:grid;
+  grid-template-columns:repeat(7,minmax(0,1fr));
+  gap:2px;
+  margin-bottom:2px;
+}
+.cc-dow-head{
+  background:#000;
+  color:#fff;
+  padding:10px 4px;
+  text-align:center;
+  font-family:var(--font-display);
+  font-weight:900;
+  font-size:11px;
+  letter-spacing:1px;
+  text-transform:uppercase;
+  border-radius:3px;
+  white-space:nowrap;
+  overflow:hidden;
+}
+.cc-dow-head.weekend{background:#2a2a2a}
+.cc-month-grid{
+  display:grid;
+  grid-template-columns:repeat(7,minmax(0,1fr));
+  gap:2px;
+}
+.cc-day{
+  background:#fff;
+  border:1px solid var(--ak-gray-mid);
+  border-radius:3px;
+  min-height:100px;
+  min-width:0;
+  padding:6px;
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+  cursor:pointer;
+  transition:.15s;
+  position:relative;
+  overflow:hidden;
+}
+.cc-day:hover{background:#f7f9f8;border-color:var(--ak-green)}
+.cc-day.other-month{background:#fafbfb;color:var(--ak-gray);opacity:.55}
+.cc-day.weekend{background:#fcfcfd}
+.cc-day.today{
+  outline:2px solid var(--ak-red);
+  outline-offset:-2px;
+  z-index:1;
+}
+.cc-day-head{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:4px;
+  flex-shrink:0;
+}
+.cc-day-num{
+  font-family:var(--font-display);
+  font-weight:900;
+  font-size:14px;
+  color:var(--ak-green);
+  line-height:1;
+}
+.cc-day.other-month .cc-day-num{color:var(--ak-gray-dark)}
+.cc-day-num.today-badge{
+  background:var(--ak-red);
+  color:#fff;
+  width:24px;
+  height:24px;
+  border-radius:50%;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  font-size:12px;
+  margin:-2px;
+}
+.cc-day-total{
+  background:var(--ak-green);
+  color:#fff;
+  font-size:9px;
+  font-weight:900;
+  padding:1px 6px;
+  border-radius:10px;
+  font-family:var(--font-display);
+  letter-spacing:.3px;
+  flex-shrink:0;
+}
+.cc-day-bars{
+  display:flex;
+  flex-direction:column;
+  gap:3px;
+  flex:1;
+  min-width:0;
+  overflow:hidden;
+}
+.cc-day-bar{
+  display:flex;
+  align-items:center;
+  gap:4px;
+  padding:2px 5px;
+  border-radius:3px;
+  font-size:10px;
+  font-weight:700;
+  color:#fff;
+  overflow:hidden;
+  white-space:nowrap;
+  text-overflow:ellipsis;
+  line-height:1.5;
+  min-width:0;
+}
+.cc-bar-time{opacity:.9;font-weight:900;flex-shrink:0;font-size:9px}
+.cc-bar-label{overflow:hidden;text-overflow:ellipsis;min-width:0}
+.cc-more{
+  font-size:10px;
+  color:var(--ak-gray-dark);
+  font-weight:700;
+  padding-left:4px;
+}
+
+/* ============================================================
+   13. КАЛЕНДАРЬ ИГРОКА — тулбар
+   ============================================================ */
+.player-cal-toolbar{
+  display:flex;
+  gap:12px;
+  flex-wrap:wrap;
+  align-items:center;
+  margin-bottom:12px;
+  padding:10px 14px;
+  background:var(--ak-gray-light);
+  border-radius:6px;
+  border-left:4px solid var(--ak-red);
+}
+.player-cal-month-select{
+  padding:9px 12px;
+  border:2px solid var(--ak-gray-mid);
+  border-radius:4px;
+  font-size:13px;
+  font-family:inherit;
+  background:#fff;
+  font-weight:600;
+  margin-left:auto;
+}
+.player-cal-month-select:focus{outline:none;border-color:var(--ak-green)}
+.player-cal-toolbar .cc-legend{
+  margin-left:0;
+  width:100%;
+  padding-top:8px;
+  border-top:1px dashed var(--ak-gray-mid);
+  font-size:11px;
+}
+
+/* ============================================================
+   АДАПТИВ (сетки)
+   ============================================================ */
+@media (max-width: 900px){
+  .cc-legend{display:none}
+  .cc-month-wrap{min-width:560px}
+  .cc-day{min-height:80px;padding:4px}
+  .cc-day-bar{font-size:9px;padding:2px 4px}
+  .cc-month-title{min-width:120px;font-size:14px}
+  .player-cal-month-select{margin-left:0;width:100%}
+  .player-cal-toolbar .cc-legend{
+    display:flex;
+    font-size:10px;
+    gap:8px;
+  }
+}
+
+@media (max-width: 560px){
+  .cc-month-card{padding:6px}
+  .cc-month-wrap{min-width:480px}
+  .cc-day{min-height:64px;padding:3px}
+  .cc-day-num{font-size:12px}
+  .cc-day-bar{font-size:8px;padding:1px 3px}
+  .cc-bar-time{display:none}
+  .cc-day-total{font-size:8px;padding:0 5px}
+}

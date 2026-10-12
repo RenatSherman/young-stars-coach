@@ -1,615 +1,17 @@
 /* ============================================================
-   styles-03-calendar.css
-   Календари, план развития, поповеры, тренировки-аккордеоны.
-   Оптимизация: быстрые модалки, короткие анимации аккордеонов.
-   + Секция 11b: дропдаун шаблонов тренировок.
+   styles-03b-session.css
+   Тренировка: модалка дня, редактор тренировки, блоки, факты,
+   поповер комплексов, повтор, дропдаун шаблонов, PDE (модалка
+   дня игрока).
+
+   Разбиение styles-03-calendar.css:
+     styles-03a-calendar-grid.css  — сетки месяца
+     styles-03b-session.css        ← этот файл
+     styles-03c-plan.css           — планы и план развития
    ============================================================ */
-
-/* ============================================================
-   1. СВОДКА
-   ============================================================ */
-.plan-summary{
-  display:grid;
-  grid-template-columns:repeat(auto-fit,minmax(160px,1fr));
-  gap:12px;
-  margin-bottom:16px;
-}
-.plan-summary-item{
-  background:#fff;
-  border-radius:6px;
-  padding:14px 16px;
-  border-left:4px solid var(--ak-green);
-  box-shadow:var(--shadow);
-}
-.plan-summary-item.red{border-left-color:var(--ak-red)}
-.plan-summary-item .lbl{
-  font-size:10px;
-  text-transform:uppercase;
-  letter-spacing:1px;
-  color:var(--ak-gray-dark);
-  font-weight:900;
-  font-family:var(--font-display);
-  margin-bottom:4px;
-}
-.plan-summary-item .val{
-  font-size:20px;
-  font-weight:900;
-  color:var(--ak-green);
-  font-family:var(--font-display);
-}
-.plan-summary-item .val small{
-  font-size:11px;
-  font-weight:400;
-  color:var(--ak-gray-dark);
-  margin-left:4px;
-}
-
-/* ============================================================
-   2. СТАРАЯ PLAN-ТАБЛИЦА
-   ============================================================ */
-.plan-controls{
-  display:flex;
-  gap:16px;
-  flex-wrap:wrap;
-  align-items:center;
-  margin-bottom:16px;
-  padding:12px;
-  background:var(--ak-gray-light);
-  border-radius:6px;
-  border-left:4px solid var(--ak-red);
-}
-.plan-controls label{
-  font-weight:900;
-  font-size:11px;
-  text-transform:uppercase;
-  letter-spacing:.8px;
-  font-family:var(--font-display);
-  color:var(--ak-green);
-}
-.plan-controls select{
-  padding:9px 12px;
-  border:2px solid var(--ak-gray-mid);
-  border-radius:4px;
-  font-size:13px;
-  font-family:inherit;
-  background:#fff;
-  color:var(--ak-text);
-  font-weight:600;
-}
-.plan-controls select:focus{outline:none;border-color:var(--ak-green)}
-
-.plan-table{
-  width:100%;
-  border-collapse:collapse;
-  font-size:13px;
-}
-.plan-table th,
-.plan-table td{
-  border:1px solid var(--ak-gray-mid);
-  padding:8px 8px;
-  vertical-align:top;
-  word-wrap:break-word;
-}
-.plan-table thead th{
-  background:var(--ak-green);
-  color:#fff;
-  font-family:var(--font-display);
-  font-size:11px;
-  letter-spacing:.5px;
-  padding:10px 8px;
-  font-weight:900;
-  text-align:center;
-  text-transform:uppercase;
-}
-.plan-table tbody td{font-size:12px}
-.plan-table tr.plan-week-row td{
-  background:var(--ak-green-dark);
-  color:#fff;
-  font-family:var(--font-display);
-  font-size:12px;
-  letter-spacing:.5px;
-  text-transform:uppercase;
-  padding:8px 12px;
-}
-
-.pcs-fact{
-  display:inline-block;
-  font-size:11px;
-  font-weight:700;
-  padding:3px 10px;
-  border-radius:12px;
-  background:#e6e8ea;
-  color:var(--ak-gray-dark);
-  text-align:center;
-  white-space:nowrap;
-  transition:.15s;
-}
-.pcs-fact:hover{background:var(--ak-gray-mid)}
-.pcs-fact.done   {background:#e3f3e8;color:#1e7a3f}
-.pcs-fact.partial{background:#fdf3dd;color:#b8860b}
-.pcs-fact.notdone{background:#fce8ec;color:var(--ak-red)}
-
-.plan-day-summary{
-  display:flex;
-  gap:10px;
-  flex-wrap:wrap;
-  margin-bottom:12px;
-}
-.plan-day-summary .badge{
-  background:var(--ak-gray-light);
-  border-radius:4px;
-  padding:6px 12px;
-  font-size:12px;
-  font-weight:700;
-  border-left:4px solid var(--ak-green);
-}
-.plan-day-summary .badge.done{border-left-color:#1e7a3f;color:#1e7a3f;background:#e3f3e8}
-.plan-day-summary .badge.partial{border-left-color:#b8860b;color:#b8860b;background:#fdf3dd}
-.plan-day-summary .badge.notdone{border-left-color:var(--ak-red);color:var(--ak-red);background:#fce8ec}
-
-.plan-block-details{
-  background:var(--ak-gray-light);
-  border-radius:6px;
-  padding:12px 14px;
-  display:flex;
-  flex-direction:column;
-  gap:6px;
-}
-.pbd-row{
-  display:grid;
-  grid-template-columns:140px 1fr;
-  gap:12px;
-  font-size:13px;
-  padding:4px 0;
-  border-bottom:1px solid rgba(0,0,0,.05);
-}
-.pbd-row:last-child{border-bottom:none}
-.pbd-lbl{
-  font-family:var(--font-display);
-  font-weight:900;
-  font-size:10px;
-  text-transform:uppercase;
-  letter-spacing:.5px;
-  color:var(--ak-gray-dark);
-  align-self:center;
-}
-.pbd-val{color:var(--ak-text);font-weight:500}
-
-/* ============================================================
-   3. ПЛАН РАЗВИТИЯ
-   ============================================================ */
-.dev-plan-table{
-  width:100%;
-  border-collapse:collapse;
-  font-size:13px;
-}
-.dev-plan-table thead th{
-  background:var(--ak-green);
-  color:#fff;
-  padding:10px 8px;
-  text-align:left;
-  font-weight:900;
-  font-size:11px;
-  text-transform:uppercase;
-  letter-spacing:.5px;
-  font-family:var(--font-display);
-  white-space:nowrap;
-}
-.dev-plan-table tbody td{
-  padding:6px 6px;
-  border-bottom:1px solid var(--ak-gray-mid);
-  vertical-align:middle;
-}
-.dev-plan-table tbody tr:hover{background:var(--ak-gray-light)}
-
-.dev-plan-table select.cell,
-.dev-plan-table input.cell{
-  width:100%;
-  border:1px solid var(--ak-gray-mid);
-  background:#fff;
-  padding:6px 8px;
-  border-radius:4px;
-  font-size:12px;
-}
-.dev-plan-table select.cell:focus,
-.dev-plan-table input.cell:focus{
-  outline:none;
-  border-color:var(--ak-green);
-  box-shadow:0 0 0 2px rgba(21,71,52,.12);
-}
-.dev-plan-table .dev-current{
-  text-align:center;
-  font-weight:900;
-  color:var(--ak-green);
-  font-family:var(--font-display);
-  font-size:14px;
-  background:var(--ak-gray-light);
-  border-radius:4px;
-  padding:6px 8px;
-}
-.dev-plan-table .dev-comment.required{
-  border-color:var(--ak-red);
-  background:#fff6f8;
-}
-.dev-plan-table .dev-comment.required::placeholder{
-  color:var(--ak-red);
-  font-weight:700;
-}
-.dev-plan-table select.pcs-fact{
-  width:100%;
-  border:1px solid var(--ak-gray-mid);
-  font-weight:700;
-  padding:6px 8px;
-  border-radius:4px;
-  background:#fff;
-}
-.dev-plan-table select.pcs-fact.done   {border-color:#1e7a3f;background:#e3f3e8;color:#1e7a3f}
-.dev-plan-table select.pcs-fact.partial{border-color:#b8860b;background:#fdf3dd;color:#b8860b}
-.dev-plan-table select.pcs-fact.notdone{border-color:var(--ak-red);background:#fce8ec;color:var(--ak-red)}
-
-.dev-plan-cell{position:relative;min-width:180px}
-.dev-complexes-btn{
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap:8px;
-  width:100%;
-  padding:6px 10px;
-  border:1px solid var(--ak-gray-mid);
-  border-radius:4px;
-  background:#fff;
-  color:var(--ak-text);
-  font-size:12px;
-  font-family:inherit;
-  cursor:pointer;
-  text-align:left;
-  transition:.15s;
-  min-height:32px;
-}
-.dev-complexes-btn:hover{
-  border-color:var(--ak-green);
-  background:var(--ak-gray-light);
-}
-.dev-complexes-btn .dev-complexes-text{
-  flex:1;
-  overflow:hidden;
-  text-overflow:ellipsis;
-  white-space:nowrap;
-}
-.dev-complexes-btn .dev-complexes-caret{
-  color:var(--ak-gray-dark);
-  font-size:10px;
-  flex-shrink:0;
-}
-
-/* ============================================================
-   4. ПОПОВЕР КОМПЛЕКСОВ
-   ============================================================ */
-.cc-popover{
-  display:none;
-  position:fixed;
-  z-index:9999;
-  width:340px;
-  max-width:calc(100vw - 16px);
-  background:#fff;
-  border:2px solid var(--ak-green);
-  border-radius:6px;
-  box-shadow:0 12px 40px rgba(0,0,0,.28);
-  overflow:hidden;
-  flex-direction:column;
-}
-.cc-popover.cc-popover-fixed{display:flex}
-
-.cc-popover-head{
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  padding:8px 12px;
-  background:var(--ak-green);
-  color:#fff;
-  font-family:var(--font-display);
-  font-weight:900;
-  font-size:11px;
-  letter-spacing:.5px;
-  text-transform:uppercase;
-  flex-shrink:0;
-}
-.cc-popover-count{
-  background:var(--ak-red);
-  color:#fff;
-  border-radius:20px;
-  font-size:10px;
-  padding:1px 8px;
-  min-width:22px;
-  text-align:center;
-}
-.cc-popover-tools{
-  display:flex;
-  gap:6px;
-  padding:8px;
-  background:var(--ak-gray-light);
-  border-bottom:1px solid var(--ak-gray-mid);
-  flex-shrink:0;
-}
-.cc-popover-search{
-  flex:1;
-  padding:6px 8px;
-  border:1px solid var(--ak-gray-mid);
-  border-radius:4px;
-  font-size:12px;
-  font-family:inherit;
-}
-.cc-popover-search:focus{outline:none;border-color:var(--ak-green)}
-.cc-popover-tools button{
-  padding:6px 10px;
-  border:1px solid var(--ak-gray-mid);
-  background:#fff;
-  border-radius:4px;
-  font-size:10px;
-  font-family:var(--font-display);
-  font-weight:900;
-  color:var(--ak-gray-dark);
-  letter-spacing:.3px;
-  text-transform:uppercase;
-  cursor:pointer;
-  transition:.15s;
-  white-space:nowrap;
-}
-.cc-popover-tools button:hover{border-color:var(--ak-green);color:var(--ak-green)}
-.cc-popover-body{
-  max-height:260px;
-  overflow-y:auto;
-  padding:6px;
-  flex:1;
-}
-.cc-popover-body label{
-  display:flex;
-  align-items:center;
-  gap:8px;
-  padding:6px 8px;
-  border-radius:4px;
-  cursor:pointer;
-  font-size:13px;
-  transition:.1s;
-}
-.cc-popover-body label:hover{background:var(--ak-gray-light)}
-.cc-popover-body input[type=checkbox]{margin:0;cursor:pointer}
-.cc-popover-empty{
-  padding:20px;
-  text-align:center;
-  color:var(--ak-gray-dark);
-  font-size:12px;
-}
-.cc-popover-foot{
-  padding:8px 12px;
-  background:var(--ak-gray-light);
-  border-top:1px solid var(--ak-gray-mid);
-  display:flex;
-  justify-content:flex-end;
-  flex-shrink:0;
-}
-
-/* ============================================================
-   5. ЧИПЫ
-   ============================================================ */
-.wt-chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px}
-.wt-chip{
-  display:inline-flex;
-  align-items:center;
-  gap:8px;
-  padding:8px 14px;
-  border-radius:20px;
-  border:2px solid var(--ak-gray-mid);
-  background:#fff;
-  cursor:pointer;
-  font-size:12px;
-  font-weight:700;
-  color:var(--ak-gray-dark);
-  transition:.15s;
-  user-select:none;
-  font-family:var(--font-body);
-}
-.wt-chip:hover{border-color:var(--ak-green);color:var(--ak-green)}
-.wt-chip input{display:none}
-.wt-chip .dot{
-  width:10px;
-  height:10px;
-  border-radius:50%;
-  border:2px solid var(--ak-gray-mid);
-  background:#fff;
-  flex-shrink:0;
-  transition:.15s;
-}
-.wt-chip.checked{
-  background:var(--ak-green);
-  color:#fff;
-  border-color:var(--ak-green);
-  box-shadow:0 2px 6px rgba(21,71,52,.2);
-}
-.wt-chip.checked .dot{background:var(--ak-red);border-color:#fff}
-.wt-chip.checked:hover{background:var(--ak-green-light);color:#fff}
-
-/* ============================================================
-   6. МЕСЯЧНАЯ СЕТКА
-   ============================================================ */
-.cc-toolbar-card{
-  padding:14px 18px;
-  border-top-color:var(--ak-red);
-  margin-bottom:12px;
-}
-.cc-toolbar{
-  display:flex;
-  gap:12px;
-  flex-wrap:wrap;
-  align-items:center;
-}
-.cc-nav{display:flex;align-items:center;gap:8px}
-.cc-nav-btn{
-  width:34px;
-  height:34px;
-  border-radius:50%;
-  border:2px solid var(--ak-gray-mid);
-  background:#fff;
-  color:var(--ak-green);
-  font-size:18px;
-  font-weight:900;
-  cursor:pointer;
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  transition:.15s;
-  line-height:1;
-}
-.cc-nav-btn:hover{background:var(--ak-green);color:#fff;border-color:var(--ak-green)}
-.cc-month-title{
-  font-family:var(--font-display);
-  font-size:16px;
-  font-weight:900;
-  color:var(--ak-green);
-  letter-spacing:.5px;
-  padding:0 6px;
-  min-width:180px;
-  text-align:center;
-  text-transform:uppercase;
-}
-.cc-legend{
-  display:flex;
-  gap:14px;
-  margin-left:auto;
-  font-size:11px;
-  color:var(--ak-gray-dark);
-  flex-wrap:wrap;
-}
-.cc-legend span{display:inline-flex;align-items:center;gap:6px}
-.cc-dot{display:inline-block;width:12px;height:12px;border-radius:3px}
-.cc-dot-self{background:#f59e0b}
-.cc-dot-ind{background:#C8102E}
-.cc-dot-grp{background:#4f46e5}
-
-.cc-month-card{padding:12px 12px 16px;overflow-x:auto}
-.cc-month-wrap{min-width:640px}
-.cc-month-head{
-  display:grid;
-  grid-template-columns:repeat(7,minmax(0,1fr));
-  gap:2px;
-  margin-bottom:2px;
-}
-.cc-dow-head{
-  background:#000;
-  color:#fff;
-  padding:10px 4px;
-  text-align:center;
-  font-family:var(--font-display);
-  font-weight:900;
-  font-size:11px;
-  letter-spacing:1px;
-  text-transform:uppercase;
-  border-radius:3px;
-  white-space:nowrap;
-  overflow:hidden;
-}
-.cc-dow-head.weekend{background:#2a2a2a}
-.cc-month-grid{
-  display:grid;
-  grid-template-columns:repeat(7,minmax(0,1fr));
-  gap:2px;
-}
-.cc-day{
-  background:#fff;
-  border:1px solid var(--ak-gray-mid);
-  border-radius:3px;
-  min-height:100px;
-  min-width:0;
-  padding:6px;
-  display:flex;
-  flex-direction:column;
-  gap:4px;
-  cursor:pointer;
-  transition:.15s;
-  position:relative;
-  overflow:hidden;
-}
-.cc-day:hover{background:#f7f9f8;border-color:var(--ak-green)}
-.cc-day.other-month{background:#fafbfb;color:var(--ak-gray);opacity:.55}
-.cc-day.weekend{background:#fcfcfd}
-.cc-day.today{
-  outline:2px solid var(--ak-red);
-  outline-offset:-2px;
-  z-index:1;
-}
-.cc-day-head{
-  display:flex;
-  align-items:flex-start;
-  justify-content:space-between;
-  gap:4px;
-  flex-shrink:0;
-}
-.cc-day-num{
-  font-family:var(--font-display);
-  font-weight:900;
-  font-size:14px;
-  color:var(--ak-green);
-  line-height:1;
-}
-.cc-day.other-month .cc-day-num{color:var(--ak-gray-dark)}
-.cc-day-num.today-badge{
-  background:var(--ak-red);
-  color:#fff;
-  width:24px;
-  height:24px;
-  border-radius:50%;
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  font-size:12px;
-  margin:-2px;
-}
-.cc-day-total{
-  background:var(--ak-green);
-  color:#fff;
-  font-size:9px;
-  font-weight:900;
-  padding:1px 6px;
-  border-radius:10px;
-  font-family:var(--font-display);
-  letter-spacing:.3px;
-  flex-shrink:0;
-}
-.cc-day-bars{
-  display:flex;
-  flex-direction:column;
-  gap:3px;
-  flex:1;
-  min-width:0;
-  overflow:hidden;
-}
-.cc-day-bar{
-  display:flex;
-  align-items:center;
-  gap:4px;
-  padding:2px 5px;
-  border-radius:3px;
-  font-size:10px;
-  font-weight:700;
-  color:#fff;
-  overflow:hidden;
-  white-space:nowrap;
-  text-overflow:ellipsis;
-  line-height:1.5;
-  min-width:0;
-}
-.cc-bar-time{opacity:.9;font-weight:900;flex-shrink:0;font-size:9px}
-.cc-bar-label{overflow:hidden;text-overflow:ellipsis;min-width:0}
-.cc-more{
-  font-size:10px;
-  color:var(--ak-gray-dark);
-  font-weight:700;
-  padding-left:4px;
-}
 
 /* ============================================================
    7. МОДАЛКА ДНЯ — ТРЕНИРОВКИ-АККОРДЕОНЫ
-   Быстрое раскрытие (0.15s), без больших max-height.
    ============================================================ */
 .cc-day-list{
   display:flex;
@@ -667,7 +69,6 @@
   flex:1;
   min-width:0;
 }
-
 .cc-sess-time{
   font-family:var(--font-display);
   font-size:11px;
@@ -709,7 +110,6 @@
 .cc-sess-edit:hover{background:var(--ak-gray-light);color:var(--ak-green)}
 .cc-sess-del:hover{background:#fce8ec;color:var(--ak-red)}
 
-/* Тело тренировки — раскрывается быстро */
 .cc-sess-body{
   display:grid;
   grid-template-rows:0fr;
@@ -722,7 +122,6 @@
   overflow:hidden;
   min-height:0;
 }
-
 .cc-sess-body-inner{
   padding:12px 14px 14px 14px;
   border-top:1px dashed var(--ak-gray-mid);
@@ -732,7 +131,6 @@
   gap:10px;
 }
 
-/* Ряд сохранения */
 .cc-sess-save-row{
   display:flex;
   align-items:center;
@@ -776,7 +174,6 @@
 /* ============================================================
    8. БЛОК ТРЕНИРОВКИ С ИНЛАЙН-ОЦЕНКОЙ ФАКТА
    ============================================================ */
-
 .cc-sess-block{
   padding:10px 12px;
   background:#fff;
@@ -1222,12 +619,10 @@
 /* ============================================================
    11b. ДРОПДАУН ШАБЛОНОВ ТРЕНИРОВОК
    ============================================================ */
-
 .tpl-dropdown-wrap{
   position:relative;
   display:inline-block;
 }
-
 .tpl-toggle{
   display:inline-flex;
   align-items:center;
@@ -1252,7 +647,6 @@
   color:#fff;
   border-style:solid;
 }
-
 .tpl-dropdown{
   display:none;
   position:absolute;
@@ -1270,7 +664,6 @@
   padding:4px;
 }
 .tpl-dropdown.active{display:block}
-
 .tpl-item{
   display:flex;
   align-items:stretch;
@@ -1278,10 +671,7 @@
   border-radius:4px;
   transition:.1s;
 }
-.tpl-item:hover{
-  background:var(--ak-gray-light);
-}
-
+.tpl-item:hover{background:var(--ak-gray-light);}
 .tpl-item-fill{
   flex:1;
   min-width:0;
@@ -1300,10 +690,7 @@
   border-radius:4px;
   transition:.1s;
 }
-.tpl-item-fill:hover{
-  color:var(--ak-green);
-}
-
+.tpl-item-fill:hover{color:var(--ak-green);}
 .tpl-item-name{
   flex:1;
   min-width:0;
@@ -1312,7 +699,6 @@
   white-space:nowrap;
   font-weight:600;
 }
-
 .tpl-item-meta{
   font-size:10px;
   font-weight:700;
@@ -1329,7 +715,6 @@
   background:var(--ak-green);
   color:#fff;
 }
-
 .tpl-item-del{
   background:transparent;
   border:none;
@@ -1348,11 +733,8 @@
 
 /* ============================================================
    12. КАСТОМНЫЙ ПОПОВЕР «КОМПЛЕКС УПРАЖНЕНИЙ»
-   Без transition — мгновенное открытие.
    ============================================================ */
-
 .complex-picker{position:relative;}
-
 .complex-picker-btn{
   display:flex;
   align-items:center;
@@ -1392,7 +774,6 @@
   font-size:10px;
   flex-shrink:0;
 }
-
 .complex-picker-popover{
   display:none;
   position:absolute;
@@ -1410,7 +791,6 @@
   flex-direction:column;
 }
 .complex-picker-popover.active{display:flex;}
-
 .complex-picker-head{
   display:flex;
   align-items:center;
@@ -1436,7 +816,6 @@
   opacity:.8;
 }
 .complex-picker-close:hover{opacity:1;}
-
 .complex-picker-search-wrap{
   padding:8px 10px;
   background:var(--ak-gray-light);
@@ -1453,14 +832,12 @@
   background:#fff;
 }
 .complex-picker-search:focus{outline:none;border-color:var(--ak-green);}
-
 .complex-picker-body{
   overflow-y:auto;
   overflow-x:hidden;
   padding:6px 0;
   flex:1;
 }
-
 .complex-picker-empty{
   padding:20px;
   text-align:center;
@@ -1468,13 +845,11 @@
   font-size:12px;
   font-style:italic;
 }
-
 .complex-picker-group{
   border-bottom:1px solid var(--ak-gray-light);
 }
 .complex-picker-group:last-child{border-bottom:none;}
 .complex-picker-group.empty{opacity:.6;}
-
 .complex-picker-group-head{
   display:flex;
   align-items:center;
@@ -1495,7 +870,6 @@
 }
 .complex-picker-group-head:hover{background:var(--ak-gray-light);}
 .complex-picker-group.open .complex-picker-group-head{background:var(--ak-gray-light);}
-
 .complex-picker-group-arrow{
   font-size:10px;
   color:var(--ak-red);
@@ -1523,18 +897,15 @@
   background:var(--ak-green);
   color:#fff;
 }
-
 .complex-picker-group-body{
   padding:2px 0 6px 0;
   background:#fafbfc;
 }
-
 .complex-picker-sub{
   padding:1px 0;
   border-bottom:1px dashed rgba(0,0,0,.05);
 }
 .complex-picker-sub:last-child{border-bottom:none;}
-
 .complex-picker-sub-row{
   display:flex;
   align-items:center;
@@ -1560,7 +931,6 @@
   transition:.1s;
 }
 .complex-picker-sub-arrow-btn:hover{background:var(--ak-gray-light);color:var(--ak-green);}
-
 .complex-picker-sub-btn{
   display:flex;
   align-items:center;
@@ -1579,7 +949,6 @@
   border-radius:4px;
 }
 .complex-picker-sub-btn:hover{background:var(--ak-gray-light);}
-
 .complex-picker-radio{
   display:inline-block;
   width:14px;
@@ -1590,7 +959,6 @@
   transition:.1s;
 }
 .complex-picker-sub-btn:hover .complex-picker-radio{border-color:var(--ak-green);}
-
 .complex-picker-sub-name{
   flex:1;
   min-width:0;
@@ -1608,7 +976,6 @@
   background:var(--ak-gray-light);
   flex-shrink:0;
 }
-
 .complex-picker-sub-body{
   padding:4px 10px 8px 44px;
   background:#fdfdfd;
@@ -1626,7 +993,6 @@
   transition:.1s;
 }
 .complex-picker-item-check:hover{background:var(--ak-gray-light);}
-
 .complex-picker-item-check input[type=checkbox]{
   width:16px;
   height:16px;
@@ -1643,7 +1009,6 @@
   word-break:break-word;
   overflow-wrap:break-word;
 }
-
 .complex-picker-sub-actions{
   display:flex;
   gap:6px;
@@ -1690,54 +1055,6 @@
   border-color:var(--ak-green-light);
 }
 
-@media (max-width: 700px){
-  .complex-picker-popover{
-    min-width:0;
-    left:-10px;
-    right:-10px;
-  }
-  .complex-picker-sub-body{
-    padding-left:26px;
-  }
-  .complex-picker-sub-actions{
-    flex-direction:column;
-  }
-  .complex-picker-sub-action{width:100%;text-align:center;}
-}
-
-/* ============================================================
-   13. КАЛЕНДАРЬ ИГРОКА — тулбар
-   ============================================================ */
-.player-cal-toolbar{
-  display:flex;
-  gap:12px;
-  flex-wrap:wrap;
-  align-items:center;
-  margin-bottom:12px;
-  padding:10px 14px;
-  background:var(--ak-gray-light);
-  border-radius:6px;
-  border-left:4px solid var(--ak-red);
-}
-.player-cal-month-select{
-  padding:9px 12px;
-  border:2px solid var(--ak-gray-mid);
-  border-radius:4px;
-  font-size:13px;
-  font-family:inherit;
-  background:#fff;
-  font-weight:600;
-  margin-left:auto;
-}
-.player-cal-month-select:focus{outline:none;border-color:var(--ak-green)}
-.player-cal-toolbar .cc-legend{
-  margin-left:0;
-  width:100%;
-  padding-top:8px;
-  border-top:1px dashed var(--ak-gray-mid);
-  font-size:11px;
-}
-
 /* ============================================================
    14. МОДАЛКА ДНЯ ИГРОКА (PDE)
    ============================================================ */
@@ -1765,79 +1082,7 @@
 .pde-block-fields{display:flex;gap:6px;flex-wrap:wrap}
 
 /* ============================================================
-   15. СТАРАЯ МОДАЛКА ОТМЕТКИ (fm-*)
-   ============================================================ */
-.fm-toolbar{
-  display:flex;
-  gap:8px;
-  flex-wrap:wrap;
-  margin-bottom:16px;
-  padding:10px;
-  background:var(--ak-gray-light);
-  border-radius:6px;
-}
-.fm-players{display:flex;flex-direction:column;gap:10px}
-.fm-player-row{
-  display:flex;
-  flex-direction:column;
-  gap:8px;
-  padding:12px 14px;
-  background:#fff;
-  border:1.5px solid var(--ak-gray-mid);
-  border-radius:8px;
-}
-.fm-player-info{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
-.fm-player-fio{
-  font-family:var(--font-display);
-  font-size:14px;
-  font-weight:900;
-  color:var(--ak-green);
-  text-transform:uppercase;
-  letter-spacing:.3px;
-}
-.fm-player-team{font-size:11px;color:var(--ak-gray-dark)}
-.fm-buttons{display:flex;gap:8px;flex-wrap:wrap}
-.fm-btn{
-  padding:8px 14px;
-  border-radius:20px;
-  border:2px solid var(--ak-gray-mid);
-  background:#fff;
-  font-family:var(--font-display);
-  font-size:11px;
-  font-weight:900;
-  letter-spacing:.4px;
-  text-transform:uppercase;
-  cursor:pointer;
-  transition:.1s;
-  color:var(--ak-gray-dark);
-  white-space:nowrap;
-}
-.fm-btn:hover{
-  border-color:var(--ak-green);
-  color:var(--ak-green);
-  background:var(--ak-gray-light);
-}
-.fm-btn.active.done{background:#1e7a3f;border-color:#1e7a3f;color:#fff}
-.fm-btn.active.partial{background:#b8860b;border-color:#b8860b;color:#fff}
-.fm-btn.active.notdone{background:var(--ak-red);border-color:var(--ak-red);color:#fff}
-.fm-comment-wrap{display:none}
-.fm-comment-input{
-  width:100%;
-  padding:8px 12px;
-  border:2px solid var(--ak-red);
-  background:#fff6f8;
-  border-radius:6px;
-  font-family:inherit;
-  font-size:13px;
-}
-.fm-comment-input:focus{
-  outline:none;
-  border-color:var(--ak-red-dark);
-  box-shadow:0 0 0 3px rgba(200,16,46,.12);
-}
-
-/* ============================================================
-   АДАПТИВ
+   АДАПТИВ (тренировки, шаблоны, поповеры)
    ============================================================ */
 @media (max-width: 700px){
   .ccpf-buttons{flex-direction:column}
@@ -1856,10 +1101,26 @@
   .cc-sess-save-row{flex-direction:column;align-items:stretch}
   .cc-sess-save-btn{width:100%}
   .cc-sess-save-hint{text-align:center}
-  .fm-buttons{flex-direction:column}
-  .fm-btn{width:100%;justify-content:center}
 
   /* Шаблоны — компактнее на мобильном */
   .tpl-toggle{font-size:10px;padding:10px 12px}
   .tpl-dropdown{min-width:0}
+
+  /* Комплекс-поповер */
+  .complex-picker-popover{
+    min-width:0;
+    left:-10px;
+    right:-10px;
+  }
+  .complex-picker-sub-body{
+    padding-left:26px;
+  }
+  .complex-picker-sub-actions{
+    flex-direction:column;
+  }
+  .complex-picker-sub-action{width:100%;text-align:center;}
+}
+
+@media (max-width: 900px){
+  .cc-time-row{grid-template-columns:1fr}
 }
