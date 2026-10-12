@@ -392,7 +392,7 @@ function savePlayerDayFact() {
   for (let i = 0; i < ctx.blocks.length; i++) {
     const b = ctx.blocks[i];
     if ((b.fact === 'partial' || b.fact === 'notdone') && !(b.comment || '').trim()) {
-      alert(`Блок #${i + 1}: для «${factLabel(b.fact)}» обязателен комментарий`);
+      uiAlert(`Блок #${i + 1}: для «${factLabel(b.fact)}» обязателен комментарий`);
       return;
     }
   }

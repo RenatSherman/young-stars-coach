@@ -108,7 +108,7 @@ function addPlayer() {
 
 function saveNewPlayer() {
   const fio = document.getElementById('np-fio').value.trim();
-  if (!fio) { alert('Введите ФИО'); return; }
+  if (!fio) { uiAlert('Введите ФИО'); return; }
   DB.players.push({
     id: 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
     fio,

@@ -216,7 +216,7 @@ function addParent() {
 
 function saveNewParent() {
   const name = document.getElementById('np-name').value.trim();
-  if (!name) { alert('Введите название'); return; }
+  if (!name) { uiAlert('Введите название'); return; }
   const id = uid('g');
   if (!Array.isArray(DB.exercises)) DB.exercises = [];
   DB.exercises.push({ id, name, subgroups: [] });
@@ -243,7 +243,7 @@ function saveRenameParent(parentId) {
   const p = DB.exercises.find(x => x.id === parentId);
   if (!p) return;
   const name = document.getElementById('rp-name').value.trim();
-  if (!name) { alert('Введите название'); return; }
+  if (!name) { uiAlert('Введите название'); return; }
   p.name = name;
   saveDB();
   closeModal();
@@ -258,11 +258,16 @@ function deleteParent(parentId) {
   const warn = subs || items
     ? `\n\nВнутри: ${subs} подгрупп, ${items} упражнений. Все они будут удалены.`
     : '';
-  if (!confirm(`Удалить большую группу «${p.name}»?${warn}`)) return;
-  DB.exercises = DB.exercises.filter(x => x.id !== parentId);
-  __exOpenParents.delete(parentId);
-  saveDB();
-  renderExercises();
+  uiConfirm(
+    `Удалить большую группу «${p.name}»?${warn}`,
+    () => {
+      DB.exercises = DB.exercises.filter(x => x.id !== parentId);
+      __exOpenParents.delete(parentId);
+      saveDB();
+      renderExercises();
+    },
+    () => {}
+  );
 }
 
 function moveParentUp(parentId) {
@@ -303,7 +308,7 @@ function saveNewSubgroup(parentId) {
   const p = DB.exercises.find(x => x.id === parentId);
   if (!p) return;
   const name = document.getElementById('nsg-name').value.trim();
-  if (!name) { alert('Введите название'); return; }
+  if (!name) { uiAlert('Введите название'); return; }
   if (!Array.isArray(p.subgroups)) p.subgroups = [];
   const id = uid('sg');
   p.subgroups.push({ id, name, items: [], links: {} });
@@ -332,7 +337,7 @@ function saveRenameSubgroup(sgId) {
   const found = findSubgroupById(sgId);
   if (!found) return;
   const name = document.getElementById('rsg-name').value.trim();
-  if (!name) { alert('Введите название'); return; }
+  if (!name) { uiAlert('Введите название'); return; }
   found.subgroup.name = name;
   saveDB();
   closeModal();
@@ -345,11 +350,16 @@ function deleteSubgroup(sgId) {
   const { parent, subgroup } = found;
   const items = (subgroup.items || []).length;
   const warn = items ? `\n\nВнутри ${items} упражнений — они будут удалены.` : '';
-  if (!confirm(`Удалить подгруппу «${subgroup.name}»?${warn}`)) return;
-  parent.subgroups = parent.subgroups.filter(x => x.id !== sgId);
-  __exOpenSubgroups.delete(sgId);
-  saveDB();
-  renderExercises();
+  uiConfirm(
+    `Удалить подгруппу «${subgroup.name}»?${warn}`,
+    () => {
+      parent.subgroups = parent.subgroups.filter(x => x.id !== sgId);
+      __exOpenSubgroups.delete(sgId);
+      saveDB();
+      renderExercises();
+    },
+    () => {}
+  );
 }
 
 function moveSubgroupUp(parentId, sgId) {
@@ -385,7 +395,7 @@ function openMoveSubgroupModal(sgId) {
     .join('');
 
   if (!options) {
-    alert('Нет других больших групп. Создайте новую большую группу, чтобы переместить.');
+    uiAlert('Нет других больших групп. Создайте новую большую группу, чтобы переместить.');
     return;
   }
 
@@ -448,7 +458,7 @@ function saveNewExercise(sgId) {
   const found = findSubgroupById(sgId);
   if (!found) return;
   const name = document.getElementById('ne-name').value.trim();
-  if (!name) { alert('Введите название'); return; }
+  if (!name) { uiAlert('Введите название'); return; }
 
   const { subgroup } = found;
   if (!Array.isArray(subgroup.items)) subgroup.items = [];
@@ -481,20 +491,24 @@ function deleteExercise(sgId, idx) {
   if (!found) return;
   const { subgroup } = found;
   const label = (subgroup.items[idx] || '').substring(0, 60);
-  if (!confirm(`Удалить упражнение «${label}${label.length >= 60 ? '…' : ''}»?`)) return;
-
-  subgroup.items.splice(idx, 1);
-  if (subgroup.links) {
-    const newLinks = {};
-    Object.keys(subgroup.links).forEach(k => {
-      const ki = parseInt(k);
-      if (ki < idx) newLinks[ki] = subgroup.links[k];
-      else if (ki > idx) newLinks[ki - 1] = subgroup.links[k];
-    });
-    subgroup.links = newLinks;
-  }
-  saveDB();
-  renderExercises();
+  uiConfirm(
+    `Удалить упражнение «${label}${label.length >= 60 ? '…' : ''}»?`,
+    () => {
+      subgroup.items.splice(idx, 1);
+      if (subgroup.links) {
+        const newLinks = {};
+        Object.keys(subgroup.links).forEach(k => {
+          const ki = parseInt(k);
+          if (ki < idx) newLinks[ki] = subgroup.links[k];
+          else if (ki > idx) newLinks[ki - 1] = subgroup.links[k];
+        });
+        subgroup.links = newLinks;
+      }
+      saveDB();
+      renderExercises();
+    },
+    () => {}
+  );
 }
 
 function moveExerciseUp(sgId, idx) {
@@ -548,7 +562,7 @@ function openMoveExerciseModal(sgId, idx) {
   });
 
   if (!groups.length) {
-    alert('Нет других подгрупп, куда можно переместить.');
+    uiAlert('Нет других подгрупп, куда можно переместить.');
     return;
   }
 

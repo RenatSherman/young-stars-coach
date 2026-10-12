@@ -263,7 +263,7 @@ function drawCoachCharts(stats) {
 
 async function exportCoachReportToPDF() {
   const body = document.getElementById('cr-body');
-  if (!body || !body.innerHTML.trim()) { alert('Нет данных для экспорта'); return; }
+  if (!body || !body.innerHTML.trim()) { uiAlert('Нет данных для экспорта'); return; }
   await new Promise(r => setTimeout(r, 200));
   const stage = document.getElementById('pdf-stage');
   stage.innerHTML = `

@@ -2,7 +2,7 @@
    02-utils.js
    Утилиты: экранирование, toast, модалки, даты, возраст, время.
 
-   Кастомные модалки uiAlert / uiConfirm / uiChoice.
+   Кастомные модалки uiAlert / uiConfirm / uiChoice / uiPrompt.
 
    Хелперы сезонов живут в 01-config.js (единое место).
 
@@ -102,7 +102,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 /* ============================================================
-   Кастомные модалки подтверждения/уведомления/выбора
+   Кастомные модалки подтверждения/уведомления/выбора/ввода
    ============================================================ */
 
 function uiAlert(message, onClose) {
@@ -160,6 +160,7 @@ function uiConfirm(message, onConfirm, onCancel) {
        { label: 'Всю серию (5 дней)',    hint: '',                value: 'all' },
      ]
    Возвращает через onSelect(value) — выбранное значение.
+   При отмене — onSelect(null).
    ============================================================ */
 function uiChoice(message, options, onSelect, title) {
   const bg = document.getElementById('modal-bg');
@@ -214,6 +215,96 @@ function uiChoice(message, options, onSelect, title) {
     close();
     if (typeof onSelect === 'function') onSelect(null);
   };
+}
+
+/* ============================================================
+   Модалка ввода строки (аналог prompt, но в стиле проекта).
+   Формат:
+     uiPrompt(message, defaultValue, onOk, onCancel, options)
+     options = { title, placeholder, okLabel, multiline }
+
+   onOk(value)  — вызывается со строкой (может быть пустой).
+   onCancel()   — вызывается при «Отмена» / ESC / клик по фону.
+
+   Enter  = OK (для однострочного поля).
+   ESC    = Отмена.
+   ============================================================ */
+function uiPrompt(message, defaultValue, onOk, onCancel, options) {
+  const bg = document.getElementById('modal-bg');
+  const content = document.getElementById('modal-content');
+  if (!bg || !content) return;
+
+  const opts = options || {};
+  const title = opts.title || 'Введите значение';
+  const placeholder = opts.placeholder || '';
+  const okLabel = opts.okLabel || 'OK';
+  const multiline = !!opts.multiline;
+  const initialValue = (defaultValue != null) ? String(defaultValue) : '';
+
+  const fieldHtml = multiline
+    ? `<textarea id="ui-prompt-input" rows="3" placeholder="${escapeAttr(placeholder)}">${escapeHtml(initialValue)}</textarea>`
+    : `<input type="text" id="ui-prompt-input" value="${escapeAttr(initialValue)}" placeholder="${escapeAttr(placeholder)}" autocomplete="off">`;
+
+  content.innerHTML = `
+    <h3>${escapeHtml(title)}</h3>
+    <p style="margin-bottom:12px;line-height:1.5;white-space:pre-wrap">${escapeHtml(message || '')}</p>
+    <div class="field">${fieldHtml}</div>
+    <div class="btn-row" style="margin-top:16px">
+      <button class="btn" id="ui-prompt-ok">${escapeHtml(okLabel)}</button>
+      <button class="btn-ghost btn" id="ui-prompt-cancel">Отмена</button>
+    </div>`;
+
+  bg.classList.add('active');
+  document.body.classList.add('modal-open');
+
+  const close = () => {
+    bg.classList.remove('active');
+    document.body.classList.remove('modal-open');
+    content.innerHTML = '';
+  };
+
+  const input = document.getElementById('ui-prompt-input');
+  const okBtn = document.getElementById('ui-prompt-ok');
+  const cancelBtn = document.getElementById('ui-prompt-cancel');
+
+  const submit = () => {
+    const value = input ? input.value : '';
+    close();
+    if (typeof onOk === 'function') onOk(value);
+  };
+  const cancel = () => {
+    close();
+    if (typeof onCancel === 'function') onCancel();
+  };
+
+  if (okBtn) okBtn.onclick = submit;
+  if (cancelBtn) cancelBtn.onclick = cancel;
+
+  if (input) {
+    if (!multiline) {
+      input.addEventListener('keydown', e => {
+        if (e.key === 'Enter') { e.preventDefault(); submit(); }
+        else if (e.key === 'Escape') { e.preventDefault(); cancel(); }
+      });
+    } else {
+      input.addEventListener('keydown', e => {
+        if (e.key === 'Escape') { e.preventDefault(); cancel(); }
+      });
+    }
+    setTimeout(() => {
+      input.focus();
+      if (!multiline && initialValue) input.select();
+    }, 30);
+  }
+
+  /* Клик по фону — отмена (для этой модалки) */
+  const bgHandler = (e) => {
+    if (e.target && e.target.id === 'modal-bg') {
+      bg.removeEventListener('click', bgHandler);
+      cancel();
+    }
+  };
+  bg.addEventListener('click', bgHandler);
 }
 
 /* ===== Даты ===== */

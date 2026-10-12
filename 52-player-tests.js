@@ -46,18 +46,26 @@ function renameTestColumn(key, newLabel) {
   const col = DB.testColumns.find(c => c.key === key);
   if (col && col.label !== newLabel) { col.label = newLabel; saveDB(); }
 }
+
 function resetTestColumns() {
-  if (!confirm('Сбросить названия столбцов тестов на стандартные?')) return;
-  DB.testColumns = DEFAULT_TEST_COLUMNS.map(c => ({ ...c }));
-  saveDB();
-  if (currentPlayerId) refreshProfile(currentPlayerId);
+  uiConfirm(
+    'Сбросить названия столбцов тестов на стандартные?',
+    () => {
+      DB.testColumns = DEFAULT_TEST_COLUMNS.map(c => ({ ...c }));
+      saveDB();
+      if (currentPlayerId) refreshProfile(currentPlayerId);
+    },
+    () => {}
+  );
 }
+
 function updateTest(pid, i, f, v) {
   const p = DB.players.find(x => x.id === pid);
   if (!p || !p.tests || !p.tests[i]) return;
   p.tests[i][f] = v;
   saveDB();
 }
+
 function addTest(pid) {
   const p = DB.players.find(x => x.id === pid);
   if (!p) return;
@@ -68,6 +76,7 @@ function addTest(pid) {
   saveDB();
   refreshProfile(pid);
 }
+
 function removeTest(pid, i) {
   const p = DB.players.find(x => x.id === pid);
   if (!p || !p.tests) return;

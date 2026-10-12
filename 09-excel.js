@@ -11,7 +11,7 @@
 /* ===== Экспорт одного игрока в Excel ===== */
 function exportPlayerToExcel(pid) {
   const p = DB.players.find(x => x.id === pid);
-  if (!p) { alert('Игрок не найден'); return; }
+  if (!p) { uiAlert('Игрок не найден'); return; }
   writePlayerWorkbook(p, `Игрок_${(p.fio || '').replace(/\s+/g, '_')}.xlsx`);
 }
 
@@ -106,26 +106,36 @@ function importPlayerFromExcel() {
         const wb = XLSX.read(new Uint8Array(ev.target.result), { type: 'array' });
         const parsed = parseExcelWorkbook(wb);
 
+        const finishImport = () => {
+          DB.players.push(parsed);
+          saveDB();
+
+          const report = [
+            `Игрок «${parsed.fio}» добавлен.`,
+            `Технических критериев: ${parsed.techDetail.length}`,
+            `Физ/Такт/Псих критериев: ${parsed.otherDetail.length}`,
+            `Тестов: ${parsed.tests.length}, статистики: ${parsed.stats.length}`,
+            `Целей развития: ${(parsed.developmentPlans || []).length}`
+          ].join('\n');
+
+          uiAlert(report, () => {
+            renderPlayers();
+            openPlayer(parsed.id);
+          });
+        };
+
         if (!parsed.techDetail.length && !parsed.otherDetail.length) {
-          if (!confirm('Не удалось найти оценки. Игрок будет создан без них. Продолжить?')) return;
+          uiConfirm(
+            'Не удалось найти оценки. Игрок будет создан без них. Продолжить?',
+            finishImport,
+            () => {}
+          );
+          return;
         }
 
-        DB.players.push(parsed);
-        saveDB();
-
-        const report = [
-          `Игрок «${parsed.fio}» добавлен.`,
-          `Технических критериев: ${parsed.techDetail.length}`,
-          `Физ/Такт/Псих критериев: ${parsed.otherDetail.length}`,
-          `Тестов: ${parsed.tests.length}, статистики: ${parsed.stats.length}`,
-          `Целей развития: ${(parsed.developmentPlans || []).length}`
-        ].join('\n');
-        alert(report);
-
-        renderPlayers();
-        openPlayer(parsed.id);
+        finishImport();
       } catch (err) {
-        alert('Ошибка импорта: ' + err.message);
+        uiAlert('Ошибка импорта: ' + err.message);
         console.error(err);
       }
     };
@@ -366,7 +376,7 @@ function exportData() {
 
 function importData() {
   const file = document.getElementById('import-file').files[0];
-  if (!file) { alert('Выберите файл'); return; }
+  if (!file) { uiAlert('Выберите файл'); return; }
 
   const reader = new FileReader();
   reader.onload = e => {
@@ -384,11 +394,12 @@ function importData() {
 
       saveDB();
       pushToCloud();
-      alert('Импорт завершён');
-      renderPlayers();
-      showScreen('players');
+      uiAlert('Импорт завершён', () => {
+        renderPlayers();
+        showScreen('players');
+      });
     } catch (err) {
-      alert('Ошибка: ' + err.message);
+      uiAlert('Ошибка: ' + err.message);
     }
   };
   reader.readAsText(file);
@@ -400,13 +411,13 @@ function importData() {
 
 function importCSVFile() {
   const file = document.getElementById('csv-file').files[0];
-  if (!file) { alert('Выберите CSV-файл'); return; }
+  if (!file) { uiAlert('Выберите CSV-файл'); return; }
 
   const reader = new FileReader();
   reader.onload = e => {
     try {
       const lines = e.target.result.split(/\r?\n/).filter(l => l.trim());
-      if (lines.length < 2) { alert('Файл пуст'); return; }
+      if (lines.length < 2) { uiAlert('Файл пуст'); return; }
 
       let added = 0;
       for (let i = 1; i < lines.length; i++) {
@@ -433,11 +444,12 @@ function importCSVFile() {
       }
 
       saveDB();
-      alert(`Добавлено игроков: ${added}`);
-      renderPlayers();
-      showScreen('players');
+      uiAlert(`Добавлено игроков: ${added}`, () => {
+        renderPlayers();
+        showScreen('players');
+      });
     } catch (err) {
-      alert('Ошибка: ' + err.message);
+      uiAlert('Ошибка: ' + err.message);
     }
   };
   reader.readAsText(file, 'UTF-8');
@@ -448,12 +460,17 @@ function importCSVFile() {
    ============================================================ */
 
 function clearAll() {
-  if (!confirm('Удалить ВСЕ локальные данные? Данные в облаке останутся.')) return;
-  localStorage.removeItem(STORAGE_KEY);
-  DB = { players: [], exercises: [], meta: {}, testColumns: null };
-  openAccordions.clear();
-  saveDB();
-  seedDemoData();
-  renderPlayers();
-  alert('Локальные данные сброшены. Данные в облаке — при следующей синхронизации.');
+  uiConfirm(
+    'Удалить ВСЕ локальные данные? Данные в облаке останутся.',
+    () => {
+      localStorage.removeItem(STORAGE_KEY);
+      DB = { players: [], exercises: [], meta: {}, testColumns: null };
+      openAccordions.clear();
+      saveDB();
+      seedDemoData();
+      renderPlayers();
+      uiAlert('Локальные данные сброшены. Данные в облаке — при следующей синхронизации.');
+    },
+    () => {}
+  );
 }

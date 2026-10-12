@@ -214,23 +214,33 @@ async function manualSync() {
 
 /* ===== Принудительная отправка ===== */
 async function forceUpload() {
-  if (!confirm('Загрузить ВСЕ локальные данные в облако? Данные в облаке будут перезаписаны.')) return;
-  await pushToCloud();
-  alert('Локальные данные отправлены в облако');
+  uiConfirm(
+    'Загрузить ВСЕ локальные данные в облако? Данные в облаке будут перезаписаны.',
+    async () => {
+      await pushToCloud();
+      uiAlert('Локальные данные отправлены в облако');
+    },
+    () => {}
+  );
 }
 
 /* ===== Принудительная загрузка ===== */
 async function forceDownload() {
-  if (!confirm('Скачать данные из облака? Все локальные изменения будут потеряны.')) return;
-  await pullFromCloud(true);
-  if (typeof renderPlayers === 'function') renderPlayers();
-  if (typeof updateNotifBadge === 'function') updateNotifBadge();
-  if (typeof renderCoachCalendar === 'function') renderCoachCalendar();
-  if (currentPlayerId) {
-    const p = DB.players.find(x => x.id === currentPlayerId);
-    if (p && typeof renderPlayerCard === 'function') renderPlayerCard(p);
-  }
-  alert('Данные загружены из облака');
+  uiConfirm(
+    'Скачать данные из облака? Все локальные изменения будут потеряны.',
+    async () => {
+      await pullFromCloud(true);
+      if (typeof renderPlayers === 'function') renderPlayers();
+      if (typeof updateNotifBadge === 'function') updateNotifBadge();
+      if (typeof renderCoachCalendar === 'function') renderCoachCalendar();
+      if (currentPlayerId) {
+        const p = DB.players.find(x => x.id === currentPlayerId);
+        if (p && typeof renderPlayerCard === 'function') renderPlayerCard(p);
+      }
+      uiAlert('Данные загружены из облака');
+    },
+    () => {}
+  );
 }
 
 /* ===== Авторизация ===== */
@@ -299,15 +309,21 @@ async function doRegister() {
     showAuthError('Ошибка регистрации: ' + (err.message || err));
   }
 }
+
 async function doLogout() {
-  if (!confirm('Выйти из аккаунта?')) return;
-  saveDBNow();
-  await sb.auth.signOut();
-  currentUser = null;
-  document.getElementById('auth-screen').classList.add('active');
-  document.querySelector('header').style.display = 'none';
-  document.querySelector('main').style.display = 'none';
-  switchAuthTab('login');
+  uiConfirm(
+    'Выйти из аккаунта?',
+    async () => {
+      saveDBNow();
+      await sb.auth.signOut();
+      currentUser = null;
+      document.getElementById('auth-screen').classList.add('active');
+      document.querySelector('header').style.display = 'none';
+      document.querySelector('main').style.display = 'none';
+      switchAuthTab('login');
+    },
+    () => {}
+  );
 }
 
 /* ===== После входа ===== */

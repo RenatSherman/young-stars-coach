@@ -199,10 +199,15 @@ function addDevelopmentGoal(pid) {
 function removeDevelopmentGoal(pid, idx) {
   const p = DB.players.find(x => x.id === pid);
   if (!p || !Array.isArray(p.developmentPlans)) return;
-  if (!confirm('Удалить цель развития?')) return;
-  p.developmentPlans.splice(idx, 1);
-  saveDB();
-  renderDevelopmentPlanContent(p);
+  uiConfirm(
+    'Удалить цель развития?',
+    () => {
+      p.developmentPlans.splice(idx, 1);
+      saveDB();
+      renderDevelopmentPlanContent(p);
+    },
+    () => {}
+  );
 }
 
 function onDevSkillChange(pid, idx, value) {
@@ -231,16 +236,23 @@ function onDevTargetChange(pid, idx, value) {
   if (!g) return;
   const n = value === '' ? '' : Number(value);
   if (n !== '' && (isNaN(n) || n < 1 || n > 10)) {
-    alert('Цель должна быть числом от 1 до 10');
+    uiAlert('Цель должна быть числом от 1 до 10');
     renderDevelopmentPlanContent(p);
     return;
   }
   const cur = getCurrentSkillStart(p, g.section, g.index);
   if (n !== '' && cur != null && cur !== '' && Number(n) < Number(cur)) {
-    if (!confirm(`Цель (${n}) меньше текущей оценки (${cur}). Всё равно сохранить?`)) {
-      renderDevelopmentPlanContent(p);
-      return;
-    }
+    uiConfirm(
+      `Цель (${n}) меньше текущей оценки (${cur}). Всё равно сохранить?`,
+      () => {
+        g.target = n;
+        saveDB();
+      },
+      () => {
+        renderDevelopmentPlanContent(p);
+      }
+    );
+    return;
   }
   g.target = n;
   saveDB();
@@ -270,7 +282,7 @@ function onDevCommentChange(pid, idx, value) {
   if (!g) return;
   const v = (value || '').trim();
   if ((g.fact === 'partial' || g.fact === 'notdone') && !v) {
-    alert('Для «частично» и «не выполнено» комментарий обязателен');
+    uiAlert('Для «частично» и «не выполнено» комментарий обязателен');
     renderDevelopmentPlanContent(p);
     return;
   }

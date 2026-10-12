@@ -45,7 +45,7 @@ function migrateToSeasons() {
 
 function switchSeason(key) {
   if (!DB.seasons || !DB.seasons[key]) {
-    alert('Сезон не найден: ' + key);
+    uiAlert('Сезон не найден: ' + key);
     return;
   }
   if (key === currentSeason) return;
@@ -88,11 +88,11 @@ function createSeason(opts) {
   const { key, fromSeason, playerIds, copy } = opts;
 
   if (!key || !/^\d{4}\/\d{2}$/.test(key)) {
-    alert('Неверный формат сезона. Нужно: 2027/28');
+    uiAlert('Неверный формат сезона. Нужно: 2027/28');
     return false;
   }
   if (DB.seasons[key]) {
-    alert('Сезон ' + key + ' уже существует');
+    uiAlert('Сезон ' + key + ' уже существует');
     return false;
   }
 
@@ -175,27 +175,40 @@ function deepClone(obj) {
 function deleteSeason(key) {
   if (!DB.seasons[key]) return false;
   if (key === currentSeason) {
-    alert('Нельзя удалить текущий сезон. Сначала переключитесь на другой.');
+    uiAlert('Нельзя удалить текущий сезон. Сначала переключитесь на другой.');
     return false;
   }
   if (Object.keys(DB.seasons).length <= 1) {
-    alert('Нельзя удалить единственный сезон.');
+    uiAlert('Нельзя удалить единственный сезон.');
     return false;
   }
-  if (!confirm(`Удалить сезон ${formatSeasonLabel(key)} со всеми игроками и данными?`)) return false;
 
-  delete DB.seasons[key];
-  saveDB();
-  updateSeasonSelector();
-  toast('Сезон ' + formatSeasonLabel(key) + ' удалён');
+  uiConfirm(
+    `Удалить сезон ${formatSeasonLabel(key)} со всеми игроками и данными?`,
+    () => {
+      delete DB.seasons[key];
+      saveDB();
+      updateSeasonSelector();
+      toast('Сезон ' + formatSeasonLabel(key) + ' удалён');
+      if (typeof openManageSeasonsModal === 'function') {
+        // если модалка управления открыта — перерисуем её
+        const modalContent = document.getElementById('modal-content');
+        if (modalContent && modalContent.querySelector('.ms-list')) {
+          openManageSeasonsModal();
+        }
+      }
+    },
+    () => {}
+  );
+
   return true;
 }
 
 function renameSeason(oldKey, newKey) {
-  if (!DB.seasons[oldKey]) { alert('Сезон не найден'); return false; }
-  if (!newKey || !/^\d{4}\/\d{2}$/.test(newKey)) { alert('Формат: 2027/28'); return false; }
+  if (!DB.seasons[oldKey]) { uiAlert('Сезон не найден'); return false; }
+  if (!newKey || !/^\d{4}\/\d{2}$/.test(newKey)) { uiAlert('Формат: 2027/28'); return false; }
   if (newKey === oldKey) return true;
-  if (DB.seasons[newKey]) { alert('Сезон ' + newKey + ' уже существует'); return false; }
+  if (DB.seasons[newKey]) { uiAlert('Сезон ' + newKey + ' уже существует'); return false; }
 
   DB.seasons[newKey] = DB.seasons[oldKey];
   delete DB.seasons[oldKey];
@@ -494,11 +507,11 @@ function submitCreateSeason() {
   if (!ctx) return;
 
   if (!ctx.key || !/^\d{4}\/\d{2}$/.test(ctx.key)) {
-    alert('Неверное название сезона. Формат: 2027/28');
+    uiAlert('Неверное название сезона. Формат: 2027/28');
     return;
   }
   if (DB.seasons[ctx.key]) {
-    alert('Сезон ' + ctx.key + ' уже существует');
+    uiAlert('Сезон ' + ctx.key + ' уже существует');
     return;
   }
 
@@ -564,15 +577,47 @@ function manageSwitchSeason(key) {
 }
 
 function manageRenameSeason(key) {
-  const newKey = prompt('Новое название сезона (формат 2027/28):', key);
-  if (!newKey || newKey === key) return;
-  if (renameSeason(key, newKey.trim())) {
-    openManageSeasonsModal();
-  }
+  uiPrompt(
+    'Новое название сезона (формат 2027/28):',
+    key,
+    (newKey) => {
+      const trimmed = (newKey || '').trim();
+      if (!trimmed || trimmed === key) return;
+      if (renameSeason(key, trimmed)) {
+        openManageSeasonsModal();
+      }
+    },
+    () => {},
+    { title: 'Переименовать сезон', placeholder: '2027/28', okLabel: 'Переименовать' }
+  );
 }
 
 function manageDeleteSeason(key) {
-  if (deleteSeason(key)) {
+  // deleteSeason сам вызывает uiConfirm, но мы хотим перерисовать
+  // модалку управления после успешного удаления.
+  // Поэтому повторно открываем её только при успехе.
+  const before = DB.seasons[key] ? 1 : 0;
+  deleteSeason(key);
+  // Проверяем через микрозадержку: если сезон реально удалился —
+  // uiConfirm выполнил callback синхронно, значит сезона уже нет.
+  if (before === 1 && !DB.seasons[key]) {
+    // уже удалён — перерисуем список
     openManageSeasonsModal();
+    return;
   }
+  // Если не удалён (отмена или защита) — ничего не делаем.
+  // Если удаление произошло в callback асинхронно — перерисуем
+  // список после закрытия модалки.
+  const check = setInterval(() => {
+    if (!DB.seasons[key]) {
+      clearInterval(check);
+      if (typeof openManageSeasonsModal === 'function') openManageSeasonsModal();
+    } else {
+      // Ждём максимум 5 секунд (защита от вечного таймера)
+      if (!document.querySelector('.ui-choice-row') && !document.getElementById('ui-confirm-ok')) {
+        clearInterval(check);
+      }
+    }
+  }, 100);
+  setTimeout(() => clearInterval(check), 5000);
 }

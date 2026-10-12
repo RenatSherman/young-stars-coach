@@ -35,6 +35,7 @@ function updateStat(pid, i, f, v) {
   p.stats[i][f] = (f === 'club' || f === 'season') ? v : (v === '' ? '' : Number(v));
   saveDB();
 }
+
 function addStat(pid) {
   const p = DB.players.find(x => x.id === pid);
   if (!p) return;
@@ -42,15 +43,25 @@ function addStat(pid) {
   saveDB();
   refreshProfile(pid);
 }
+
 function addStatSection(pid) {
   const p = DB.players.find(x => x.id === pid);
   if (!p) return;
-  const name = prompt('Название раздела:');
-  if (!name) return;
-  p.stats.push({ season: name, club: '', games: '', goals: '', assists: '', points: '', plus: '' });
-  saveDB();
-  refreshProfile(pid);
+  uiPrompt(
+    'Название раздела:',
+    '',
+    (name) => {
+      const trimmed = (name || '').trim();
+      if (!trimmed) return;
+      p.stats.push({ season: trimmed, club: '', games: '', goals: '', assists: '', points: '', plus: '' });
+      saveDB();
+      refreshProfile(pid);
+    },
+    () => {},
+    { title: 'Новый раздел статистики', placeholder: 'Например: Кубок Татарстана', okLabel: 'Создать' }
+  );
 }
+
 function removeStat(pid, i) {
   const p = DB.players.find(x => x.id === pid);
   if (!p || !p.stats) return;
