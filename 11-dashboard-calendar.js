@@ -1,5 +1,5 @@
 /* ============================================================
-   11-dashboard-calendar.js  v24
+   11-dashboard-calendar.js  v25
    Календарь тренера: только хелперы для черновиков фактов
    и утилиты complexItems (метка + рендер списка упражнений).
 
@@ -12,6 +12,8 @@
    - 45-coach-repeat-block.js   — повтор на другие дни
    - 46-coach-players-picker.js — выбор игроков
    - 47-coach-delete.js         — удаление тренировок
+
+   findSubgroupByName теперь живёт в 10-init.js (единая точка правды).
    ============================================================ */
 
 let __coachOpenSessions = new Set();
@@ -67,16 +69,6 @@ function blockComplexLabel(block) {
     return `${name} (${items.length} из ${total})`;
   }
   return `${name} (${items.length} выбр.)`;
-}
-
-function findSubgroupByName(name) {
-  if (!name || !Array.isArray(DB.exercises)) return null;
-  for (const parent of DB.exercises) {
-    if (!parent || !Array.isArray(parent.subgroups)) continue;
-    const sg = parent.subgroups.find(s => s.name === name);
-    if (sg) return { parent, subgroup: sg };
-  }
-  return null;
 }
 
 function renderBlockExercisesLine(b) {

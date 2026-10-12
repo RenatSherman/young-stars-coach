@@ -93,15 +93,47 @@ function flattenSubgroups() {
   });
   return out;
 }
-function findSubgroupById(sgId) {
-  if (!Array.isArray(DB.exercises)) return null;
+
+/* ============================================================
+   УНИВЕРСАЛЬНЫЙ ПОИСК ПОДГРУППЫ
+
+   Единая точка правды. Возвращает { parent, subgroup } или null.
+
+   Использование:
+     findSubgroup({ id: 'sg_xxx' })
+     findSubgroup({ name: 'Посадка 1' })
+   ============================================================ */
+function findSubgroup(criteria) {
+  if (!criteria || !Array.isArray(DB.exercises)) return null;
+
+  const byId   = criteria.id   != null ? String(criteria.id)   : null;
+  const byName = criteria.name != null ? String(criteria.name) : null;
+
+  if (!byId && !byName) return null;
+
   for (const parent of DB.exercises) {
     if (!parent || !Array.isArray(parent.subgroups)) continue;
-    const sg = parent.subgroups.find(s => s.id === sgId);
-    if (sg) return { parent, subgroup: sg };
+    for (const sg of parent.subgroups) {
+      if (byId && String(sg.id) === byId) {
+        return { parent, subgroup: sg };
+      }
+      if (byName && String(sg.name) === byName) {
+        return { parent, subgroup: sg };
+      }
+    }
   }
   return null;
 }
+
+/* Обёртки для читаемости — тонкие, единая логика в findSubgroup */
+function findSubgroupById(sgId) {
+  return findSubgroup({ id: sgId });
+}
+
+function findSubgroupByName(name) {
+  return findSubgroup({ name });
+}
+
 function getAllSubgroupNames() {
   return flattenSubgroups().map(x => x.subgroupName);
 }
