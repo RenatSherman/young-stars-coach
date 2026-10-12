@@ -3,8 +3,8 @@
    Supabase: авторизация, синхронизация.
    Работает с существующей схемой coach_data:
      user_id, players (jsonb), exercises (jsonb), updated_at.
-   Сезоны хранятся ВНУТРИ поля players (в служебном ключе __meta),
-   поэтому изменять схему Supabase не нужно.
+   Сезоны и шаблоны хранятся ВНУТРИ поля players (в служебном
+   ключе __meta), поэтому изменять схему Supabase не нужно.
    ============================================================ */
 
 function setSyncStatus(status, text) {
@@ -25,14 +25,22 @@ function scheduleSync() {
 
 /* ===== Упаковка данных для отправки =====
    В поле players кладём объект:
-     { __meta: { seasons: {...}, currentSeason: 'YYYY/YY' }, list: [...игроки текущего сезона] }
+     {
+       __meta: {
+         seasons: {...},
+         currentSeason: 'YYYY/YY',
+         templates: [...]
+       },
+       list: [...игроки текущего сезона]
+     }
    Если у нас нет сезонов (старый формат) — просто массив игроков. */
 function packPlayersForCloud() {
   if (DB.seasons && Object.keys(DB.seasons).length > 0) {
     return {
       __meta: {
         seasons: DB.seasons,
-        currentSeason: currentSeason || null
+        currentSeason: currentSeason || null,
+        templates: Array.isArray(DB.templates) ? DB.templates : []
       },
       list: DB.players || []
     };
@@ -42,23 +50,24 @@ function packPlayersForCloud() {
 
 /* ===== Распаковка ===== */
 function unpackPlayersFromCloud(cloudPlayers) {
-  if (!cloudPlayers) return { players: [], seasons: null, currentSeason: null };
+  if (!cloudPlayers) return { players: [], seasons: null, currentSeason: null, templates: null };
 
   // Новый формат с мета-обёрткой
   if (cloudPlayers && !Array.isArray(cloudPlayers) && cloudPlayers.__meta) {
     return {
       players: Array.isArray(cloudPlayers.list) ? cloudPlayers.list : [],
       seasons: cloudPlayers.__meta.seasons || null,
-      currentSeason: cloudPlayers.__meta.currentSeason || null
+      currentSeason: cloudPlayers.__meta.currentSeason || null,
+      templates: Array.isArray(cloudPlayers.__meta.templates) ? cloudPlayers.__meta.templates : null
     };
   }
 
   // Старый формат — просто массив игроков
   if (Array.isArray(cloudPlayers)) {
-    return { players: cloudPlayers, seasons: null, currentSeason: null };
+    return { players: cloudPlayers, seasons: null, currentSeason: null, templates: null };
   }
 
-  return { players: [], seasons: null, currentSeason: null };
+  return { players: [], seasons: null, currentSeason: null, templates: null };
 }
 
 /* ===== Отправка ===== */
@@ -142,13 +151,18 @@ async function pullFromCloud(force = false) {
 
     const localPlayers    = (DB.players || []).length;
     const localSeasons    = DB.seasons ? Object.keys(DB.seasons).length : 0;
+    const localExercises  = (DB.exercises || []).length;
+    const localTemplates  = Array.isArray(DB.templates) ? DB.templates.length : 0;
+
     const cloudPlayers    = unpacked.players.length;
     const cloudSeasons    = unpacked.seasons ? Object.keys(unpacked.seasons).length : 0;
-    const localExercises  = (DB.exercises || []).length;
     const cloudExercises  = Array.isArray(data.exercises) ? data.exercises.length : 0;
+    const cloudTemplates  = Array.isArray(unpacked.templates) ? unpacked.templates.length : 0;
 
-    console.log('[sync] pullFromCloud — локально:', { players: localPlayers, seasons: localSeasons, exercises: localExercises },
-                '| в облаке:', { players: cloudPlayers, seasons: cloudSeasons, exercises: cloudExercises });
+    console.log('[sync] pullFromCloud — локально:',
+                { players: localPlayers, seasons: localSeasons, exercises: localExercises, templates: localTemplates },
+                '| в облаке:',
+                { players: cloudPlayers, seasons: cloudSeasons, exercises: cloudExercises, templates: cloudTemplates });
 
     // Решение: применять или нет
     const applySeasons = force
@@ -162,6 +176,10 @@ async function pullFromCloud(force = false) {
     const applyExercises = force
       || (cloudExercises > 0 && cloudExercises >= localExercises)
       || localExercises === 0;
+
+    const applyTemplates = force
+      || (cloudTemplates > 0 && cloudTemplates >= localTemplates)
+      || localTemplates === 0;
 
     if (applySeasons && unpacked.seasons) {
       DB.seasons = unpacked.seasons;
@@ -179,6 +197,10 @@ async function pullFromCloud(force = false) {
 
     if (applyExercises && Array.isArray(data.exercises) && data.exercises.length > 0) {
       DB.exercises = data.exercises;
+    }
+
+    if (applyTemplates && Array.isArray(unpacked.templates)) {
+      DB.templates = unpacked.templates;
     }
 
     if (typeof migrateAllExercises === 'function') migrateAllExercises();

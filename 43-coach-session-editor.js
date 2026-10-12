@@ -14,6 +14,10 @@
    - addBlockToForm / removeBlockFromForm
    - collectValidBlocksFromCtx / createSessionForDate
    - saveSessionFromForm
+
+   Интеграция с шаблонами (48-coach-templates.js):
+   - в форму добавлена кнопка «Заполнить из шаблона»
+   - в футер добавлена кнопка «Сохранить как шаблон»
    ============================================================ */
 
 /* ============================================================
@@ -125,6 +129,12 @@ function renderSessionForm() {
   const playersHtml = renderCoachGroupedPlayers(DB.players, ctx.playerIds);
   const repeatHtml = renderRepeatBlock();
 
+  /* Блок «Заполнить из шаблона» — только если шаблоны есть */
+  const hasTemplates = Array.isArray(DB.templates) && DB.templates.length > 0;
+  const templatePickerHtml = hasTemplates
+    ? `<div class="field"><label>Шаблоны</label>${renderTemplateDropdownHtml()}</div>`
+    : '';
+
   openModal(`<h3>${ctx.isEdit ? 'Редактирование тренировки' : 'Новая тренировка'}</h3>
     <p class="subtitle" style="margin-top:-8px">${escapeHtml(formatDateFull(ctx.ds))}</p>
 
@@ -136,6 +146,8 @@ function renderSessionForm() {
 
     <div class="field"><label>Примечание к тренировке</label>
       <input id="cs-note" value="${escapeAttr(ctx.note || '')}" placeholder="акцент на ногах и т.п."></div>
+
+    ${templatePickerHtml}
 
     <div class="field">
       <label>Блоки тренировки</label>
@@ -159,6 +171,7 @@ function renderSessionForm() {
 
     <div class="btn-row" style="margin-top:16px">
       <button class="btn" onclick="saveSessionFromForm()">Сохранить</button>
+      <button class="btn btn-ghost" onclick="saveCurrentAsTemplate()">💾 Сохранить как шаблон</button>
       <button class="btn-ghost btn" onclick="closeModal()">Отмена</button>
     </div>`);
 

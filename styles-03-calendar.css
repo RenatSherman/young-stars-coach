@@ -2,6 +2,7 @@
    styles-03-calendar.css
    Календари, план развития, поповеры, тренировки-аккордеоны.
    Оптимизация: быстрые модалки, короткие анимации аккордеонов.
+   + Секция 11b: дропдаун шаблонов тренировок.
    ============================================================ */
 
 /* ============================================================
@@ -1219,6 +1220,133 @@
 .cc-block-del:hover{background:#fce8ec;color:var(--ak-red)}
 
 /* ============================================================
+   11b. ДРОПДАУН ШАБЛОНОВ ТРЕНИРОВОК
+   ============================================================ */
+
+.tpl-dropdown-wrap{
+  position:relative;
+  display:inline-block;
+}
+
+.tpl-toggle{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  padding:10px 16px;
+  background:#fff;
+  color:var(--ak-green);
+  border:2px dashed var(--ak-green);
+  border-radius:6px;
+  font-family:var(--font-display);
+  font-size:11px;
+  font-weight:900;
+  letter-spacing:.5px;
+  text-transform:uppercase;
+  cursor:pointer;
+  transition:.15s;
+  width:100%;
+  justify-content:center;
+}
+.tpl-toggle:hover{
+  background:var(--ak-green);
+  color:#fff;
+  border-style:solid;
+}
+
+.tpl-dropdown{
+  display:none;
+  position:absolute;
+  z-index:200;
+  top:calc(100% + 4px);
+  left:0;
+  right:0;
+  min-width:280px;
+  max-height:320px;
+  overflow-y:auto;
+  background:#fff;
+  border:2px solid var(--ak-green);
+  border-radius:6px;
+  box-shadow:0 8px 24px rgba(21,71,52,.2);
+  padding:4px;
+}
+.tpl-dropdown.active{display:block}
+
+.tpl-item{
+  display:flex;
+  align-items:stretch;
+  gap:4px;
+  border-radius:4px;
+  transition:.1s;
+}
+.tpl-item:hover{
+  background:var(--ak-gray-light);
+}
+
+.tpl-item-fill{
+  flex:1;
+  min-width:0;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+  padding:10px 12px;
+  background:transparent;
+  border:none;
+  cursor:pointer;
+  text-align:left;
+  font-family:inherit;
+  font-size:13px;
+  color:var(--ak-text);
+  border-radius:4px;
+  transition:.1s;
+}
+.tpl-item-fill:hover{
+  color:var(--ak-green);
+}
+
+.tpl-item-name{
+  flex:1;
+  min-width:0;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  font-weight:600;
+}
+
+.tpl-item-meta{
+  font-size:10px;
+  font-weight:700;
+  padding:2px 8px;
+  border-radius:10px;
+  background:var(--ak-gray-light);
+  color:var(--ak-gray-dark);
+  font-family:var(--font-display);
+  letter-spacing:.3px;
+  flex-shrink:0;
+  white-space:nowrap;
+}
+.tpl-item:hover .tpl-item-meta{
+  background:var(--ak-green);
+  color:#fff;
+}
+
+.tpl-item-del{
+  background:transparent;
+  border:none;
+  color:var(--ak-gray-dark);
+  cursor:pointer;
+  padding:0 10px;
+  border-radius:4px;
+  font-size:14px;
+  transition:.1s;
+  flex-shrink:0;
+}
+.tpl-item-del:hover{
+  background:#fce8ec;
+  color:var(--ak-red);
+}
+
+/* ============================================================
    12. КАСТОМНЫЙ ПОПОВЕР «КОМПЛЕКС УПРАЖНЕНИЙ»
    Без transition — мгновенное открытие.
    ============================================================ */
@@ -1730,4 +1858,8 @@
   .cc-sess-save-hint{text-align:center}
   .fm-buttons{flex-direction:column}
   .fm-btn{width:100%;justify-content:center}
+
+  /* Шаблоны — компактнее на мобильном */
+  .tpl-toggle{font-size:10px;padding:10px 12px}
+  .tpl-dropdown{min-width:0}
 }

@@ -29,7 +29,8 @@ let DB = {
   seasons: {},
   exercises: [],
   meta: {},
-  testColumns: null
+  testColumns: null,
+  templates: []           // ← шаблоны тренировок (глобальные, не привязаны к сезону)
 };
 
 /* ===== Сезоны: переменные ===== */
