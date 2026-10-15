@@ -1,9 +1,7 @@
 /* ============================================================
    05b-player-calendar.js
-   Календарь игрока:
-   - месячная сетка (одна строка = одна сессия)
-   - клик по дню → модалка с плоским списком блоков и отметкой факта
-   - прямые ссылки на блоки (без поиска по индексам) — гарантия сохранения
+   Календарь игрока.
+   Все отметки фактов вызывают touchMeta('players').
    ============================================================ */
 
 let playerCalMonth = null;
@@ -115,9 +113,6 @@ function onPlayerCalMonthChange(pid, month) {
   if (p) renderPlayerCalendarContent(p);
 }
 
-/* ============================================================
-   СЕССИИ ИГРОКА ЗА ДЕНЬ (для сетки месяца)
-   ============================================================ */
 function collectPlayerDaySessions(p, ds) {
   if (!p || !p.calendar || !p.calendar[ds]) return [];
   const day = p.calendar[ds];
@@ -139,11 +134,6 @@ function collectPlayerDaySessions(p, ds) {
   }).sort((a, b) => (a.firstTime || '').localeCompare(b.firstTime || ''));
 }
 
-/* ============================================================
-   БЛОКИ ИГРОКА ЗА ДЕНЬ (для модалки дня)
-   Возвращает плоский список блоков с ПРЯМЫМИ ссылками на
-   объекты sess и block в p.calendar[ds].
-   ============================================================ */
 function collectPlayerDayBlocks(p, ds) {
   if (!p || !p.calendar || !p.calendar[ds]) return [];
   const day = p.calendar[ds];
@@ -154,11 +144,9 @@ function collectPlayerDayBlocks(p, ds) {
     const sessBlocks = Array.isArray(sess.blocks) ? sess.blocks : [];
     sessBlocks.forEach((b, bi) => {
       blocks.push({
-        // прямые ссылки
         sessionRef: sess,
         blockRef: b,
         blockIndexInSession: bi,
-        // данные для отображения
         sessionId: sess.id,
         sessionName: sess.name || '',
         complex: b.complex || '',
@@ -184,14 +172,6 @@ function playerSessionColor(sess) {
     if (f === 'Индивидуальная с тренером') return WORK_TYPE_COLORS['Индивидуальная с тренером'];
     if (f === 'Самостоятельная') return WORK_TYPE_COLORS['Самостоятельная'];
   }
-  return '#5a6169';
-}
-
-function playerBlockColor(b) {
-  const f = b.format || '';
-  if (f === 'В группе') return WORK_TYPE_COLORS['В группе'];
-  if (f === 'Индивидуальная с тренером') return WORK_TYPE_COLORS['Индивидуальная с тренером'];
-  if (f === 'Самостоятельная') return WORK_TYPE_COLORS['Самостоятельная'];
   return '#5a6169';
 }
 
@@ -251,10 +231,6 @@ function renderPlayerMonthGrid(p, year, month) {
   grid.innerHTML = html;
 }
 
-/* ============================================================
-   МОДАЛКА ДНЯ: плоский список блоков с отметкой факта
-   ============================================================ */
-
 let __playerDayFactCtx = null;
 
 function openPlayerDaySessions(pid, ds) {
@@ -308,7 +284,6 @@ function openPlayerDaySessions(pid, ds) {
     pid,
     ds,
     blocks: blocks.map(b => ({
-      // ПРЯМЫЕ ссылки на объекты — сохраняем именно в них
       sessionRef: b.sessionRef,
       blockRef: b.blockRef,
       fact: b.fact || '',
@@ -399,7 +374,6 @@ function savePlayerDayFact() {
 
   let saved = 0;
   ctx.blocks.forEach(b => {
-    // Пишем напрямую в объект блока — он живой, потому что это ссылка на DB.
     if (b.blockRef && typeof b.blockRef === 'object') {
       b.blockRef.fact = b.fact || '';
       b.blockRef.comment = (b.comment || '').trim();
@@ -407,6 +381,7 @@ function savePlayerDayFact() {
     }
   });
 
+  touchMeta('players');
   saveDB();
   updateNotifBadge();
 

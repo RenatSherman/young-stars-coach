@@ -1,17 +1,20 @@
 /* ============================================================
    03-sync.js
    Supabase: авторизация, синхронизация.
-   Работает с существующей схемой coach_data:
-     user_id, players (jsonb), exercises (jsonb), updated_at.
-   Сезоны и шаблоны хранятся ВНУТРИ поля players (в служебном
-   ключе __meta), поэтому изменять схему Supabase не нужно.
+
+   Логика разрешения конфликтов:
+   - Каждый раздел (exercises, players, templates, seasons)
+     имеет свою метку времени (DB.meta.updatedAt.section).
+   - При pull сравниваем метки локальную и облачную.
+   - Применяем облако ТОЛЬКО если оно строго новее.
+   - Если локально новее — сразу push, чтобы не потерять данные.
    ============================================================ */
 
 function setSyncStatus(status, text) {
   const el = document.getElementById('sync-status');
   const txt = document.getElementById('sync-text');
   if (!el || !txt) return;
-  el.classList.remove('ok', 'saving', 'error', 'offline');
+  el.classList.remove('ok', 'saving', 'error', 'offline', 'local-newer');
   el.classList.add(status);
   txt.textContent = text;
 }
@@ -23,24 +26,22 @@ function scheduleSync() {
   syncTimeout = setTimeout(() => { pushToCloud(); }, 2000);
 }
 
-/* ===== Упаковка данных для отправки =====
-   В поле players кладём объект:
-     {
-       __meta: {
-         seasons: {...},
-         currentSeason: 'YYYY/YY',
-         templates: [...]
-       },
-       list: [...игроки текущего сезона]
-     }
-   Если у нас нет сезонов (старый формат) — просто массив игроков. */
+/* Немедленная отправка — используется, когда мы знаем,
+   что локально новее облака, и ждать нельзя. */
+async function pushNow() {
+  if (syncTimeout) { clearTimeout(syncTimeout); syncTimeout = null; }
+  await pushToCloud();
+}
+
+/* ===== Упаковка данных для отправки ===== */
 function packPlayersForCloud() {
   if (DB.seasons && Object.keys(DB.seasons).length > 0) {
     return {
       __meta: {
         seasons: DB.seasons,
         currentSeason: currentSeason || null,
-        templates: Array.isArray(DB.templates) ? DB.templates : []
+        templates: Array.isArray(DB.templates) ? DB.templates : [],
+        updatedAt: (DB.meta && DB.meta.updatedAt) ? DB.meta.updatedAt : {}
       },
       list: DB.players || []
     };
@@ -50,7 +51,7 @@ function packPlayersForCloud() {
 
 /* ===== Распаковка ===== */
 function unpackPlayersFromCloud(cloudPlayers) {
-  if (!cloudPlayers) return { players: [], seasons: null, currentSeason: null, templates: null };
+  if (!cloudPlayers) return { players: [], seasons: null, currentSeason: null, templates: null, updatedAt: null };
 
   // Новый формат с мета-обёрткой
   if (cloudPlayers && !Array.isArray(cloudPlayers) && cloudPlayers.__meta) {
@@ -58,16 +59,17 @@ function unpackPlayersFromCloud(cloudPlayers) {
       players: Array.isArray(cloudPlayers.list) ? cloudPlayers.list : [],
       seasons: cloudPlayers.__meta.seasons || null,
       currentSeason: cloudPlayers.__meta.currentSeason || null,
-      templates: Array.isArray(cloudPlayers.__meta.templates) ? cloudPlayers.__meta.templates : null
+      templates: Array.isArray(cloudPlayers.__meta.templates) ? cloudPlayers.__meta.templates : null,
+      updatedAt: cloudPlayers.__meta.updatedAt || null
     };
   }
 
   // Старый формат — просто массив игроков
   if (Array.isArray(cloudPlayers)) {
-    return { players: cloudPlayers, seasons: null, currentSeason: null, templates: null };
+    return { players: cloudPlayers, seasons: null, currentSeason: null, templates: null, updatedAt: null };
   }
 
-  return { players: [], seasons: null, currentSeason: null, templates: null };
+  return { players: [], seasons: null, currentSeason: null, templates: null, updatedAt: null };
 }
 
 /* ===== Отправка ===== */
@@ -93,7 +95,8 @@ async function pushToCloud() {
       DB.seasons[currentSeason].players = DB.players;
     }
 
-    // Отправляем ТОЛЬКО те поля, что есть в схеме Supabase
+    // Синхронизируем метку players с seasons (players хранятся внутри seasons)
+    // Это чтобы seasons и players не конфликтовали между собой.
     const payload = {
       user_id: currentUser.id,
       players: packPlayersForCloud(),
@@ -109,7 +112,7 @@ async function pushToCloud() {
 
     lastSyncedAt = new Date();
     setSyncStatus('ok', 'Синхр. ' + lastSyncedAt.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }));
-    console.log('[sync] pushToCloud OK. players упаковано:', Array.isArray(payload.players) ? payload.players.length : 'meta');
+    console.log('[sync] pushToCloud OK');
   } catch (err) {
     console.error('Sync error:', err);
     setSyncStatus('error', 'Ошибка синхр.');
@@ -119,14 +122,13 @@ async function pushToCloud() {
 }
 
 /* ===== Загрузка =====
-   force = false — защищаемся от пустого облака
-   force = true  — принимаем всё из облака как есть */
+   force = false — применяем облако только если оно новее
+   force = true  — применяем облако целиком, без сравнения */
 async function pullFromCloud(force = false) {
-  if (!currentUser) return false;
+  if (!currentUser) return { applied: {}, pushed: false };
   setSyncStatus('saving', 'Загрузка…');
 
   try {
-    // Запрашиваем ТОЛЬКО существующие колонки
     const { data, error } = await sb
       .from('coach_data')
       .select('players, exercises, updated_at')
@@ -134,73 +136,89 @@ async function pullFromCloud(force = false) {
       .maybeSingle();
 
     if (error) {
-      // Если 400/404 и т.п. — просто считаем, что записи нет
-      console.warn('[sync] pullFromCloud error, игнорируем:', error.message);
+      console.warn('[sync] pullFromCloud error:', error.message);
       setSyncStatus('error', 'Ошибка загрузки');
-      return false;
+      return { applied: {}, pushed: false };
     }
 
     if (!data) {
-      // Нет записи — создаём из локальных
       console.log('[sync] В облаке нет записи. Отправляем локальные.');
       await pushToCloud();
-      return true;
+      return { applied: {}, pushed: true };
     }
 
     const unpacked = unpackPlayersFromCloud(data.players);
+    const cloudMeta = unpacked.updatedAt || {};
 
-    const localPlayers    = (DB.players || []).length;
-    const localSeasons    = DB.seasons ? Object.keys(DB.seasons).length : 0;
-    const localExercises  = (DB.exercises || []).length;
-    const localTemplates  = Array.isArray(DB.templates) ? DB.templates.length : 0;
+    // Локальные метки
+    const localMeta = (DB.meta && DB.meta.updatedAt) ? DB.meta.updatedAt : {};
 
-    const cloudPlayers    = unpacked.players.length;
-    const cloudSeasons    = unpacked.seasons ? Object.keys(unpacked.seasons).length : 0;
-    const cloudExercises  = Array.isArray(data.exercises) ? data.exercises.length : 0;
-    const cloudTemplates  = Array.isArray(unpacked.templates) ? unpacked.templates.length : 0;
+    const localPlayers   = (DB.players || []).length;
+    const localSeasons   = DB.seasons ? Object.keys(DB.seasons).length : 0;
+    const localExercises = (DB.exercises || []).length;
+    const localTemplates = Array.isArray(DB.templates) ? DB.templates.length : 0;
 
-    console.log('[sync] pullFromCloud — локально:',
-                { players: localPlayers, seasons: localSeasons, exercises: localExercises, templates: localTemplates },
-                '| в облаке:',
-                { players: cloudPlayers, seasons: cloudSeasons, exercises: cloudExercises, templates: cloudTemplates });
+    const cloudPlayers   = unpacked.players.length;
+    const cloudSeasons   = unpacked.seasons ? Object.keys(unpacked.seasons).length : 0;
+    const cloudExercises = Array.isArray(data.exercises) ? data.exercises.length : 0;
+    const cloudTemplates = Array.isArray(unpacked.templates) ? unpacked.templates.length : 0;
 
-    // Решение: применять или нет
-    const applySeasons = force
-      || (cloudSeasons > 0 && cloudSeasons >= localSeasons)
-      || localSeasons === 0;
+    console.log('[sync] pullFromCloud — локально:', { players: localPlayers, seasons: localSeasons, exercises: localExercises, templates: localTemplates },
+                '| в облаке:', { players: cloudPlayers, seasons: cloudSeasons, exercises: cloudExercises, templates: cloudTemplates });
+    console.log('[sync] метки времени — локально:', localMeta, '| в облаке:', cloudMeta);
 
-    const applyPlayers = force
-      || (cloudPlayers > 0 && cloudPlayers >= localPlayers)
-      || localPlayers === 0;
+    // Сравнение: применяем облако, только если оно СТРОГО новее,
+    // либо если локально пусто (первый вход).
+    const cmp = (section, cloudTs, localTs, cloudCount, localCount) => {
+      if (force) return cloudCount > 0;
+      if (cloudTs > localTs) return cloudCount > 0;
+      if (cloudTs === 0 && localTs === 0) {
+        // Меток нет ни там, ни там — считаем что облако новее только если локально пусто.
+        // Иначе НЕ трогаем локальные данные.
+        return localCount === 0 && cloudCount > 0;
+      }
+      return false;
+    };
 
-    const applyExercises = force
-      || (cloudExercises > 0 && cloudExercises >= localExercises)
-      || localExercises === 0;
+    const applyExercises = cmp('exercises', Date.parse(cloudMeta.exercises || 0), Date.parse(localMeta.exercises || 0), cloudExercises, localExercises);
+    const applyPlayers   = cmp('players',   Date.parse(cloudMeta.players   || 0), Date.parse(localMeta.players   || 0), cloudPlayers,   localPlayers);
+    const applyTemplates = cmp('templates', Date.parse(cloudMeta.templates || 0), Date.parse(localMeta.templates || 0), cloudTemplates, localTemplates);
+    const applySeasons   = cmp('seasons',   Date.parse(cloudMeta.seasons   || 0), Date.parse(localMeta.seasons   || 0), cloudSeasons,   localSeasons);
 
-    const applyTemplates = force
-      || (cloudTemplates > 0 && cloudTemplates >= localTemplates)
-      || localTemplates === 0;
+    const applied = { exercises: false, players: false, templates: false, seasons: false };
 
     if (applySeasons && unpacked.seasons) {
       DB.seasons = unpacked.seasons;
+      if (!DB.meta.updatedAt) DB.meta.updatedAt = {};
+      DB.meta.updatedAt.seasons = cloudMeta.seasons || new Date().toISOString();
+      applied.seasons = true;
     }
 
     if (applyPlayers && unpacked.players.length > 0) {
-      // Если применяем players — и это игроки для текущего сезона
-      if (DB.seasons && (unpacked.currentSeason || currentSeason) && DB.seasons[unpacked.currentSeason || currentSeason]) {
-        // Уже обёрнуто в seasons — просто обновим текущий список
-        DB.players = DB.seasons[unpacked.currentSeason || currentSeason].players || unpacked.players;
+      const targetSeason = unpacked.currentSeason || currentSeason;
+      if (DB.seasons && targetSeason && DB.seasons[targetSeason]) {
+        DB.seasons[targetSeason].players = unpacked.players;
+        DB.players = unpacked.players;
       } else {
         DB.players = unpacked.players;
       }
+      if (!DB.meta.updatedAt) DB.meta.updatedAt = {};
+      DB.meta.updatedAt.players = cloudMeta.players || new Date().toISOString();
+      applied.players = true;
     }
 
     if (applyExercises && Array.isArray(data.exercises) && data.exercises.length > 0) {
       DB.exercises = data.exercises;
+      if (!DB.meta.updatedAt) DB.meta.updatedAt = {};
+      DB.meta.updatedAt.exercises = cloudMeta.exercises || new Date().toISOString();
+      applied.exercises = true;
     }
 
     if (applyTemplates && Array.isArray(unpacked.templates)) {
       DB.templates = unpacked.templates;
+      if (!DB.meta.updatedAt) DB.meta.updatedAt = {};
+      DB.meta.updatedAt.templates = cloudMeta.templates || new Date().toISOString();
+      applied.templates = true;
     }
 
     if (typeof migrateAllExercises === 'function') migrateAllExercises();
@@ -211,13 +229,29 @@ async function pullFromCloud(force = false) {
       if (!Array.isArray(p.developmentPlans)) p.developmentPlans = [];
     });
 
+    // Проверяем, есть ли раздел, где ЛОКАЛЬНО новее облака.
+    // Если да — нужно отправить локальные данные, чтобы они не потерялись.
+    const localNewer =
+      (Date.parse(localMeta.exercises || 0) > Date.parse(cloudMeta.exercises || 0)) ||
+      (Date.parse(localMeta.players   || 0) > Date.parse(cloudMeta.players   || 0)) ||
+      (Date.parse(localMeta.templates || 0) > Date.parse(cloudMeta.templates || 0)) ||
+      (Date.parse(localMeta.seasons   || 0) > Date.parse(cloudMeta.seasons   || 0));
+
     saveDBNow();
+
+    if (localNewer) {
+      console.log('[sync] локально новее — отправляем в облако');
+      setSyncStatus('local-newer', 'Отправляю…');
+      await pushToCloud();
+      return { applied, pushed: true };
+    }
+
     setSyncStatus('ok', 'Загружено');
-    return true;
+    return { applied, pushed: false };
   } catch (err) {
     console.error('Pull error:', err);
     setSyncStatus('error', 'Ошибка загрузки');
-    return false;
+    return { applied: {}, pushed: false };
   }
 }
 
@@ -228,6 +262,7 @@ async function manualSync() {
   if (typeof renderPlayers === 'function') renderPlayers();
   if (typeof updateNotifBadge === 'function') updateNotifBadge();
   if (typeof renderCoachCalendar === 'function') renderCoachCalendar();
+  if (typeof renderExercises === 'function') renderExercises();
   if (currentPlayerId) {
     const p = DB.players.find(x => x.id === currentPlayerId);
     if (p && typeof renderPlayerCard === 'function') renderPlayerCard(p);
@@ -255,6 +290,7 @@ async function forceDownload() {
       if (typeof renderPlayers === 'function') renderPlayers();
       if (typeof updateNotifBadge === 'function') updateNotifBadge();
       if (typeof renderCoachCalendar === 'function') renderCoachCalendar();
+      if (typeof renderExercises === 'function') renderExercises();
       if (currentPlayerId) {
         const p = DB.players.find(x => x.id === currentPlayerId);
         if (p && typeof renderPlayerCard === 'function') renderPlayerCard(p);
@@ -366,7 +402,7 @@ async function onAuthorized() {
   if (typeof renderPlayers === 'function') renderPlayers();
   if (typeof updateNotifBadge === 'function') updateNotifBadge();
 
-  // 2. Фоном — облако (с защитой от пустой перезаписи)
+  // 2. Фоном — облако (с защитой от затирания локального)
   pullFromCloud().then(() => {
     if (typeof seedDemoData === 'function') seedDemoData();
     if (typeof migrateToSeasons === 'function')  migrateToSeasons();
@@ -375,6 +411,7 @@ async function onAuthorized() {
     if (typeof updateArchiveBadge === 'function')   updateArchiveBadge();
     if (typeof renderPlayers === 'function') renderPlayers();
     if (typeof renderCoachCalendar === 'function') renderCoachCalendar();
+    if (typeof renderExercises === 'function') renderExercises();
     if (typeof updateNotifBadge === 'function') updateNotifBadge();
   }).catch(err => console.warn('pullFromCloud bg error:', err));
 
@@ -396,5 +433,5 @@ async function initAuth() {
   }
 }
 
-window.addEventListener('online', () => { isOnline = true; if (currentUser) pushToCloud(); });
+window.addEventListener('online', () => { isOnline = true; if (currentUser) pushNow(); });
 window.addEventListener('offline', () => { isOnline = false; setSyncStatus('offline', 'Оффлайн'); });

@@ -28,9 +28,13 @@ let DB = {
   players: [],
   seasons: {},
   exercises: [],
-  meta: {},
+  meta: {
+    // Метки времени последнего изменения разделов
+    // { exercises: ISO-строка, players: ISO, templates: ISO, seasons: ISO }
+    updatedAt: {}
+  },
   testColumns: null,
-  templates: []           // ← шаблоны тренировок (глобальные, не привязаны к сезону)
+  templates: []
 };
 
 /* ===== Сезоны: переменные ===== */
@@ -94,6 +98,26 @@ function factClass(value) {
   if (value === 'partial') return 'partial';
   if (value === 'notdone') return 'notdone';
   return '';
+}
+
+/* ============================================================
+   МЕТКИ ВРЕМЕНИ РАЗДЕЛОВ
+   Каждый раздел (exercises, players, templates, seasons)
+   имеет свою метку последнего изменения. Она:
+   1) обновляется при каждом изменении раздела;
+   2) уезжает в облако вместе с данными;
+   3) используется при pull, чтобы понять, чья версия новее.
+   ============================================================ */
+function touchMeta(section) {
+  if (!DB.meta) DB.meta = {};
+  if (!DB.meta.updatedAt) DB.meta.updatedAt = {};
+  DB.meta.updatedAt[section] = new Date().toISOString();
+}
+
+function getMetaTs(section) {
+  if (!DB.meta || !DB.meta.updatedAt) return 0;
+  const v = DB.meta.updatedAt[section];
+  return v ? Date.parse(v) || 0 : 0;
 }
 
 /* ============================================================

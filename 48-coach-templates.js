@@ -2,26 +2,7 @@
    48-coach-templates.js
    Шаблоны тренировок.
 
-   Возможности:
-   - Сохранить текущую форму тренировки как шаблон.
-   - Дропдаун «Заполнить из шаблона» в редакторе тренировки.
-   - Удаление шаблона прямо из дропдауна (с подтверждением).
-
-   Шаблон хранит:
-   - name              — имя шаблона (для списка)
-   - trainingName      — название тренировки (подставляется в поле)
-   - trainingNote      — примечание тренировки (подставляется в поле)
-   - blocks            — копия блоков (без id, без фактов)
-
-   Шаблон НЕ хранит:
-   - игроков
-   - факты (done/partial/notdone)
-   - комментарии
-   - id блоков (генерируются заново при вставке)
-   ============================================================ */
-
-/* ============================================================
-   ХЕЛПЕРЫ
+   Все изменения шаблонов вызывают touchMeta('templates').
    ============================================================ */
 
 function getTemplatesSorted() {
@@ -89,9 +70,9 @@ function saveCurrentAsTemplate() {
           blocks: validBlocks,
           createdAt: new Date().toISOString()
         });
+        touchMeta('templates');
         saveDB();
         toast(`Шаблон «${trimmed}» сохранён`);
-        /* Перерисовать форму, чтобы появился дропдаун «Заполнить из шаблона» */
         renderSessionForm();
       };
 
@@ -131,7 +112,6 @@ function fillFormFromTemplate(templateId) {
   );
 
   const doFill = () => {
-    /* Блоки: полная замена, с генерацией свежих id для комплекс-модалок */
     ctx.blocks = tpl.blocks.map(b => ({
       id: null,
       complex: b.complex || '',
@@ -146,13 +126,8 @@ function fillFormFromTemplate(templateId) {
 
     if (!ctx.blocks.length) ctx.blocks = [newEmptyBlock()];
 
-    /* Название тренировки — только если поле пустое */
     if (!ctx.name && tpl.trainingName) ctx.name = tpl.trainingName;
-
-    /* Примечание тренировки — только если поле пустое */
     if (!ctx.note && tpl.trainingNote) ctx.note = tpl.trainingNote;
-
-    /* Игроки — очищаем (правило №1) */
     ctx.playerIds = [];
 
     renderSessionForm();
@@ -186,9 +161,9 @@ function deleteTemplate(templateId, event) {
     `Удалить шаблон «${tpl.name}»?`,
     () => {
       DB.templates = DB.templates.filter(t => t.id !== templateId);
+      touchMeta('templates');
       saveDB();
       toast(`Шаблон «${tpl.name}» удалён`);
-      /* Перерисовать форму, чтобы обновился дропдаун */
       renderSessionForm();
     },
     () => {}

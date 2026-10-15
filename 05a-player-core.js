@@ -2,6 +2,7 @@
    05a-player-core.js
    Ядро карточки игрока.
    saveDB дебаунсится — не блокирует UI на каждом изменении.
+   Все изменения игроков вызывают touchMeta('players').
    ============================================================ */
 
 /* ===== Debounce сохранения в localStorage ===== */
@@ -35,7 +36,9 @@ function loadDB() {
   if (!DB.players)   DB.players = [];
   if (!DB.exercises) DB.exercises = [];
   if (!DB.meta)      DB.meta = {};
+  if (!DB.meta.updatedAt) DB.meta.updatedAt = {};
   if (!DB.seasons)   DB.seasons = {};
+  if (!Array.isArray(DB.templates)) DB.templates = [];
   DB.players.forEach(p => {
     migrateCalendar(p);
     if (!Array.isArray(p.developmentPlans)) p.developmentPlans = [];
@@ -55,6 +58,7 @@ function seedDemoData() {
       { id: 'sg_fon1', name: 'Фонарики 1', items: ['Фонарики', 'Полуфонарики правой ногой'], links: {} }
     ]}
   ];
+  touchMeta('exercises');
   saveDB();
 }
 
@@ -129,6 +133,7 @@ function saveNewPlayer() {
     DB.seasons[currentSeason].players = DB.players;
   }
 
+  touchMeta('players');
   saveDB(); closeModal(); renderPlayers();
   toast(`Игрок «${fio}» добавлен`);
 }
@@ -202,6 +207,7 @@ function doDeletePlayer(pid) {
   if (DB.seasons && currentSeason && DB.seasons[currentSeason]) {
     DB.seasons[currentSeason].players = DB.players;
   }
+  touchMeta('players');
   saveDB(); closeModal();
   currentPlayerId = null;
   showScreen('players'); renderPlayers(); updateNotifBadge();
@@ -334,6 +340,7 @@ function updateField(playerId, field, val) {
   const p = DB.players.find(x => x.id === playerId);
   if (!p || p[field] === val) return;
   p[field] = val;
+  touchMeta('players');
   saveDB();
 }
 function scoreDisplay(label, val, hint) {

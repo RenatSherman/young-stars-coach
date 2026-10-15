@@ -1,18 +1,6 @@
 /* ============================================================
    styles-02-players.css
-   Игроки и карточка:
-   - сетка игроков, плитки, аватар, счёт
-   - паспорт
-   - радары и легенда оценок
-   - дашборд: KPI, быстрые переходы, ближайшие тренировки
-   - отчёт по игрокам: карточки, сводка, прогресс-бар, таблица
-
-   Разбиение styles.css:
-     styles-01-base.css      — токены, шапка, кнопки, карточки (создан)
-     styles-02-players.css   ← этот файл
-     styles-03-calendar.css  — календари, план развития, поповеры
-     styles-04-modal.css     — модалки, авторизация
-     styles-05-reports.css   — отчёт тренера, адаптив, печать
+   Игроки и карточка + уведомления.
    ============================================================ */
 
 /* ===== СПИСОК ИГРОКОВ ===== */
@@ -275,7 +263,6 @@
   margin-top:6px;
 }
 
-/* Ближайшие тренировки */
 .upcoming{
   background:#fff;
   border-radius:6px;
@@ -310,7 +297,7 @@
   letter-spacing:.3px;
 }
 
-/* ===== ОТЧЁТ ПО ИГРОКАМ (карточки и таблица) ===== */
+/* ===== ОТЧЁТ ПО ИГРОКАМ ===== */
 .report-player{
   border-left:5px solid var(--ak-green);
   background:#fff;
@@ -418,18 +405,48 @@
   position:fixed;
   top:76px;
   right:24px;
-  width:380px;
+  width:420px;
+  max-width:calc(100vw - 32px);
   background:#fff;
   border-radius:8px;
   box-shadow:var(--shadow-lg);
   padding:16px;
   z-index:200;
-  max-height:480px;
-  overflow:auto;
+  max-height:600px;
+  overflow:hidden;
   display:none;
   border-top:5px solid var(--ak-red);
 }
 .notif-panel.active{display:block}
+
+/* Сводка сверху */
+.notif-summary{
+  display:flex;
+  gap:6px;
+  flex-wrap:wrap;
+  margin-bottom:8px;
+  padding-bottom:8px;
+  border-bottom:1px dashed var(--ak-gray-mid);
+}
+.notif-sum{
+  display:inline-block;
+  font-size:10px;
+  font-weight:900;
+  padding:3px 9px;
+  border-radius:12px;
+  font-family:var(--font-display);
+  letter-spacing:.3px;
+  text-transform:uppercase;
+  background:var(--ak-gray-light);
+  color:var(--ak-gray-dark);
+}
+.notif-sum.overdue{background:#fce8ec;color:var(--ak-red)}
+.notif-sum.today{background:#fef3c7;color:#b8860b}
+.notif-sum.partial{background:#fdf3dd;color:#b8860b}
+.notif-sum.notdone{background:#fce8ec;color:var(--ak-red)}
+.notif-sum.soon{background:var(--ak-gray-light);color:var(--ak-gray-dark)}
+
+/* Строка уведомления */
 .notif-item{
   padding:10px 12px;
   border-radius:4px;
@@ -442,6 +459,10 @@
 .notif-item:hover{background:var(--ak-gray-mid)}
 .notif-item.overdue{border-left-color:var(--ak-red);background:#fce8ec}
 .notif-item.today{border-left-color:#f59e0b;background:#fef3c7}
+.notif-item.soon{border-left-color:var(--ak-gray-dark);background:var(--ak-gray-light)}
+.notif-item.partial{border-left-color:#b8860b;background:#fdf3dd}
+.notif-item.notdone{border-left-color:var(--ak-red);background:#fce8ec}
+
 .notif-item .n-title{
   font-weight:900;
   font-size:12px;
@@ -449,9 +470,38 @@
   font-family:var(--font-display);
   letter-spacing:.3px;
   text-transform:uppercase;
+  display:flex;
+  align-items:center;
+  gap:6px;
+  flex-wrap:wrap;
 }
 .notif-item .n-meta{
   font-size:12px;
   color:var(--ak-gray-dark);
   margin-top:2px;
+}
+
+/* Пилюля факта в уведомлении */
+.notif-fact-pill{
+  display:inline-block;
+  font-size:9px;
+  font-weight:900;
+  padding:1px 7px;
+  border-radius:10px;
+  font-family:var(--font-display);
+  letter-spacing:.3px;
+  text-transform:uppercase;
+  vertical-align:middle;
+}
+.notif-fact-pill.done{background:#e3f3e8;color:#1e7a3f}
+.notif-fact-pill.partial{background:#fdf3dd;color:#b8860b}
+.notif-fact-pill.notdone{background:#fce8ec;color:var(--ak-red)}
+
+@media (max-width: 700px){
+  .notif-panel{
+    width:calc(100% - 24px);
+    right:12px;
+    top:70px;
+    max-height:75vh;
+  }
 }

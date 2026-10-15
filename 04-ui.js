@@ -3,6 +3,7 @@
    Навигация, бургер-меню, уведомления, рендер игроков, дашборд.
    Миграция календаря приводит старые форматы к новому с блоками.
    + инициализация селектора сезонов и плашки архива.
+   + метки времени разделов (touchMeta)
    ============================================================ */
 
 function goHome() {
@@ -37,7 +38,6 @@ function showScreen(name) {
   if (notifPanel) notifPanel.classList.remove('active');
   window.scrollTo(0, 0);
 
-  // Плашка архива при переключении экранов (на всякий случай)
   if (typeof updateArchiveBadge === 'function') updateArchiveBadge();
 }
 
@@ -46,7 +46,6 @@ document.addEventListener('DOMContentLoaded', () => {
     btn.addEventListener('click', () => showScreen(btn.dataset.screen));
   });
 
-  // Селектор сезона — рендерим, когда DOM готов
   if (typeof renderSeasonSelector === 'function') renderSeasonSelector();
   if (typeof updateArchiveBadge === 'function')   updateArchiveBadge();
 });
@@ -186,10 +185,24 @@ function oldSessionToNew(s) {
   };
 }
 
-/* ===== Уведомления ===== */
+/* ============================================================
+   УВЕДОМЛЕНИЯ
+
+   Правила:
+   - Показываем только блоки за последние 7 дней (включая сегодня)
+     или без отметки в ближайшие 7 дней (тип «Скоро», только в списке).
+   - Блоки с fact = 'done' НЕ показываются вообще.
+   - partial / notdone — показываются за последние 7 дней.
+   - Бейдж считает только «срочное»:
+     просрочено/сегодня без отметки + partial/notdone за 7 дней.
+   ============================================================ */
+
+const NOTIF_WINDOW_DAYS = 7;
+
 function collectNotifications() {
   const today = localDateStr(new Date());
-  const weekAhead = localDateStr(new Date(Date.now() + 7 * 86400000));
+  const sevenDaysAgo = localDateStr(new Date(Date.now() - NOTIF_WINDOW_DAYS * 86400000));
+  const weekAhead = localDateStr(new Date(Date.now() + NOTIF_WINDOW_DAYS * 86400000));
   const items = [];
 
   DB.players.forEach(p => {
@@ -202,12 +215,39 @@ function collectNotifications() {
         sess.blocks.forEach(b => {
           if (!b) return;
           if (!b.complex && !b.format && !b.note) return;
+
+          const fact = b.fact || '';
+          // Выполненные — не показываем вообще
+          if (fact === 'done') return;
+
           const time = b.startTime || '';
           const ex = b.complex || b.format || '';
           const who = p.fio, pid = p.id;
-          if (date < today) items.push({ type: 'overdue', date, time, ex, note: b.note, who, pid, label: 'Просрочено' });
-          else if (date === today) items.push({ type: 'today', date, time, ex, note: b.note, who, pid, label: 'Сегодня' });
-          else if (date <= weekAhead) items.push({ type: 'soon', date, time, ex, note: b.note, who, pid, label: 'Скоро' });
+
+          // Определяем тип
+          if (fact === 'partial') {
+            // partial — только за последние 7 дней
+            if (date < sevenDaysAgo) return;
+            if (date > today) return; // partial не может быть в будущем, но на всякий случай
+            items.push({ type: 'partial', date, time, ex, note: b.note, who, pid, label: 'Выполнено частично', fact });
+            return;
+          }
+          if (fact === 'notdone') {
+            if (date < sevenDaysAgo) return;
+            if (date > today) return;
+            items.push({ type: 'notdone', date, time, ex, note: b.note, who, pid, label: 'Не выполнено', fact });
+            return;
+          }
+
+          // fact === '' — считаем по дате
+          if (date < sevenDaysAgo) return; // старше 7 дней — не показываем
+          if (date < today) {
+            items.push({ type: 'overdue', date, time, ex, note: b.note, who, pid, label: 'Просрочено', fact: '' });
+          } else if (date === today) {
+            items.push({ type: 'today', date, time, ex, note: b.note, who, pid, label: 'Сегодня', fact: '' });
+          } else if (date <= weekAhead) {
+            items.push({ type: 'soon', date, time, ex, note: b.note, who, pid, label: 'Скоро', fact: '' });
+          }
         });
       });
     });
@@ -219,7 +259,15 @@ function collectNotifications() {
 
 function updateNotifBadge() {
   const items = collectNotifications();
-  const urgent = items.filter(i => i.type === 'overdue' || i.type === 'today').length;
+  // Считаем только «срочное»:
+  // просрочено / сегодня без отметки + partial / notdone за 7 дней
+  const urgent = items.filter(i =>
+    i.type === 'overdue' ||
+    i.type === 'today' ||
+    i.type === 'partial' ||
+    i.type === 'notdone'
+  ).length;
+
   const badge = document.getElementById('notif-badge');
   if (!badge) return;
   if (urgent > 0) { badge.textContent = urgent; badge.style.display = 'block'; }
@@ -236,11 +284,33 @@ function toggleNotif(e) {
   if (!items.length) {
     panel.innerHTML = '<p class="subtitle" style="text-align:center;padding:20px 0">Нет уведомлений</p>';
   } else {
-    panel.innerHTML = `<h3 style="margin-bottom:12px">Уведомления (${items.length})</h3>` +
-      items.map(i => `<div class="notif-item ${i.type}" onclick="openPlayer('${i.pid}');toggleNotif(event)">
-        <div class="n-title">${i.label} · ${escapeHtml(i.ex || '')}</div>
-        <div class="n-meta">${formatDate(i.date)} ${i.time} · ${escapeHtml((i.who || '').split(' ')[0])}${i.note ? ' · ' + escapeHtml(i.note) : ''}</div>
-      </div>`).join('');
+    // Сводка сверху
+    const overdueCnt = items.filter(i => i.type === 'overdue').length;
+    const todayCnt = items.filter(i => i.type === 'today').length;
+    const partialCnt = items.filter(i => i.type === 'partial').length;
+    const notdoneCnt = items.filter(i => i.type === 'notdone').length;
+    const soonCnt = items.filter(i => i.type === 'soon').length;
+
+    const summary = [];
+    if (overdueCnt)  summary.push(`<span class="notif-sum overdue">Просрочено: ${overdueCnt}</span>`);
+    if (todayCnt)    summary.push(`<span class="notif-sum today">Сегодня: ${todayCnt}</span>`);
+    if (partialCnt)  summary.push(`<span class="notif-sum partial">Частично: ${partialCnt}</span>`);
+    if (notdoneCnt)  summary.push(`<span class="notif-sum notdone">Не выполнено: ${notdoneCnt}</span>`);
+    if (soonCnt)     summary.push(`<span class="notif-sum soon">Скоро: ${soonCnt}</span>`);
+
+    panel.innerHTML = `<h3 style="margin-bottom:8px">Уведомления (${items.length})</h3>
+      <div class="notif-summary">${summary.join('')}</div>
+      <div style="max-height:400px;overflow-y:auto;margin-top:8px">
+      ${items.map(i => {
+        const factPill = i.fact
+          ? `<span class="notif-fact-pill ${i.fact}">${factLabel(i.fact)}</span>`
+          : '';
+        return `<div class="notif-item ${i.type}" onclick="openPlayer('${i.pid}');toggleNotif(event)">
+          <div class="n-title">${i.label} · ${escapeHtml(i.ex || '')}${factPill}</div>
+          <div class="n-meta">${formatDate(i.date)} ${i.time} · ${escapeHtml((i.who || '').split(' ')[0])}${i.note ? ' · ' + escapeHtml(i.note) : ''}</div>
+        </div>`;
+      }).join('')}
+      </div>`;
   }
   panel.classList.add('active');
 }

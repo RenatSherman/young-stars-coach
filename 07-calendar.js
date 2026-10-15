@@ -1,23 +1,9 @@
 /* ============================================================
    07-calendar.js
-   Справочник упражнений (двухуровневое дерево):
+   Справочник упражнений (двухуровневое дерево).
 
-   БОЛЬШАЯ ГРУППА      → «Посадка», «Отталкивания», «Броски»
-     └── МИНИ-ГРУППА   → «Посадка 1», «Посадка 2»
-           └── УПРАЖНЕНИЯ
-
-   Возможности:
-   - создание / переименование / удаление больших групп
-   - порядок больших групп ▲ ▼
-   - создание / переименование / удаление мини-групп
-   - порядок мини-групп внутри больших ▲ ▼
-   - перемещение мини-группы между большими группами ↔
-   - упражнения: добавить / переименовать / удалить / ссылка
-   - порядок упражнений внутри мини-группы ▲ ▼
-   - перемещение упражнения между мини-группами ↔
-
-   Защита: если справочник пришёл в старом (плоском) формате —
-   миграция сработает автоматически при первом рендере.
+   Все операции записи вызывают touchMeta('exercises'),
+   чтобы pull из облака понимал, что локально новее.
    ============================================================ */
 
 /* ===== Состояние UI ===== */
@@ -25,13 +11,17 @@
 const __exOpenParents = new Set();
 const __exOpenSubgroups = new Set();
 
+/* ===== Вспомогательная функция: пометить справочник как изменённый ===== */
+function markExercisesChanged() {
+  touchMeta('exercises');
+}
+
 /* ===== Главный рендер ===== */
 
 function renderExercises() {
   const el = document.getElementById('exercises-list');
   if (!el) return;
 
-  // ЗАЩИТА: если справочник пришёл в старом формате — мигрируем на лету
   if (Array.isArray(DB.exercises) && DB.exercises.length) {
     const first = DB.exercises[0];
     const isOld =
@@ -221,6 +211,7 @@ function saveNewParent() {
   if (!Array.isArray(DB.exercises)) DB.exercises = [];
   DB.exercises.push({ id, name, subgroups: [] });
   __exOpenParents.add(id);
+  markExercisesChanged();
   saveDB();
   closeModal();
   renderExercises();
@@ -245,6 +236,7 @@ function saveRenameParent(parentId) {
   const name = document.getElementById('rp-name').value.trim();
   if (!name) { uiAlert('Введите название'); return; }
   p.name = name;
+  markExercisesChanged();
   saveDB();
   closeModal();
   renderExercises();
@@ -263,6 +255,7 @@ function deleteParent(parentId) {
     () => {
       DB.exercises = DB.exercises.filter(x => x.id !== parentId);
       __exOpenParents.delete(parentId);
+      markExercisesChanged();
       saveDB();
       renderExercises();
     },
@@ -275,6 +268,7 @@ function moveParentUp(parentId) {
   const i = arr.findIndex(x => x.id === parentId);
   if (i <= 0) return;
   [arr[i - 1], arr[i]] = [arr[i], arr[i - 1]];
+  markExercisesChanged();
   saveDB();
   renderExercises();
 }
@@ -284,6 +278,7 @@ function moveParentDown(parentId) {
   const i = arr.findIndex(x => x.id === parentId);
   if (i < 0 || i >= arr.length - 1) return;
   [arr[i + 1], arr[i]] = [arr[i], arr[i + 1]];
+  markExercisesChanged();
   saveDB();
   renderExercises();
 }
@@ -314,6 +309,7 @@ function saveNewSubgroup(parentId) {
   p.subgroups.push({ id, name, items: [], links: {} });
   __exOpenParents.add(parentId);
   __exOpenSubgroups.add(id);
+  markExercisesChanged();
   saveDB();
   closeModal();
   renderExercises();
@@ -339,6 +335,7 @@ function saveRenameSubgroup(sgId) {
   const name = document.getElementById('rsg-name').value.trim();
   if (!name) { uiAlert('Введите название'); return; }
   found.subgroup.name = name;
+  markExercisesChanged();
   saveDB();
   closeModal();
   renderExercises();
@@ -355,6 +352,7 @@ function deleteSubgroup(sgId) {
     () => {
       parent.subgroups = parent.subgroups.filter(x => x.id !== sgId);
       __exOpenSubgroups.delete(sgId);
+      markExercisesChanged();
       saveDB();
       renderExercises();
     },
@@ -368,6 +366,7 @@ function moveSubgroupUp(parentId, sgId) {
   const i = p.subgroups.findIndex(x => x.id === sgId);
   if (i <= 0) return;
   [p.subgroups[i - 1], p.subgroups[i]] = [p.subgroups[i], p.subgroups[i - 1]];
+  markExercisesChanged();
   saveDB();
   renderExercises();
 }
@@ -378,6 +377,7 @@ function moveSubgroupDown(parentId, sgId) {
   const i = p.subgroups.findIndex(x => x.id === sgId);
   if (i < 0 || i >= p.subgroups.length - 1) return;
   [p.subgroups[i + 1], p.subgroups[i]] = [p.subgroups[i], p.subgroups[i + 1]];
+  markExercisesChanged();
   saveDB();
   renderExercises();
 }
@@ -426,6 +426,7 @@ function saveMoveSubgroup(sgId) {
   __exOpenParents.add(target.id);
   __exOpenSubgroups.add(sgId);
 
+  markExercisesChanged();
   saveDB();
   closeModal();
   renderExercises();
@@ -471,6 +472,7 @@ function saveNewExercise(sgId) {
   __exOpenParents.add(found.parent.id);
   __exOpenSubgroups.add(sgId);
 
+  markExercisesChanged();
   saveDB();
   closeModal();
   renderExercises();
@@ -483,6 +485,7 @@ function renameExercise(sgId, idx, newName) {
   const { subgroup } = found;
   if (!newName || subgroup.items[idx] === newName) return;
   subgroup.items[idx] = newName;
+  markExercisesChanged();
   saveDB();
 }
 
@@ -504,6 +507,7 @@ function deleteExercise(sgId, idx) {
         });
         subgroup.links = newLinks;
       }
+      markExercisesChanged();
       saveDB();
       renderExercises();
     },
@@ -516,8 +520,8 @@ function moveExerciseUp(sgId, idx) {
   if (!found) return;
   const { subgroup } = found;
   if (idx <= 0) return;
-
   swapItems(subgroup, idx - 1, idx);
+  markExercisesChanged();
   saveDB();
   renderExercises();
 }
@@ -527,8 +531,8 @@ function moveExerciseDown(sgId, idx) {
   if (!found) return;
   const { subgroup } = found;
   if (idx >= subgroup.items.length - 1) return;
-
   swapItems(subgroup, idx, idx + 1);
+  markExercisesChanged();
   saveDB();
   renderExercises();
 }
@@ -611,6 +615,7 @@ function saveMoveExercise(sgId, idx) {
   __exOpenParents.add(targetFound.parent.id);
   __exOpenSubgroups.add(targetId);
 
+  markExercisesChanged();
   saveDB();
   closeModal();
   renderExercises();
@@ -645,6 +650,7 @@ function saveExerciseLink(sgId, idx) {
   const url = document.getElementById('ex-link').value.trim();
   if (url) subgroup.links[idx] = url;
   else delete subgroup.links[idx];
+  markExercisesChanged();
   saveDB();
   closeModal();
   renderExercises();
@@ -655,6 +661,7 @@ function deleteExerciseLink(sgId, idx) {
   if (!found) return;
   const { subgroup } = found;
   if (subgroup.links) delete subgroup.links[idx];
+  markExercisesChanged();
   saveDB();
   closeModal();
   renderExercises();
