@@ -1,17 +1,8 @@
 /* ============================================================
    40-coach-grid.js
    Месячная сетка календаря тренера.
-
-   Содержит:
-   - renderCoachCalendar / renderCoachMonthGrid — отрисовка
-   - навигация по месяцам (shift, today)
-   - сбор сессий за день (collectDaySessions + ключи группировки)
-   - цвет сессии, длительность, диапазон времени
    ============================================================ */
 
-/* ============================================================
-   МЕСЯЧНАЯ СЕТКА
-   ============================================================ */
 function renderCoachCalendar() {
   const el = document.getElementById('coach-calendar-content');
   if (!el) return;
@@ -32,11 +23,13 @@ function renderCoachCalendar() {
           <button class="cc-nav-btn" onclick="coachCalShiftMonth(1)" title="Следующий месяц">›</button>
         </div>
         <button class="btn btn-sm btn-ghost" onclick="coachCalToday()">Текущий месяц</button>
-        <button class="btn btn-sm" onclick="openNewSessionForDate(localDateStr(new Date()))">+ Тренировка</button>
+        <button class="btn btn-sm" onclick="openNewSessionForDate(localDateStr(new Date()))">+ Добавить</button>
         <div class="cc-legend">
           <span><span class="cc-dot cc-dot-self"></span> Самостоятельная</span>
           <span><span class="cc-dot cc-dot-ind"></span> Индивидуальная</span>
           <span><span class="cc-dot cc-dot-grp"></span> В группе</span>
+          <span><span class="cc-dot cc-dot-team" style="background:#059669;"></span> Командная</span>
+          <span><span class="cc-dot cc-dot-game" style="background:#7c3aed;"></span> Игра</span>
         </div>
       </div>
     </div>
@@ -131,9 +124,6 @@ function sessionFirstTime(sess) {
   return times.sort()[0];
 }
 
-/* ============================================================
-   СБОР ТРЕНИРОВОК ЗА ДЕНЬ
-   ============================================================ */
 function collectDaySessions(ds) {
   const map = new Map();
 
@@ -204,11 +194,24 @@ function blockIdentityKey(b) {
 }
 
 function sessionColor(sess) {
+  // Если есть игра или командная тренировка, красим в их цвета
+  let hasGame = false;
+  let hasTeam = false;
+  (sess.blocks || []).forEach(b => {
+    if (b.format === 'Командная' && b.complex === 'Игра') hasGame = true;
+    else if (b.format === 'Командная') hasTeam = true;
+  });
+
+  if (hasGame) return '#7c3aed'; // Фиолетовый для игр
+  if (hasTeam) return '#059669'; // Изумрудный для командных
+  
+  // Если нет игр/командных, смотрим по форматам (как было)
   const set = new Set();
   (sess.blocks || []).forEach(b => { if (b.format) set.add(b.format); });
   if (set.has('В группе')) return WORK_TYPE_COLORS['В группе'];
   if (set.has('Индивидуальная с тренером')) return WORK_TYPE_COLORS['Индивидуальная с тренером'];
   if (set.has('Самостоятельная')) return WORK_TYPE_COLORS['Самостоятельная'];
+  
   return '#5a6169';
 }
 

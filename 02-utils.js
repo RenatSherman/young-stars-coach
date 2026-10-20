@@ -1,12 +1,6 @@
 /* ============================================================
    02-utils.js
    Утилиты: экранирование, toast, модалки, даты, возраст, время.
-
-   Кастомные модалки uiAlert / uiConfirm / uiChoice / uiPrompt.
-
-   Хелперы сезонов живут в 01-config.js (единое место).
-
-   openModal / closeModal синхронные — без rAF-гонок.
    ============================================================ */
 
 /* ===== Экранирование ===== */
@@ -59,9 +53,6 @@ function toast(msg) {
 
 /* ============================================================
    МОДАЛЬНЫЕ ОКНА
-   Синхронные операции. Гарантированно убирают содержимое
-   перед открытием нового окна, чтобы не оставалось «залипших»
-   пустых плашек.
    ============================================================ */
 
 function openModal(html) {
@@ -91,18 +82,18 @@ function closeModal() {
   if (content) content.innerHTML = '';
 }
 
-/* Закрытие кликом по затемнённому фону */
+/* Закрытие кликом по фону ОТКЛЮЧЕНО */
 document.addEventListener('DOMContentLoaded', () => {
   const bg = document.getElementById('modal-bg');
   if (bg) {
     bg.addEventListener('click', e => {
-      if (e.target.id === 'modal-bg') closeModal();
+      // if (e.target.id === 'modal-bg') closeModal(); // Отключено по просьбе
     });
   }
 });
 
 /* ============================================================
-   Кастомные модалки подтверждения/уведомления/выбора/ввода
+   Кастомные модалки
    ============================================================ */
 
 function uiAlert(message, onClose) {
@@ -151,22 +142,10 @@ function uiConfirm(message, onConfirm, onCancel) {
   if (cancelBtn) cancelBtn.onclick = () => { close(); if (typeof onCancel === 'function') onCancel(); };
 }
 
-/* ============================================================
-   Модалка выбора (радиокнопки + Подтвердить / Отмена).
-   Формат:
-     uiChoice(message, options, onSelect, title)
-     options = [
-       { label: 'Только эту тренировку', hint: 'необязательно', value: 'one' },
-       { label: 'Всю серию (5 дней)',    hint: '',                value: 'all' },
-     ]
-   Возвращает через onSelect(value) — выбранное значение.
-   При отмене — onSelect(null).
-   ============================================================ */
 function uiChoice(message, options, onSelect, title) {
   const bg = document.getElementById('modal-bg');
   const content = document.getElementById('modal-content');
   if (!bg || !content) return;
-
   const opts = Array.isArray(options) ? options : [];
   if (!opts.length) return;
 
@@ -217,18 +196,6 @@ function uiChoice(message, options, onSelect, title) {
   };
 }
 
-/* ============================================================
-   Модалка ввода строки (аналог prompt, но в стиле проекта).
-   Формат:
-     uiPrompt(message, defaultValue, onOk, onCancel, options)
-     options = { title, placeholder, okLabel, multiline }
-
-   onOk(value)  — вызывается со строкой (может быть пустой).
-   onCancel()   — вызывается при «Отмена» / ESC / клик по фону.
-
-   Enter  = OK (для однострочного поля).
-   ESC    = Отмена.
-   ============================================================ */
 function uiPrompt(message, defaultValue, onOk, onCancel, options) {
   const bg = document.getElementById('modal-bg');
   const content = document.getElementById('modal-content');
@@ -296,15 +263,6 @@ function uiPrompt(message, defaultValue, onOk, onCancel, options) {
       if (!multiline && initialValue) input.select();
     }, 30);
   }
-
-  /* Клик по фону — отмена (для этой модалки) */
-  const bgHandler = (e) => {
-    if (e.target && e.target.id === 'modal-bg') {
-      bg.removeEventListener('click', bgHandler);
-      cancel();
-    }
-  };
-  bg.addEventListener('click', bgHandler);
 }
 
 /* ===== Даты ===== */

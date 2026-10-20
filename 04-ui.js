@@ -1,9 +1,6 @@
 /* ============================================================
    04-ui.js
-   Навигация, бургер-меню, уведомления, рендер игроков, дашборд.
-   Миграция календаря приводит старые форматы к новому с блоками.
-   + инициализация селектора сезонов и плашки архива.
-   + метки времени разделов (touchMeta)
+   Навигация, уведомления, рендер игроков (вертикальный список).
    ============================================================ */
 
 function goHome() {
@@ -92,7 +89,6 @@ function migrateCalendar(p) {
   Object.keys(p.calendar).forEach(date => {
     const day = p.calendar[date];
     if (!day) return;
-
     if (Array.isArray(day) && day.every(s => s && Array.isArray(s.blocks))) {
       day.forEach(sess => {
         if (!sess.id) { sess.id = uid('sess'); needSave = true; }
@@ -105,13 +101,11 @@ function migrateCalendar(p) {
       });
       return;
     }
-
     if (!Array.isArray(day) && typeof day === 'object') {
       p.calendar[date] = oldTimeObjectToSessions(day);
       needSave = true;
       return;
     }
-
     if (Array.isArray(day)) {
       p.calendar[date] = day.map(oldSessionToNew).filter(Boolean);
       needSave = true;
@@ -130,24 +124,9 @@ function oldTimeObjectToSessions(day) {
     if (!c.ex && !c.note && (!c.wt || !c.wt.length)) return;
     const key = c.groupId || ('single_' + time + '_' + Math.random().toString(36).slice(2, 6));
     if (!groups[key]) {
-      groups[key] = {
-        id: uid('sess'),
-        name: c.ex || '',
-        note: c.note || '',
-        groupId: c.groupId || null,
-        blocks: []
-      };
+      groups[key] = { id: uid('sess'), name: c.ex || '', note: c.note || '', groupId: c.groupId || null, blocks: [] };
     }
-    groups[key].blocks.push({
-      id: uid('blk'),
-      complex: c.ex || '',
-      format: (Array.isArray(c.wt) && c.wt[0]) ? c.wt[0] : '',
-      startTime: time,
-      duration: 15,
-      fact: c.fact || '',
-      comment: c.comment || '',
-      note: ''
-    });
+    groups[key].blocks.push({ id: uid('blk'), complex: c.ex || '', format: (Array.isArray(c.wt) && c.wt[0]) ? c.wt[0] : '', startTime: time, duration: 15, fact: c.fact || '', comment: c.comment || '', note: '' });
   });
   const result = Object.values(groups);
   result.forEach(s => s.blocks.sort((a, b) => (a.startTime || '').localeCompare(b.startTime || '')));
@@ -156,11 +135,7 @@ function oldTimeObjectToSessions(day) {
 
 function oldSessionToNew(s) {
   if (!s) return null;
-  if (Array.isArray(s.blocks)) {
-    if (!s.id) s.id = uid('sess');
-    return s;
-  }
-
+  if (Array.isArray(s.blocks)) { if (!s.id) s.id = uid('sess'); return s; }
   const startT = s.timeStart || s.startTime || '18:00';
   const endT = s.timeEnd || s.endTime || '';
   let duration = Number(s.duration) || 0;
@@ -172,31 +147,13 @@ function oldSessionToNew(s) {
     name: s.name || s.block || '',
     note: s.note || '',
     groupId: s.groupId || null,
-    blocks: [{
-      id: uid('blk'),
-      complex: s.block || s.name || '',
-      format: (Array.isArray(s.workTypes) && s.workTypes[0]) || (Array.isArray(s.wt) && s.wt[0]) || '',
-      startTime: startT,
-      duration: duration,
-      fact: s.fact || '',
-      comment: s.comment || '',
-      note: ''
-    }]
+    blocks: [{ id: uid('blk'), complex: s.block || s.name || '', format: (Array.isArray(s.workTypes) && s.workTypes[0]) || (Array.isArray(s.wt) && s.wt[0]) || '', startTime: startT, duration: duration, fact: s.fact || '', comment: s.comment || '', note: '' }]
   };
 }
 
 /* ============================================================
    УВЕДОМЛЕНИЯ
-
-   Правила:
-   - Показываем только блоки за последние 7 дней (включая сегодня)
-     или без отметки в ближайшие 7 дней (тип «Скоро», только в списке).
-   - Блоки с fact = 'done' НЕ показываются вообще.
-   - partial / notdone — показываются за последние 7 дней.
-   - Бейдж считает только «срочное»:
-     просрочено/сегодня без отметки + partial/notdone за 7 дней.
    ============================================================ */
-
 const NOTIF_WINDOW_DAYS = 7;
 
 function collectNotifications() {
@@ -213,61 +170,38 @@ function collectNotifications() {
       day.forEach(sess => {
         if (!sess || !Array.isArray(sess.blocks)) return;
         sess.blocks.forEach(b => {
-          if (!b) return;
-          if (!b.complex && !b.format && !b.note) return;
-
+          if (!b || (!b.complex && !b.format && !b.note)) return;
           const fact = b.fact || '';
-          // Выполненные — не показываем вообще
           if (fact === 'done') return;
-
           const time = b.startTime || '';
           const ex = b.complex || b.format || '';
           const who = p.fio, pid = p.id;
 
-          // Определяем тип
           if (fact === 'partial') {
-            // partial — только за последние 7 дней
-            if (date < sevenDaysAgo) return;
-            if (date > today) return; // partial не может быть в будущем, но на всякий случай
+            if (date < sevenDaysAgo || date > today) return;
             items.push({ type: 'partial', date, time, ex, note: b.note, who, pid, label: 'Выполнено частично', fact });
             return;
           }
           if (fact === 'notdone') {
-            if (date < sevenDaysAgo) return;
-            if (date > today) return;
+            if (date < sevenDaysAgo || date > today) return;
             items.push({ type: 'notdone', date, time, ex, note: b.note, who, pid, label: 'Не выполнено', fact });
             return;
           }
-
-          // fact === '' — считаем по дате
-          if (date < sevenDaysAgo) return; // старше 7 дней — не показываем
-          if (date < today) {
-            items.push({ type: 'overdue', date, time, ex, note: b.note, who, pid, label: 'Просрочено', fact: '' });
-          } else if (date === today) {
-            items.push({ type: 'today', date, time, ex, note: b.note, who, pid, label: 'Сегодня', fact: '' });
-          } else if (date <= weekAhead) {
-            items.push({ type: 'soon', date, time, ex, note: b.note, who, pid, label: 'Скоро', fact: '' });
-          }
+          if (date < sevenDaysAgo) return;
+          if (date < today) items.push({ type: 'overdue', date, time, ex, note: b.note, who, pid, label: 'Просрочено', fact: '' });
+          else if (date === today) items.push({ type: 'today', date, time, ex, note: b.note, who, pid, label: 'Сегодня', fact: '' });
+          else if (date <= weekAhead) items.push({ type: 'soon', date, time, ex, note: b.note, who, pid, label: 'Скоро', fact: '' });
         });
       });
     });
   });
-
   items.sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
   return items;
 }
 
 function updateNotifBadge() {
   const items = collectNotifications();
-  // Считаем только «срочное»:
-  // просрочено / сегодня без отметки + partial / notdone за 7 дней
-  const urgent = items.filter(i =>
-    i.type === 'overdue' ||
-    i.type === 'today' ||
-    i.type === 'partial' ||
-    i.type === 'notdone'
-  ).length;
-
+  const urgent = items.filter(i => i.type === 'overdue' || i.type === 'today' || i.type === 'partial' || i.type === 'notdone').length;
   const badge = document.getElementById('notif-badge');
   if (!badge) return;
   if (urgent > 0) { badge.textContent = urgent; badge.style.display = 'block'; }
@@ -284,13 +218,11 @@ function toggleNotif(e) {
   if (!items.length) {
     panel.innerHTML = '<p class="subtitle" style="text-align:center;padding:20px 0">Нет уведомлений</p>';
   } else {
-    // Сводка сверху
     const overdueCnt = items.filter(i => i.type === 'overdue').length;
     const todayCnt = items.filter(i => i.type === 'today').length;
     const partialCnt = items.filter(i => i.type === 'partial').length;
     const notdoneCnt = items.filter(i => i.type === 'notdone').length;
     const soonCnt = items.filter(i => i.type === 'soon').length;
-
     const summary = [];
     if (overdueCnt)  summary.push(`<span class="notif-sum overdue">Просрочено: ${overdueCnt}</span>`);
     if (todayCnt)    summary.push(`<span class="notif-sum today">Сегодня: ${todayCnt}</span>`);
@@ -302,9 +234,7 @@ function toggleNotif(e) {
       <div class="notif-summary">${summary.join('')}</div>
       <div style="max-height:400px;overflow-y:auto;margin-top:8px">
       ${items.map(i => {
-        const factPill = i.fact
-          ? `<span class="notif-fact-pill ${i.fact}">${factLabel(i.fact)}</span>`
-          : '';
+        const factPill = i.fact ? `<span class="notif-fact-pill ${i.fact}">${factLabel(i.fact)}</span>` : '';
         return `<div class="notif-item ${i.type}" onclick="openPlayer('${i.pid}');toggleNotif(event)">
           <div class="n-title">${i.label} · ${escapeHtml(i.ex || '')}${factPill}</div>
           <div class="n-meta">${formatDate(i.date)} ${i.time} · ${escapeHtml((i.who || '').split(' ')[0])}${i.note ? ' · ' + escapeHtml(i.note) : ''}</div>
@@ -321,18 +251,40 @@ document.addEventListener('click', e => {
   if (!panel.contains(e.target) && !e.target.closest('.notif-btn')) panel.classList.remove('active');
 });
 
-/* ===== Список игроков ===== */
+/* ============================================================
+   СПИСОК ИГРОКОВ С ГРУППИРОВКОЙ (вертикально, как в упражнениях)
+   ============================================================ */
+const __playerGroupOpen = new Set(); // Пустой Set = все свернуты по умолчанию
+
+function togglePlayerGroup(gid) {
+  if (__playerGroupOpen.has(gid)) __playerGroupOpen.delete(gid);
+  else __playerGroupOpen.add(gid);
+  renderPlayers();
+}
+
 function renderPlayers() {
   const el = document.getElementById('players-list');
   if (!el) return;
   if (!DB.players.length) {
-    el.innerHTML = '<div class="empty-state"><div class="big">🐯</div><p>Пока нет игроков.<br>Нажмите «Добавить игрока» или загрузите из Excel.</p></div>';
+    el.innerHTML = '<div class="empty-state"><div class="big">🐯</div><p>Пока нет игроков.<br>Нажмите «Добавить игрока».</p></div>';
     return;
   }
-  el.innerHTML = DB.players.map(p => {
+
+  const playersByGroup = { 'g_stars': [], 'g_special': [] };
+  if (DB.playerGroups && DB.playerGroups.general.subgroups) {
+    DB.playerGroups.general.subgroups.forEach(sg => { playersByGroup[sg.id] = []; });
+  }
+
+  DB.players.forEach(p => {
+    if (!p.groupId) p.groupId = 'g_stars';
+    if (!playersByGroup[p.groupId]) playersByGroup[p.groupId] = [];
+    playersByGroup[p.groupId].push(p);
+  });
+
+  const renderPlayerTile = (p) => {
     const avatar = p.photo ? `<img src="${p.photo}" alt="${escapeAttr(p.fio)}">` : (p.fio ? escapeHtml(p.fio[0]) : '?');
     return `<div class="player-tile" onclick="openPlayer('${p.id}')">
-      <button class="tile-delete no-print" title="Удалить игрока" onclick="deletePlayerFromTile(event, '${p.id}')">🗑</button>
+      <button class="tile-delete no-print" title="Удалить" onclick="deletePlayerFromTile(event, '${p.id}')">🗑</button>
       <div class="player-avatar">${avatar}</div>
       <div class="player-info">
         <div class="name">${escapeHtml(p.fio || 'Без имени')}</div>
@@ -340,11 +292,114 @@ function renderPlayers() {
       </div>
       <div class="player-score">${overallScore(p)}</div>
     </div>`;
-  }).join('');
+  };
+
+  let html = '';
+
+  // 1. Звездочки
+  const starsOpen = __playerGroupOpen.has('g_stars');
+  html += `<div class="ex-parent ${starsOpen ? 'open' : ''}" style="margin-bottom:12px">
+    <div class="ex-parent-head">
+      <button type="button" class="ex-parent-toggle" onclick="togglePlayerGroup('g_stars')">
+        <span class="ex-parent-arrow">▶</span>
+        <span class="ex-parent-name">Звездочки</span>
+        <span class="ex-parent-count">${playersByGroup['g_stars'].length} игроков</span>
+      </button>
+    </div>
+    ${starsOpen ? `<div class="ex-parent-body">
+      <div class="player-group-inner">${playersByGroup['g_stars'].map(renderPlayerTile).join('') || '<p class="subtitle">Нет игроков</p>'}</div>
+    </div>` : ''}
+  </div>`;
+
+  // 2. Общая группа
+  const generalOpen = __playerGroupOpen.has('g_general');
+  html += `<div class="ex-parent ${generalOpen ? 'open' : ''}" style="margin-bottom:12px">
+    <div class="ex-parent-head">
+      <button type="button" class="ex-parent-toggle" onclick="togglePlayerGroup('g_general')">
+        <span class="ex-parent-arrow">▶</span>
+        <span class="ex-parent-name">Общая группа</span>
+        <span class="ex-parent-count">${DB.playerGroups?.general?.subgroups?.length || 0} команд</span>
+      </button>
+      <div class="ex-parent-actions no-print" onclick="event.stopPropagation()">
+        <button class="btn-icon" title="Добавить подраздел" onclick="addPlayerSubgroup()">+</button>
+      </div>
+    </div>
+    ${generalOpen ? `<div class="ex-parent-body">
+      ${(DB.playerGroups?.general?.subgroups || []).map(sg => {
+        const sgOpen = __playerGroupOpen.has(sg.id);
+        const players = playersByGroup[sg.id] || [];
+        return `<div class="ex-sub ${sgOpen ? 'open' : ''}" style="margin-bottom:8px">
+          <div class="ex-sub-head">
+            <button type="button" class="ex-sub-toggle" onclick="togglePlayerGroup('${sg.id}')">
+              <span class="ex-sub-arrow">▶</span>
+              <span class="ex-sub-name">${escapeHtml(sg.name)}</span>
+              <span class="ex-sub-count">${players.length}</span>
+            </button>
+            <div class="ex-sub-actions no-print" onclick="event.stopPropagation()">
+              <button class="btn-icon" title="Переименовать" onclick="renamePlayerSubgroup('${sg.id}')">✎</button>
+              <button class="btn-icon red" title="Удалить" onclick="deletePlayerSubgroup('${sg.id}')">🗑</button>
+            </div>
+          </div>
+          ${sgOpen ? `<div class="ex-sub-body">
+            <div class="player-group-inner">${players.map(renderPlayerTile).join('') || '<p class="subtitle">Нет игроков</p>'}</div>
+          </div>` : ''}
+        </div>`;
+      }).join('') || '<p class="subtitle">Нет команд. Нажмите «+» чтобы добавить.</p>'}
+    </div>` : ''}
+  </div>`;
+
+  // 3. Спецгруппа
+  const specialOpen = __playerGroupOpen.has('g_special');
+  html += `<div class="ex-parent ${specialOpen ? 'open' : ''}">
+    <div class="ex-parent-head">
+      <button type="button" class="ex-parent-toggle" onclick="togglePlayerGroup('g_special')">
+        <span class="ex-parent-arrow">▶</span>
+        <span class="ex-parent-name">Спецгруппа</span>
+        <span class="ex-parent-count">${playersByGroup['g_special'].length} игроков</span>
+      </button>
+    </div>
+    ${specialOpen ? `<div class="ex-parent-body">
+      <div class="player-group-inner">${playersByGroup['g_special'].map(renderPlayerTile).join('') || '<p class="subtitle">Нет игроков</p>'}</div>
+    </div>` : ''}
+  </div>`;
+
+  el.innerHTML = html;
   updateNotifBadge();
 }
 
-/* ===== Дашборд ===== */
+function addPlayerSubgroup() {
+  uiPrompt('Название команды (подраздела):', '', (name) => {
+    if (!name.trim()) return;
+    if (!DB.playerGroups.general.subgroups) DB.playerGroups.general.subgroups = [];
+    DB.playerGroups.general.subgroups.push({ id: uid('sg'), name: name.trim() });
+    saveDB();
+    renderPlayers();
+  }, () => {}, { title: 'Новая команда', okLabel: 'Создать' });
+}
+
+function renamePlayerSubgroup(sgId) {
+  const sg = DB.playerGroups?.general?.subgroups?.find(x => x.id === sgId);
+  if (!sg) return;
+  uiPrompt('Новое название команды:', sg.name, (name) => {
+    if (!name.trim()) return;
+    sg.name = name.trim();
+    saveDB();
+    renderPlayers();
+  }, () => {}, { title: 'Переименовать', okLabel: 'Сохранить' });
+}
+
+function deletePlayerSubgroup(sgId) {
+  uiConfirm('Удалить этот подраздел? Игроки из него перейдут в "Звездочки".', () => {
+    DB.playerGroups.general.subgroups = DB.playerGroups.general.subgroups.filter(x => x.id !== sgId);
+    DB.players.forEach(p => { if (p.groupId === sgId) p.groupId = 'g_stars'; });
+    saveDB();
+    renderPlayers();
+  }, () => {});
+}
+
+/* ============================================================
+   ДАШБОРД
+   ============================================================ */
 function renderDashboard() {
   const el = document.getElementById('dashboard-content');
   if (!el) return;

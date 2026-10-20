@@ -1,11 +1,7 @@
 /* ============================================================
    05a-player-core.js
-   Ядро карточки игрока.
-   saveDB дебаунсится — не блокирует UI на каждом изменении.
-   Все изменения игроков вызывают touchMeta('players').
    ============================================================ */
 
-/* ===== Debounce сохранения в localStorage ===== */
 let __saveDBTimer = null;
 
 function saveDB() {
@@ -13,15 +9,13 @@ function saveDB() {
   if (__saveDBTimer) clearTimeout(__saveDBTimer);
   __saveDBTimer = setTimeout(() => {
     __saveDBTimer = null;
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(DB)); }
-    catch (e) { console.warn('saveDB: не удалось сохранить', e); }
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(DB)); } catch (e) {}
   }, 400);
 }
 
 function saveDBNow() {
   if (__saveDBTimer) { clearTimeout(__saveDBTimer); __saveDBTimer = null; }
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(DB)); }
-  catch (e) { console.warn('saveDBNow: не удалось сохранить', e); }
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(DB)); } catch (e) {}
 }
 
 window.addEventListener('beforeunload', () => { saveDBNow(); });
@@ -29,19 +23,29 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden') saveDBNow();
 });
 
-/* ===== Загрузка ===== */
 function loadDB() {
   const raw = localStorage.getItem(STORAGE_KEY) || localStorage.getItem('akbars_hockey_v1');
-  if (raw) { try { DB = JSON.parse(raw); } catch (e) { console.error(e); } }
+  if (raw) { try { DB = JSON.parse(raw); } catch (e) {} }
+  
   if (!DB.players)   DB.players = [];
   if (!DB.exercises) DB.exercises = [];
   if (!DB.meta)      DB.meta = {};
   if (!DB.meta.updatedAt) DB.meta.updatedAt = {};
   if (!DB.seasons)   DB.seasons = {};
   if (!Array.isArray(DB.templates)) DB.templates = [];
+  
+  if (!DB.playerGroups) {
+    DB.playerGroups = {
+      stars: { id: 'g_stars', name: 'Звездочки', subgroups: [] },
+      general: { id: 'g_general', name: 'Общая группа', subgroups: [] },
+      special: { id: 'g_special', name: 'Спецгруппа', subgroups: [] }
+    };
+  }
+
   DB.players.forEach(p => {
     migrateCalendar(p);
     if (!Array.isArray(p.developmentPlans)) p.developmentPlans = [];
+    if (!p.groupId) p.groupId = 'g_stars';
   });
 }
 
@@ -53,16 +57,12 @@ function seedDemoData() {
     ]},
     { id: 'g_ottalk', name: 'Отталкивания', subgroups: [
       { id: 'sg_ott1', name: 'Отталкивания 1', items: ['Отталкивание внутренним ребром', 'Отталкивание внешним ребром'], links: {} }
-    ]},
-    { id: 'g_fonar', name: 'Фонарики', subgroups: [
-      { id: 'sg_fon1', name: 'Фонарики 1', items: ['Фонарики', 'Полуфонарики правой ногой'], links: {} }
     ]}
   ];
   touchMeta('exercises');
   saveDB();
 }
 
-/* ===== Оценки ===== */
 function computeScores(p, mode) {
   if (!p || !p.techDetail || !p.otherDetail) return { tehn: null, fiz: null, takt: null, psih: null };
   const isEnd = mode === 'end';
@@ -96,11 +96,18 @@ function overallScoreEnd(p) {
   return (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1);
 }
 
-/* ===== Создание ===== */
 function addPlayer() {
+  let groupOptions = `<option value="g_stars">Звездочки</option><option value="g_special">Спецгруппа</option>`;
+  if (DB.playerGroups && DB.playerGroups.general.subgroups) {
+    DB.playerGroups.general.subgroups.forEach(sg => {
+      groupOptions += `<option value="${escapeAttr(sg.id)}">Общая группа · ${escapeHtml(sg.name)}</option>`;
+    });
+  }
+
   openModal(`<h3>Новый игрок</h3>
     <div class="field"><label>ФИО</label><input id="np-fio" autofocus></div>
-    <div class="field"><label>Команда</label><input id="np-team" placeholder="Ак Барс 2012"></div>
+    <div class="field"><label>Группа</label><select id="np-group">${groupOptions}</select></div>
+    <div class="field"><label>Команда (текст)</label><input id="np-team" placeholder="Ак Барс 2012"></div>
     <div class="field"><label>Город</label><input id="np-city" placeholder="Казань"></div>
     <div class="field"><label>Амплуа</label><select id="np-pos"><option>Нападающий</option><option>Защитник</option><option>Вратарь</option></select></div>
     <div class="btn-row" style="margin-top:16px">
@@ -113,9 +120,19 @@ function addPlayer() {
 function saveNewPlayer() {
   const fio = document.getElementById('np-fio').value.trim();
   if (!fio) { uiAlert('Введите ФИО'); return; }
+  
+  // Копируем структуру навыков из базы (или дефолтную)
+  let techD = Array.isArray(DB.techStructure) ? JSON.parse(JSON.stringify(DB.techStructure)) : defaultTechDetail();
+  let otherD = Array.isArray(DB.otherStructure) ? JSON.parse(JSON.stringify(DB.otherStructure)) : defaultOtherDetail();
+  
+  // Очищаем оценки
+  techD.forEach(r => { r.start = null; r.mid = null; r.end = null; });
+  otherD.forEach(r => { r.start = null; r.plan = null; r.fact = null; });
+
   DB.players.push({
     id: 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
     fio,
+    groupId: document.getElementById('np-group').value,
     birthDay: '', birthMonth: '', birthYear: '',
     height: '', weight: '',
     team: document.getElementById('np-team').value,
@@ -123,8 +140,8 @@ function saveNewPlayer() {
     firstSchool: '',
     position: document.getElementById('np-pos').value,
     grip: 'Правый', photo: '', characteristic: '',
-    techDetail: defaultTechDetail(),
-    otherDetail: defaultOtherDetail(),
+    techDetail: techD,
+    otherDetail: otherD,
     plans: {}, calendar: {}, stats: [], tests: [],
     developmentPlans: []
   });
@@ -138,19 +155,12 @@ function saveNewPlayer() {
   toast(`Игрок «${fio}» добавлен`);
 }
 
-/* ===== Удаление ===== */
 function confirmDeletePlayer(pid) {
   const p = DB.players.find(x => x.id === pid);
   if (!p) return;
-  const scoresCount = (p.techDetail || []).filter(r => r.start != null || r.end != null).length
-                    + (p.otherDetail || []).filter(r => r.start != null || r.fact != null).length;
-  const calCount = p.calendar
-    ? Object.values(p.calendar).reduce((acc, day) => acc + (Array.isArray(day) ? day.reduce((s, sess) => s + (Array.isArray(sess.blocks) ? sess.blocks.length : 0), 0) : 0), 0)
-    : 0;
-  const statsCount = (p.stats || []).filter(s => s.club || s.season).length;
-  const testsCount = (p.tests || []).filter(t => t.date).length;
-  const devCount = (p.developmentPlans || []).length;
-  const hasData = scoresCount + calCount + statsCount + testsCount + devCount > 0;
+  const scoresCount = (p.techDetail || []).filter(r => r.start != null || r.end != null).length + (p.otherDetail || []).filter(r => r.start != null || r.fact != null).length;
+  const calCount = p.calendar ? Object.values(p.calendar).reduce((acc, day) => acc + (Array.isArray(day) ? day.reduce((s, sess) => s + (Array.isArray(sess.blocks) ? sess.blocks.length : 0), 0) : 0), 0) : 0;
+  const hasData = scoresCount + calCount + (p.stats||[]).length + (p.tests||[]).length + (p.developmentPlans||[]).length > 0;
   const lastName = (p.fio || '').trim().split(/\s+/)[0] || '';
   const needConfirm = hasData && lastName;
 
@@ -160,28 +170,12 @@ function confirmDeletePlayer(pid) {
       <h4>⚠ Внимание</h4>
       <p>Вы собираетесь удалить игрока:</p>
       <p style="font-weight:900;font-size:16px;color:var(--ak-green);margin:8px 0;font-family:var(--font-display);text-transform:uppercase">${escapeHtml(p.fio)}</p>
-      ${hasData ? `
-        <p>Вместе с ним будут удалены:</p>
-        <ul>
-          ${scoresCount ? `<li>${scoresCount} ${plural(scoresCount, 'оценка', 'оценки', 'оценок')} навыков</li>` : ''}
-          ${calCount ? `<li>${calCount} ${plural(calCount, 'блок', 'блока', 'блоков')} в календаре</li>` : ''}
-          ${statsCount ? `<li>${statsCount} ${plural(statsCount, 'строка', 'строки', 'строк')} статистики</li>` : ''}
-          ${testsCount ? `<li>${testsCount} ${plural(testsCount, 'тест', 'теста', 'тестов')}</li>` : ''}
-          ${devCount ? `<li>${devCount} ${plural(devCount, 'цель', 'цели', 'целей')} развития</li>` : ''}
-        </ul>
-        <p><strong>Действие необратимо.</strong> Рекомендуем сначала экспортировать данные игрока в PDF.</p>
-      ` : '<p>У игрока пока нет данных. Удаление безопасно.</p>'}
+      ${hasData ? `<p><strong>Действие необратимо.</strong> Рекомендуем сначала экспортировать данные игрока в PDF.</p>` : '<p>У игрока пока нет данных. Удаление безопасно.</p>'}
     </div>
-    ${needConfirm ? `
-      <div class="field">
-        <label>Для подтверждения введите фамилию игрока: <strong>${escapeHtml(lastName)}</strong></label>
-        <input id="del-confirm" placeholder="${escapeAttr(lastName)}" autocomplete="off">
-      </div>
-    ` : ''}
+    ${needConfirm ? `<div class="field"><label>Для подтверждения введите фамилию: <strong>${escapeHtml(lastName)}</strong></label><input id="del-confirm" autocomplete="off"></div>` : ''}
     <div class="btn-row" style="margin-top:16px">
       <button class="btn btn-red" id="del-final-btn" onclick="doDeletePlayer('${pid}')" ${needConfirm ? 'disabled style="opacity:.5;cursor:not-allowed"' : ''}>🗑 Удалить навсегда</button>
       <button class="btn-ghost btn" onclick="closeModal()">Отмена</button>
-      <button class="btn btn-ghost" onclick="closeModal();exportPlayerToPDF('${pid}')" style="margin-left:auto">📄 Сначала экспорт</button>
     </div>
   `);
 
@@ -190,7 +184,6 @@ function confirmDeletePlayer(pid) {
       const inp = document.getElementById('del-confirm');
       const btn = document.getElementById('del-final-btn');
       if (!inp || !btn) return;
-      inp.focus();
       inp.addEventListener('input', () => {
         const ok = inp.value.trim().toLowerCase() === lastName.toLowerCase();
         btn.disabled = !ok;
@@ -200,6 +193,7 @@ function confirmDeletePlayer(pid) {
     }, 100);
   }
 }
+
 function doDeletePlayer(pid) {
   const p = DB.players.find(x => x.id === pid);
   if (!p) return;
@@ -213,9 +207,9 @@ function doDeletePlayer(pid) {
   showScreen('players'); renderPlayers(); updateNotifBadge();
   toast(`Игрок «${p.fio}» удалён`);
 }
+
 function deletePlayerFromTile(event, pid) { event.stopPropagation(); confirmDeletePlayer(pid); }
 
-/* ===== Открытие карточки ===== */
 function openPlayer(id) {
   currentPlayerId = id;
   currentTab = 'skills';
@@ -227,13 +221,20 @@ function openPlayer(id) {
   renderPlayerCard(p);
 }
 
-/* ===== Рендер карточки ===== */
 function renderPlayerCard(p) {
   const el = document.getElementById('player-card');
   if (!el) return;
   const s = getCurrentScores(p);
   const sEnd = getEndScores(p);
   const age = computeAge(p);
+
+  let groupName = 'Звездочки';
+  if (p.groupId === 'g_special') groupName = 'Спецгруппа';
+  else if (p.groupId === 'g_stars') groupName = 'Звездочки';
+  else if (DB.playerGroups && DB.playerGroups.general.subgroups) {
+    const sg = DB.playerGroups.general.subgroups.find(x => x.id === p.groupId);
+    if (sg) groupName = 'Общая · ' + sg.name;
+  }
 
   el.innerHTML = `
     <div class="card"><div class="passport">
@@ -244,7 +245,7 @@ function renderPlayerCard(p) {
       </div>
       <div>
         <h1 contenteditable="true" onblur="updateField('${p.id}','fio',this.innerText)" style="outline:none;border-radius:4px;padding:2px 4px">${escapeHtml(p.fio)}</h1>
-        <p class="subtitle">${escapeHtml(p.team)} · ${escapeHtml(p.city)}</p>
+        <p class="subtitle">${escapeHtml(p.team)} · ${escapeHtml(p.city)} · <strong>${escapeHtml(groupName)}</strong></p>
         <div class="passport-fields">
           <div class="field"><label>День рождения</label><div class="value" contenteditable="true" onblur="updateField('${p.id}','birthDay',this.innerText);updateAgeDisplay('${p.id}')">${escapeHtml(p.birthDay)}</div></div>
           <div class="field"><label>Месяц</label><div class="value" contenteditable="true" onblur="updateField('${p.id}','birthMonth',this.innerText);updateAgeDisplay('${p.id}')">${escapeHtml(p.birthMonth)}</div></div>
@@ -335,7 +336,6 @@ function renderPlayerCard(p) {
   if (currentTab === 'skills')      renderSkillsContent(p);
 }
 
-/* ===== Утилиты ===== */
 function updateField(playerId, field, val) {
   const p = DB.players.find(x => x.id === playerId);
   if (!p || p[field] === val) return;

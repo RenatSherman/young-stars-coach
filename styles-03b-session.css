@@ -1,13 +1,7 @@
 /* ============================================================
    styles-03b-session.css
    Тренировка: модалка дня, редактор тренировки, блоки, факты,
-   поповер комплексов, повтор, дропдаун шаблонов, PDE (модалка
-   дня игрока).
-
-   Разбиение styles-03-calendar.css:
-     styles-03a-calendar-grid.css  — сетки месяца
-     styles-03b-session.css        ← этот файл
-     styles-03c-plan.css           — планы и план развития
+   поповер комплексов, повтор, дропдаун шаблонов, PDE.
    ============================================================ */
 
 /* ============================================================
@@ -110,18 +104,16 @@
 .cc-sess-edit:hover{background:var(--ak-gray-light);color:var(--ak-green)}
 .cc-sess-del:hover{background:#fce8ec;color:var(--ak-red)}
 
+/* ИСПРАВЛЕНИЕ: сменил grid-template-rows на max-height */
 .cc-sess-body{
-  display:grid;
-  grid-template-rows:0fr;
-  transition:grid-template-rows .15s ease;
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height .25s ease-out;
 }
 .cc-sess-item.open .cc-sess-body{
-  grid-template-rows:1fr;
+  max-height: 2000px; /* Достаточно большое значение для любого контента */
 }
-.cc-sess-body > .cc-sess-body-inner{
-  overflow:hidden;
-  min-height:0;
-}
+
 .cc-sess-body-inner{
   padding:12px 14px 14px 14px;
   border-top:1px dashed var(--ak-gray-mid);
@@ -619,10 +611,7 @@
 /* ============================================================
    11b. ДРОПДАУН ШАБЛОНОВ ТРЕНИРОВОК
    ============================================================ */
-.tpl-dropdown-wrap{
-  position:relative;
-  display:inline-block;
-}
+.tpl-dropdown-wrap{position:relative;display:inline-block;}
 .tpl-toggle{
   display:inline-flex;
   align-items:center;
@@ -642,11 +631,7 @@
   width:100%;
   justify-content:center;
 }
-.tpl-toggle:hover{
-  background:var(--ak-green);
-  color:#fff;
-  border-style:solid;
-}
+.tpl-toggle:hover{background:var(--ak-green);color:#fff;border-style:solid;}
 .tpl-dropdown{
   display:none;
   position:absolute;
@@ -711,10 +696,7 @@
   flex-shrink:0;
   white-space:nowrap;
 }
-.tpl-item:hover .tpl-item-meta{
-  background:var(--ak-green);
-  color:#fff;
-}
+.tpl-item:hover .tpl-item-meta{background:var(--ak-green);color:#fff;}
 .tpl-item-del{
   background:transparent;
   border:none;
@@ -726,10 +708,7 @@
   transition:.1s;
   flex-shrink:0;
 }
-.tpl-item-del:hover{
-  background:#fce8ec;
-  color:var(--ak-red);
-}
+.tpl-item-del:hover{background:#fce8ec;color:var(--ak-red);}
 
 /* ============================================================
    12. КАСТОМНЫЙ ПОПОВЕР «КОМПЛЕКС УПРАЖНЕНИЙ»
@@ -753,27 +732,11 @@
   transition:.1s;
   min-height:40px;
 }
-.complex-picker-btn:hover{
-  border-color:var(--ak-green);
-  background:var(--ak-gray-light);
-}
-.complex-picker-btn.has-value{
-  border-color:var(--ak-green);
-  background:#f6fbf7;
-  font-weight:600;
-}
-.complex-picker-btn .complex-picker-text{
-  flex:1;
-  min-width:0;
-  overflow:hidden;
-  text-overflow:ellipsis;
-  white-space:nowrap;
-}
-.complex-picker-btn .complex-picker-caret{
-  color:var(--ak-gray-dark);
-  font-size:10px;
-  flex-shrink:0;
-}
+.complex-picker-btn:hover{border-color:var(--ak-green);background:var(--ak-gray-light);}
+.complex-picker-btn.has-value{border-color:var(--ak-green);background:#f6fbf7;font-weight:600;}
+.complex-picker-btn .complex-picker-text{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.complex-picker-btn .complex-picker-caret{color:var(--ak-gray-dark);font-size:10px;flex-shrink:0;}
+
 .complex-picker-popover{
   display:none;
   position:absolute;
@@ -845,9 +808,7 @@
   font-size:12px;
   font-style:italic;
 }
-.complex-picker-group{
-  border-bottom:1px solid var(--ak-gray-light);
-}
+.complex-picker-group{border-bottom:1px solid var(--ak-gray-light);}
 .complex-picker-group:last-child{border-bottom:none;}
 .complex-picker-group.empty{opacity:.6;}
 .complex-picker-group-head{
@@ -870,49 +831,14 @@
 }
 .complex-picker-group-head:hover{background:var(--ak-gray-light);}
 .complex-picker-group.open .complex-picker-group-head{background:var(--ak-gray-light);}
-.complex-picker-group-arrow{
-  font-size:10px;
-  color:var(--ak-red);
-  flex-shrink:0;
-  width:12px;
-  text-align:center;
-}
-.complex-picker-group-name{
-  flex:1;
-  min-width:0;
-  overflow:hidden;
-  text-overflow:ellipsis;
-  white-space:nowrap;
-}
-.complex-picker-group-count{
-  font-size:10px;
-  font-weight:900;
-  padding:1px 8px;
-  border-radius:10px;
-  background:var(--ak-gray-light);
-  color:var(--ak-gray-dark);
-  flex-shrink:0;
-}
-.complex-picker-group.open .complex-picker-group-count{
-  background:var(--ak-green);
-  color:#fff;
-}
-.complex-picker-group-body{
-  padding:2px 0 6px 0;
-  background:#fafbfc;
-}
-.complex-picker-sub{
-  padding:1px 0;
-  border-bottom:1px dashed rgba(0,0,0,.05);
-}
+.complex-picker-group-arrow{font-size:10px;color:var(--ak-red);flex-shrink:0;width:12px;text-align:center;}
+.complex-picker-group-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.complex-picker-group-count{font-size:10px;font-weight:900;padding:1px 8px;border-radius:10px;background:var(--ak-gray-light);color:var(--ak-gray-dark);flex-shrink:0;}
+.complex-picker-group.open .complex-picker-group-count{background:var(--ak-green);color:#fff;}
+.complex-picker-group-body{padding:2px 0 6px 0;background:#fafbfc;}
+.complex-picker-sub{padding:1px 0;border-bottom:1px dashed rgba(0,0,0,.05);}
 .complex-picker-sub:last-child{border-bottom:none;}
-.complex-picker-sub-row{
-  display:flex;
-  align-items:center;
-  gap:2px;
-  padding:0 8px 0 16px;
-  min-width:0;
-}
+.complex-picker-sub-row{display:flex;align-items:center;gap:2px;padding:0 8px 0 16px;min-width:0;}
 .complex-picker-sub-arrow-btn{
   background:transparent;
   border:none;
@@ -949,37 +875,11 @@
   border-radius:4px;
 }
 .complex-picker-sub-btn:hover{background:var(--ak-gray-light);}
-.complex-picker-radio{
-  display:inline-block;
-  width:14px;
-  height:14px;
-  border-radius:50%;
-  border:2px solid var(--ak-gray-mid);
-  flex-shrink:0;
-  transition:.1s;
-}
+.complex-picker-radio{display:inline-block;width:14px;height:14px;border-radius:50%;border:2px solid var(--ak-gray-mid);flex-shrink:0;transition:.1s;}
 .complex-picker-sub-btn:hover .complex-picker-radio{border-color:var(--ak-green);}
-.complex-picker-sub-name{
-  flex:1;
-  min-width:0;
-  overflow:hidden;
-  text-overflow:ellipsis;
-  white-space:nowrap;
-  font-weight:600;
-}
-.complex-picker-sub-count{
-  font-size:10px;
-  font-weight:700;
-  color:var(--ak-gray-dark);
-  padding:1px 6px;
-  border-radius:8px;
-  background:var(--ak-gray-light);
-  flex-shrink:0;
-}
-.complex-picker-sub-body{
-  padding:4px 10px 8px 44px;
-  background:#fdfdfd;
-}
+.complex-picker-sub-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;}
+.complex-picker-sub-count{font-size:10px;font-weight:700;color:var(--ak-gray-dark);padding:1px 6px;border-radius:8px;background:var(--ak-gray-light);flex-shrink:0;}
+.complex-picker-sub-body{padding:4px 10px 8px 44px;background:#fdfdfd;}
 .complex-picker-item-check{
   display:flex;
   align-items:flex-start;
@@ -1003,12 +903,7 @@
   flex-shrink:0;
   accent-color:var(--ak-green);
 }
-.complex-picker-item-text{
-  flex:1;
-  min-width:0;
-  word-break:break-word;
-  overflow-wrap:break-word;
-}
+.complex-picker-item-text{flex:1;min-width:0;word-break:break-word;overflow-wrap:break-word;}
 .complex-picker-sub-actions{
   display:flex;
   gap:6px;
@@ -1033,16 +928,8 @@
   white-space:nowrap;
 }
 .complex-picker-sub-action:hover{background:var(--ak-gray-dark);color:#fff;}
-.complex-picker-sub-action.ghost{
-  background:transparent;
-  color:var(--ak-gray-dark);
-  border:1.5px solid var(--ak-gray-mid);
-}
-.complex-picker-sub-action.ghost:hover{
-  border-color:var(--ak-green);
-  color:var(--ak-green);
-  background:#fff;
-}
+.complex-picker-sub-action.ghost{background:transparent;color:var(--ak-gray-dark);border:1.5px solid var(--ak-gray-mid);}
+.complex-picker-sub-action.ghost:hover{border-color:var(--ak-green);color:var(--ak-green);background:#fff;}
 .complex-picker-sub-action.primary{
   background:var(--ak-green);
   color:#fff;
@@ -1050,10 +937,7 @@
   padding:7px 16px;
   font-size:11px;
 }
-.complex-picker-sub-action.primary:hover{
-  background:var(--ak-green-light);
-  border-color:var(--ak-green-light);
-}
+.complex-picker-sub-action.primary:hover{background:var(--ak-green-light);border-color:var(--ak-green-light);}
 
 /* ============================================================
    14. МОДАЛКА ДНЯ ИГРОКА (PDE)

@@ -1,19 +1,6 @@
 /* ============================================================
    styles-05-reports.css
-   Отчёт тренера, адаптив, печать:
-   - панель отчёта тренера (.cr-toolbar)
-   - тепловая карта (.cr-heatmap)
-   - графики отчёта (.cr-charts, .cr-chart-card, .cr-chart-box)
-   - таблица активности игроков (.cr-player-table)
-   - @media (max-width: 1100/900/700/560)
-   - @media print
-
-   Разбиение styles.css:
-     styles-01-base.css      — токены, шапка, кнопки (создан)
-     styles-02-players.css   — игроки, паспорт, дашборд (создан)
-     styles-03-calendar.css  — календари, план развития (создан)
-     styles-04-modal.css     — модалки, авторизация (создан)
-     styles-05-reports.css   ← этот файл
+   Отчёт тренера, адаптив, печать.
    ============================================================ */
 
 /* ===== ОТЧЁТ ТРЕНЕРА ===== */
@@ -47,49 +34,53 @@
 }
 .cr-toolbar select:focus{outline:none;border-color:var(--ak-green)}
 
-/* Тепловая карта */
-.cr-heatmap{
-  display:grid;
-  grid-template-columns:64px repeat(7,1fr);
-  gap:2px;
-  font-size:11px;
-  margin-bottom:8px;
+/* ============================================================
+   МАТРИЦА ВЫПОЛНЕНИЯ
+   ============================================================ */
+.cr-matrix {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
 }
-.cr-heat-head{
-  background:#000;
-  color:#fff;
-  padding:8px 4px;
-  text-align:center;
-  font-family:var(--font-display);
-  font-weight:900;
-  font-size:10px;
-  letter-spacing:.5px;
-  text-transform:uppercase;
-  border-radius:3px;
-}
-.cr-heat-time{
-  background:#f7f8f9;
-  padding:8px 4px;
-  text-align:center;
-  font-weight:900;
-  color:var(--ak-gray-dark);
-  font-size:10px;
-  border-radius:3px;
-}
-.cr-heat-cell{
-  height:24px;
-  border-radius:3px;
-  background:#e6e8ea;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  font-size:9px;
-  color:#fff;
-  font-weight:900;
-}
-.cr-heat-cell:hover{outline:2px solid var(--ak-green)}
 
-/* Графики отчёта */
+.cr-matrix th {
+  font-family: var(--font-display);
+  font-weight: 900;
+  color: #fff;
+  text-transform: uppercase;
+  border-right: 1px solid rgba(255,255,255,.1);
+}
+
+.cr-matrix td {
+  border-bottom: 1px solid var(--ak-gray-light);
+  border-right: 1px solid var(--ak-gray-light);
+}
+
+.cr-matrix tbody tr:hover td {
+  background: var(--ak-gray-light) !important;
+}
+
+.cr-matrix-cell {
+  width: 18px;
+  height: 18px;
+  border-radius: 3px;
+  margin: 0 auto;
+  transition: 0.15s;
+}
+
+.cr-matrix-cell:hover {
+  transform: scale(1.2);
+}
+
+.cr-matrix-cell.done { background: #10b981; }
+.cr-matrix-cell.partial { background: #f59e0b; }
+.cr-matrix-cell.notdone { background: #ef4444; }
+.cr-matrix-cell.unmarked { background: #9ca3af; }
+.cr-matrix-cell.game { background: #7c3aed; }
+.cr-matrix-cell.mixed { background: linear-gradient(135deg, #10b981 50%, #ef4444 50%); }
+.cr-matrix-cell.empty { background: #f3f4f6; border: 1px solid #e5e7eb; }
+
+/* ===== Графики отчёта ===== */
 .cr-charts{
   display:grid;
   grid-template-columns:repeat(auto-fit,minmax(340px,1fr));
@@ -105,11 +96,6 @@
 }
 .cr-chart-card h3{font-size:12px;margin-bottom:8px}
 .cr-chart-box{position:relative;height:240px}
-
-/* Таблица активности игроков */
-.cr-player-table{font-size:12px}
-.cr-player-table th{font-size:10px;padding:6px 8px}
-.cr-player-table td{padding:6px 8px}
 
 /* ============================================================
    АДАПТИВ
@@ -187,14 +173,12 @@
   .cc-time-row{grid-template-columns:1fr}
   .pbd-row{grid-template-columns:1fr;gap:4px}
 
-  /* Легенда внутри тулбара игрока остаётся видимой */
   .player-cal-toolbar .cc-legend{
     display:flex;
     font-size:10px;
     gap:8px;
   }
 
-  /* Модалка отметки факта (тренер) — компактнее на мобильном */
   .fm-player-block{grid-template-columns:1fr}
   .fm-player-block-name{margin-bottom:4px}
   .fm-toolbar{gap:6px}
@@ -266,6 +250,10 @@
   .accordion-header{
     background:#154734!important;
     color:#fff!important;
+    -webkit-print-color-adjust:exact;
+    print-color-adjust:exact;
+  }
+  .cr-matrix-cell {
     -webkit-print-color-adjust:exact;
     print-color-adjust:exact;
   }

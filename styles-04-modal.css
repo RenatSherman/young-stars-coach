@@ -1,18 +1,5 @@
 /* ============================================================
    styles-04-modal.css
-   Модалки и авторизация:
-   - общий контейнер модалки (.modal-bg, .modal)
-   - групповой выбор игроков (.group-list, .group-team, .group-tools)
-   - радиовыбор в модалке (.ui-choice-*)
-   - экран входа/регистрации (#auth-screen, .auth-*)
-   - служебные keyframes (spin)
-
-   Разбиение styles.css:
-     styles-01-base.css      — токены, шапка, кнопки (создан)
-     styles-02-players.css   — игроки, паспорт, дашборд (создан)
-     styles-03-calendar.css  — календари, план развития (создан)
-     styles-04-modal.css     ← этот файл
-     styles-05-reports.css   — отчёт тренера, адаптив, печать
    ============================================================ */
 
 /* ===== МОДАЛЬНОЕ ОКНО ===== */
@@ -64,6 +51,22 @@
 .modal select:focus{
   outline:none;
   border-color:var(--ak-green);
+}
+
+/* Кнопка-крестик в модалке */
+.modal-close-x {
+  background: transparent;
+  border: none;
+  font-size: 28px;
+  cursor: pointer;
+  color: var(--ak-gray-dark);
+  line-height: 1;
+  padding: 0 4px;
+  transition: 0.15s;
+  margin-top: -6px;
+}
+.modal-close-x:hover {
+  color: var(--ak-red);
 }
 
 /* ============================================================
@@ -191,6 +194,10 @@
   color:var(--ak-green);
 }
 
+/* ============================================================
+   СТИЛИ ДЛЯ АККОРДЕОНОВ ВНУТРИ МОДАЛКИ
+   ============================================================ */
+
 .group-team{
   margin-bottom:6px;
   border-radius:4px;
@@ -230,24 +237,6 @@
   color:#fff;
   margin-left:auto;
 }
-.group-team-head .team-actions{display:flex;gap:4px;margin-left:6px}
-.group-team-head .team-actions button{
-  padding:2px 6px;
-  font-size:9px;
-  border-radius:3px;
-  border:1px solid var(--ak-gray-mid);
-  background:#fff;
-  color:var(--ak-gray-dark);
-  cursor:pointer;
-  font-family:var(--font-display);
-  font-weight:900;
-  letter-spacing:.3px;
-}
-.group-team-head .team-actions button:hover{
-  background:var(--ak-green);
-  color:#fff;
-  border-color:var(--ak-green);
-}
 .group-team-body{
   display:none;
   padding:4px 8px 6px 8px;
@@ -264,6 +253,23 @@
 }
 .group-team-body label:hover{background:var(--ak-gray-light)}
 .group-team-body input[type=checkbox]{width:auto;margin:0}
+
+/* 
+ * Вложенные подгруппы (команды) 
+ * Убираем лишние отступы и делаем их визуально отличными
+ */
+.group-team-body .group-team {
+  border-left: 3px solid var(--ak-red);
+  margin-bottom: 4px;
+}
+.group-team-body .group-team-head {
+  background: #f4f5f6;
+  padding: 5px 8px;
+  font-size: 11px;
+}
+.group-team-body .group-team-body {
+  padding-left: 16px;
+}
 
 /* ===== ЭКРАН АВТОРИЗАЦИИ ===== */
 #auth-screen{

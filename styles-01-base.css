@@ -1,8 +1,5 @@
 /* ============================================================
    styles-01-base.css
-   Токены, сброс, типографика, шапка, кнопки, карточки, вкладки,
-   справочник упражнений, дерево навыков (.sk-*), селектор сезона,
-   плашка архива.
    ============================================================ */
 
 :root{
@@ -653,7 +650,7 @@ input.cell[type=number]{text-align:center}
 }
 
 /* ============================================================
-   СПРАВОЧНИК УПРАЖНЕНИЙ — ДВУХУРОВНЕВОЕ ДЕРЕВО
+   СПРАВОЧНИК УПРАЖНЕНИЙ
    ============================================================ */
 .ex-parent{
   margin-bottom:12px;
@@ -663,6 +660,8 @@ input.cell[type=number]{text-align:center}
   background:#fff;
   border-left:5px solid var(--ak-green);
   transition:.2s;
+  display: block !important;
+  width: 100% !important;
 }
 .ex-parent:hover{box-shadow:var(--shadow-lg)}
 .ex-parent.open{border-left-color:var(--ak-red);}
@@ -900,7 +899,7 @@ input.cell[type=number]{text-align:center}
 }
 
 /* ============================================================
-   ДЕРЕВО НАВЫКОВ (карточка игрока) — .sk-*
+   ДЕРЕВО НАВЫКОВ
    ============================================================ */
 
 .skills-tree{display:flex;flex-direction:column;gap:10px}
@@ -1072,7 +1071,6 @@ input.cell[type=number]{text-align:center}
   box-shadow:0 0 0 2px rgba(21,71,52,.12);
 }
 
-/* Адаптив для дерева навыков */
 @media (max-width: 700px){
   .sk-acc-head{padding:10px 12px;font-size:12px;}
   .sk-acc.level-2 .sk-acc-head{font-size:11px;padding:8px 12px 8px 18px;}
@@ -1140,4 +1138,36 @@ input.cell[type=number]{text-align:center}
     padding:12px 14px;
   }
   .archive-badge .btn{width:100%;}
+}
+
+/* ============================================================
+   НОВЫЕ СТИЛИ ДЛЯ ГРУПП ИГРОКОВ И КРЕСТИКА
+   ============================================================ */
+
+.player-group-inner {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 16px;
+  padding: 10px 0;
+}
+.player-group-inner > .subtitle {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 10px 0;
+}
+
+/* Кнопка-крестик в модалке */
+.modal-close-x {
+  background: transparent;
+  border: none;
+  font-size: 28px;
+  cursor: pointer;
+  color: var(--ak-gray-dark);
+  line-height: 1;
+  padding: 0 4px;
+  transition: 0.15s;
+  margin-top: -6px;
+}
+.modal-close-x:hover {
+  color: var(--ak-red);
 }

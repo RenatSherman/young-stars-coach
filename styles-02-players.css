@@ -1,6 +1,6 @@
 /* ============================================================
    styles-02-players.css
-   Игроки и карточка + уведомления.
+   Игроки, карточка, уведомления.
    ============================================================ */
 
 /* ===== СПИСОК ИГРОКОВ ===== */
@@ -8,6 +8,19 @@
   display:grid;
   grid-template-columns:repeat(auto-fill,minmax(260px,1fr));
   gap:16px;
+}
+
+/* Новый контейнер для игроков внутри групп-аккордеонов */
+.player-group-inner {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 16px;
+  padding: 16px 20px;
+}
+.player-group-inner > .subtitle {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 10px 0;
 }
 
 .player-tile{
@@ -419,7 +432,6 @@
 }
 .notif-panel.active{display:block}
 
-/* Сводка сверху */
 .notif-summary{
   display:flex;
   gap:6px;
@@ -446,7 +458,6 @@
 .notif-sum.notdone{background:#fce8ec;color:var(--ak-red)}
 .notif-sum.soon{background:var(--ak-gray-light);color:var(--ak-gray-dark)}
 
-/* Строка уведомления */
 .notif-item{
   padding:10px 12px;
   border-radius:4px;
@@ -481,7 +492,6 @@
   margin-top:2px;
 }
 
-/* Пилюля факта в уведомлении */
 .notif-fact-pill{
   display:inline-block;
   font-size:9px;

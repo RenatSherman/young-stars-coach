@@ -1,25 +1,5 @@
 /* ============================================================
    50-player-skills.js
-   Вкладка «Навыки» в карточке игрока: дерево аккордеонов
-   + таблицы критериев по разделам (Технические / Физические /
-   Тактические / Психологические).
-
-   Содержит:
-   - SKILLS_OPEN (состояние раскрытых узлов)
-   - renderSkillsTab / renderSkillsContent
-   - groupBy
-   - renderSkillAccordion / renderTechSubtree
-   - renderGroupedTechTable / renderFlatTable
-   - findTechIndex / findOtherIndex
-   - toggleSkillsAccordion / toggleAllSkillsAccordions
-   - collectAllSkillIds / updateSkillsToggleAllBtn
-   - renderTechTable / countGroup (для PDF-экспорта)
-   - updateTech / updateTechName
-   - renderOtherTable / updateOther / updateOtherName
-   ============================================================ */
-
-/* ============================================================
-   ВКЛАДКА «НАВЫКИ» — дерево аккордеонов
    ============================================================ */
 
 const SKILLS_OPEN = new Set();
@@ -179,7 +159,10 @@ function renderFlatTable(rows, pid, kind) {
     const globalIdx = findOtherIndex(pid, r);
     return `<tr>
       <td style="text-align:center;color:var(--ak-gray-dark);font-weight:900;font-family:var(--font-display)">${i + 1}</td>
-      <td>${r.sub ? `<div class="sk-sub">${escapeHtml(r.sub)}</div>` : ''}<span class="editable-name" contenteditable="true" onblur="updateOtherName('${pid}',${globalIdx},'name',this.innerText)">${escapeHtml(r.name)}</span></td>
+      <td>
+        ${r.sub ? `<div class="sk-sub"><span class="editable-name" contenteditable="true" onblur="updateOtherName('${pid}',${globalIdx},'sub',this.innerText)">${escapeHtml(r.sub)}</span></div>` : ''}
+        <span class="editable-name" contenteditable="true" onblur="updateOtherName('${pid}',${globalIdx},'name',this.innerText)">${escapeHtml(r.name)}</span>
+      </td>
       <td><input class="cell sk-cell" type="number" min="1" max="10" value="${r.start ?? ''}" onchange="updateOther('${pid}',${globalIdx},'start',this.value)"></td>
       <td><input class="cell sk-cell" type="number" min="1" max="10" value="${r.plan ?? ''}" onchange="updateOther('${pid}',${globalIdx},'plan',this.value)"></td>
       <td><input class="cell sk-cell" type="number" min="1" max="10" value="${r.fact ?? ''}" onchange="updateOther('${pid}',${globalIdx},'fact',this.value)"></td>
@@ -254,36 +237,14 @@ function updateSkillsToggleAllBtn(p) {
 }
 
 /* ============================================================
-   ПЛОСКИЕ ТАБЛИЦЫ (для PDF и старого экспорта)
+   ОБНОВЛЕНИЕ НАЗВАНИЙ
    ============================================================ */
-
-function renderTechTable(p) {
-  let rows = '', lastGroup = '', lastSub = '';
-  p.techDetail.forEach((r, i) => {
-    const g = r.group !== lastGroup
-      ? `<td rowspan="${countGroup(p.techDetail, r.group)}" style="font-weight:900;color:var(--ak-green);vertical-align:top;font-family:var(--font-display);font-size:11px;letter-spacing:.3px;text-transform:uppercase">${r.group}</td>`
-      : '';
-    const s = r.sub !== lastSub
-      ? `<td style="font-weight:600;color:var(--ak-gray-dark);font-size:12px">${r.sub}</td>`
-      : '<td></td>';
-    rows += `<tr>${g}${s}<td>${i + 1}</td>
-      <td><span class="editable-name" contenteditable="true" onblur="updateTechName('${p.id}',${i},'name',this.innerText)">${escapeHtml(r.name)}</span></td>
-      <td><input class="cell" type="number" min="1" max="10" value="${r.start ?? ''}" onchange="updateTech('${p.id}',${i},'start',this.value)"></td>
-      <td><input class="cell" type="number" min="1" max="10" value="${r.mid ?? ''}" onchange="updateTech('${p.id}',${i},'mid',this.value)"></td>
-      <td><input class="cell" type="number" min="1" max="10" value="${r.end ?? ''}" onchange="updateTech('${p.id}',${i},'end',this.value)"></td></tr>`;
-    lastGroup = r.group; lastSub = r.sub;
-  });
-  return `<div class="card"><h2>Техническая оснащённость</h2>
-    <div style="overflow-x:auto"><table><thead><tr><th>Раздел</th><th>Подраздел</th><th>№</th><th>Критерий</th><th>Начало</th><th>Середина</th><th>Конец</th></tr></thead>
-    <tbody>${rows}</tbody></table></div></div>`;
-}
-
-function countGroup(a, g) { return a.filter(x => x.group === g).length; }
 
 function updateTech(pid, i, f, v) {
   const p = DB.players.find(x => x.id === pid);
   if (!p || !p.techDetail || !p.techDetail[i]) return;
   p.techDetail[i][f] = v === '' ? null : Number(v);
+  touchMeta('players');
   saveDB();
   refreshProfile(pid);
 }
@@ -294,34 +255,23 @@ function updateTechName(pid, i, f, v) {
   v = (v || '').trim();
   if (!v || p.techDetail[i][f] === v) return;
   p.techDetail[i][f] = v;
-  saveDB();
-}
+  
+  // Сохраняем новую структуру в базу (чтобы новые игроки получали её)
+  if (!DB.techStructure) DB.techStructure = [];
+  const targetRow = p.techDetail[i];
+  const existingIdx = DB.techStructure.findIndex(r => r.group === targetRow.group && r.sub === targetRow.sub && r.name === targetRow.name);
+  // Если не нашли — просто перезапишем всю структуру из текущего игрока (без оценок)
+  DB.techStructure = p.techDetail.map(r => ({ group: r.group, sub: r.sub, name: r.name }));
 
-function renderOtherTable(p) {
-  let rows = '', lastGroup = '', lastSub = '';
-  p.otherDetail.forEach((r, i) => {
-    const g = r.group !== lastGroup
-      ? `<td rowspan="${countGroup(p.otherDetail, r.group)}" style="font-weight:900;color:var(--ak-green);vertical-align:top;font-family:var(--font-display);font-size:11px;letter-spacing:.3px;text-transform:uppercase">${r.group}</td>`
-      : '';
-    const s = r.sub !== lastSub && r.sub
-      ? `<td style="font-weight:600;color:var(--ak-gray-dark);font-size:12px">${r.sub}</td>`
-      : '<td></td>';
-    rows += `<tr>${g}${s}<td>${i + 1}</td>
-      <td><span class="editable-name" contenteditable="true" onblur="updateOtherName('${p.id}',${i},'name',this.innerText)">${escapeHtml(r.name)}</span></td>
-      <td><input class="cell" type="number" min="1" max="10" value="${r.start ?? ''}" onchange="updateOther('${p.id}',${i},'start',this.value)"></td>
-      <td><input class="cell" type="number" min="1" max="10" value="${r.plan ?? ''}" onchange="updateOther('${p.id}',${i},'plan',this.value)"></td>
-      <td><input class="cell" type="number" min="1" max="10" value="${r.fact ?? ''}" onchange="updateOther('${p.id}',${i},'fact',this.value)"></td></tr>`;
-    lastGroup = r.group; lastSub = r.sub;
-  });
-  return `<div class="card"><h2>Физические, тактические и психологические характеристики</h2>
-    <div style="overflow-x:auto"><table><thead><tr><th>Раздел</th><th>Подраздел</th><th>№</th><th>Критерий</th><th>Начало</th><th>Середина</th><th>Конец</th></tr></thead>
-    <tbody>${rows}</tbody></table></div></div>`;
+  touchMeta('players');
+  saveDB();
 }
 
 function updateOther(pid, i, f, v) {
   const p = DB.players.find(x => x.id === pid);
   if (!p || !p.otherDetail || !p.otherDetail[i]) return;
   p.otherDetail[i][f] = v === '' ? null : Number(v);
+  touchMeta('players');
   saveDB();
   refreshProfile(pid);
 }
@@ -332,5 +282,10 @@ function updateOtherName(pid, i, f, v) {
   v = (v || '').trim();
   if (!v || p.otherDetail[i][f] === v) return;
   p.otherDetail[i][f] = v;
+
+  // Сохраняем новую структуру в базу
+  DB.otherStructure = p.otherDetail.map(r => ({ group: r.group, sub: r.sub, name: r.name }));
+
+  touchMeta('players');
   saveDB();
 }
