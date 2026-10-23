@@ -1,8 +1,13 @@
 /* ============================================================
    50-player-skills.js
+   Вкладка «Навыки» в карточке игрока.
    ============================================================ */
 
 const SKILLS_OPEN = new Set();
+
+/* ============================================================
+   Главный рендер
+   ============================================================ */
 
 function renderSkillsTab(p) {
   return `<div class="card">
@@ -37,7 +42,9 @@ function renderSkillsContent(p) {
         id: 'tech',
         title: 'Технические',
         count: techCount,
-        body: renderTechSubtree(p, techGroups)
+        body: renderTechSubtree(p, techGroups),
+        renameAction: `event.stopPropagation(); uiAlert('Корневой раздел переименовать нельзя')`,
+        addAction: `addTechSubgroup('${p.id}')`
       })}
 
       ${renderSkillAccordion({
@@ -46,7 +53,9 @@ function renderSkillsContent(p) {
         count: physCount,
         body: physCount
           ? renderFlatTable(otherByGroup['Физические качества'], p.id, 'phys')
-          : '<div class="sk-empty">Нет критериев в этом разделе</div>'
+          : '<div class="sk-empty">Нет критериев в этом разделе</div>',
+        renameAction: `renameOtherGroup('${p.id}', 'Физические качества')`,
+        addAction: `addOtherCriterion('${p.id}', 'Физические качества')`
       })}
 
       ${renderSkillAccordion({
@@ -55,7 +64,9 @@ function renderSkillsContent(p) {
         count: tactCount,
         body: tactCount
           ? renderFlatTable(otherByGroup['Тактические навыки'], p.id, 'tact')
-          : '<div class="sk-empty">Нет критериев в этом разделе</div>'
+          : '<div class="sk-empty">Нет критериев в этом разделе</div>',
+        renameAction: `renameOtherGroup('${p.id}', 'Тактические навыки')`,
+        addAction: `addOtherCriterion('${p.id}', 'Тактические навыки')`
       })}
 
       ${renderSkillAccordion({
@@ -64,7 +75,9 @@ function renderSkillsContent(p) {
         count: psihCount,
         body: psihCount
           ? renderFlatTable(otherByGroup['Психологические характеристики'], p.id, 'psih')
-          : '<div class="sk-empty">Нет критериев в этом разделе</div>'
+          : '<div class="sk-empty">Нет критериев в этом разделе</div>',
+        renameAction: `renameOtherGroup('${p.id}', 'Психологические характеристики')`,
+        addAction: `addOtherCriterion('${p.id}', 'Психологические характеристики')`
       })}
     </div>
   `;
@@ -83,17 +96,36 @@ function groupBy(arr, field) {
   return out;
 }
 
-function renderSkillAccordion({ id, title, count, body, level = 1 }) {
+/* ============================================================
+   Аккордеон
+   ============================================================ */
+
+function renderSkillAccordion({ id, title, count, body, level = 1, renameAction = null, addAction = null }) {
   const isOpen = SKILLS_OPEN.has(id);
   const levelCls = 'sk-level-' + level;
+
+  const renameBtn = renameAction
+    ? `<button type="button" class="btn-icon" title="Переименовать" onclick="event.stopPropagation(); ${renameAction}">✎</button>`
+    : '';
+  const addBtn = addAction
+    ? `<button type="button" class="btn-icon" title="Добавить" onclick="event.stopPropagation(); ${addAction}">➕</button>`
+    : '';
+
+  const hasActions = renameBtn || addBtn;
+
   return `<div class="sk-acc ${levelCls} ${isOpen ? 'open' : ''}" data-sk-id="${escapeAttr(id)}">
-    <button type="button" class="sk-acc-head" onclick="toggleSkillsAccordion('${escapeAttr(id)}')">
-      <span class="sk-acc-arrow">▶</span>
-      <span class="sk-acc-title">${escapeHtml(title)}</span>
-      <span class="sk-acc-count">${count}</span>
-    </button>
-    <div class="sk-acc-body">
-      <div class="sk-acc-inner">${body}</div>
+    <div class="sk-acc-head-wrap" style="background: #f8f9fa; border-bottom: 1px solid transparent; overflow: hidden; display: block;">
+      <button type="button" class="sk-acc-head" onclick="toggleSkillsAccordion('${escapeAttr(id)}')" style="float: left; width: calc(100% - ${hasActions ? '100px' : '10px'}); background: transparent; border: none; text-align: left; padding: 12px 14px; cursor: pointer; display: flex; align-items: center; gap: 10px; font-family: inherit;">
+        <span class="sk-acc-arrow" style="font-size: 10px; color: var(--ak-gray-dark); transition: transform 0.2s; flex-shrink: 0;">▶</span>
+        <span class="sk-acc-title" style="font-weight: 700; font-size: 14px; color: var(--ak-green); flex: 1;">${escapeHtml(title)}</span>
+        <span class="sk-acc-count" style="font-size: 11px; font-weight: 900; color: var(--ak-gray-dark); background: var(--ak-gray-mid); padding: 2px 8px; border-radius: 10px; flex-shrink: 0;">${count}</span>
+      </button>
+      ${hasActions ? `<div class="sk-acc-actions no-print" style="float: right; display: flex; align-items: center; gap: 4px; padding: 12px 14px 12px 0; height: 100%;">
+        ${renameBtn}${addBtn}
+      </div>` : ''}
+    </div>
+    <div class="sk-acc-body" style="display: ${isOpen ? 'block' : 'none'}; background: #fff;">
+      <div class="sk-acc-inner" style="padding: 14px;">${body}</div>
     </div>
   </div>`;
 }
@@ -106,12 +138,15 @@ function renderTechSubtree(p, techGroups) {
     const rows = techGroups[subName];
     const id = 'tech:' + subName;
     const table = renderGroupedTechTable(rows, p.id, subName);
+    const safeSub = escapeAttr(subName).replace(/'/g, "\\'");
     return renderSkillAccordion({
       id,
       title: subName,
       count: rows.length,
       body: table,
-      level: 2
+      level: 2,
+      renameAction: `renameTechSubgroup('${p.id}', '${safeSub}')`,
+      addAction: `addTechCriterion('${p.id}', '${safeSub}')`
     });
   }).join('');
 }
@@ -123,10 +158,13 @@ function renderGroupedTechTable(rows, pid, subName) {
     const globalIdx = findTechIndex(pid, r);
     return `<tr>
       <td style="text-align:center;color:var(--ak-gray-dark);font-weight:900;font-family:var(--font-display)">${i + 1}</td>
-      <td><span class="editable-name" contenteditable="true" onblur="updateTechName('${pid}',${globalIdx},'name',this.innerText)">${escapeHtml(r.name)}</span></td>
+      <td>${escapeHtml(r.name)}</td>
       <td><input class="cell sk-cell" type="number" min="1" max="10" value="${r.start ?? ''}" onchange="updateTech('${pid}',${globalIdx},'start',this.value)"></td>
       <td><input class="cell sk-cell" type="number" min="1" max="10" value="${r.mid ?? ''}" onchange="updateTech('${pid}',${globalIdx},'mid',this.value)"></td>
       <td><input class="cell sk-cell" type="number" min="1" max="10" value="${r.end ?? ''}" onchange="updateTech('${pid}',${globalIdx},'end',this.value)"></td>
+      <td class="no-print" style="text-align:center;">
+        <button type="button" class="btn-icon" title="Редактировать" onclick="editTechName('${pid}',${globalIdx})">✎</button>
+      </td>
     </tr>`;
   }).join('');
 
@@ -139,6 +177,7 @@ function renderGroupedTechTable(rows, pid, subName) {
           <th style="width:84px">Начало</th>
           <th style="width:84px">Середина</th>
           <th style="width:84px">Конец</th>
+          <th style="width:40px" class="no-print"></th>
         </tr>
       </thead>
       <tbody>${html}</tbody>
@@ -160,12 +199,15 @@ function renderFlatTable(rows, pid, kind) {
     return `<tr>
       <td style="text-align:center;color:var(--ak-gray-dark);font-weight:900;font-family:var(--font-display)">${i + 1}</td>
       <td>
-        ${r.sub ? `<div class="sk-sub"><span class="editable-name" contenteditable="true" onblur="updateOtherName('${pid}',${globalIdx},'sub',this.innerText)">${escapeHtml(r.sub)}</span></div>` : ''}
-        <span class="editable-name" contenteditable="true" onblur="updateOtherName('${pid}',${globalIdx},'name',this.innerText)">${escapeHtml(r.name)}</span>
+        ${r.sub ? `<div class="sk-sub" style="margin-bottom:4px;">${escapeHtml(r.sub)}</div>` : ''}
+        <span>${escapeHtml(r.name)}</span>
       </td>
       <td><input class="cell sk-cell" type="number" min="1" max="10" value="${r.start ?? ''}" onchange="updateOther('${pid}',${globalIdx},'start',this.value)"></td>
       <td><input class="cell sk-cell" type="number" min="1" max="10" value="${r.plan ?? ''}" onchange="updateOther('${pid}',${globalIdx},'plan',this.value)"></td>
       <td><input class="cell sk-cell" type="number" min="1" max="10" value="${r.fact ?? ''}" onchange="updateOther('${pid}',${globalIdx},'fact',this.value)"></td>
+      <td class="no-print" style="text-align:center;">
+        <button type="button" class="btn-icon" title="Редактировать" onclick="editOtherRow('${pid}',${globalIdx})">✎</button>
+      </td>
     </tr>`;
   }).join('');
 
@@ -178,6 +220,7 @@ function renderFlatTable(rows, pid, kind) {
           <th style="width:84px">Начало</th>
           <th style="width:84px">Середина</th>
           <th style="width:84px">Конец</th>
+          <th style="width:40px" class="no-print"></th>
         </tr>
       </thead>
       <tbody>${html}</tbody>
@@ -191,11 +234,21 @@ function findOtherIndex(pid, row) {
   return p.otherDetail.indexOf(row);
 }
 
+/* ============================================================
+   Toggle
+   ============================================================ */
+
 function toggleSkillsAccordion(id) {
   if (SKILLS_OPEN.has(id)) SKILLS_OPEN.delete(id);
   else SKILLS_OPEN.add(id);
   const el = document.querySelector(`.sk-acc[data-sk-id="${CSS.escape(id)}"]`);
-  if (el) el.classList.toggle('open', SKILLS_OPEN.has(id));
+  if (el) {
+    el.classList.toggle('open', SKILLS_OPEN.has(id));
+    const body = el.querySelector('.sk-acc-body');
+    if (body) body.style.display = SKILLS_OPEN.has(id) ? 'block' : 'none';
+    const arrow = el.querySelector('.sk-acc-arrow');
+    if (arrow) arrow.style.transform = SKILLS_OPEN.has(id) ? 'rotate(90deg)' : 'rotate(0deg)';
+  }
   updateSkillsToggleAllBtn(null);
 }
 
@@ -206,15 +259,17 @@ function toggleAllSkillsAccordions(pid) {
   const ids = collectAllSkillIds(p);
   const allOpen = ids.length && ids.every(id => SKILLS_OPEN.has(id));
 
-  if (allOpen) {
-    SKILLS_OPEN.clear();
-  } else {
-    ids.forEach(id => SKILLS_OPEN.add(id));
-  }
+  if (allOpen) SKILLS_OPEN.clear();
+  else ids.forEach(id => SKILLS_OPEN.add(id));
 
   document.querySelectorAll('.sk-acc').forEach(el => {
     const id = el.dataset.skId;
-    el.classList.toggle('open', SKILLS_OPEN.has(id));
+    const isOpenNow = SKILLS_OPEN.has(id);
+    el.classList.toggle('open', isOpenNow);
+    const body = el.querySelector('.sk-acc-body');
+    if (body) body.style.display = isOpenNow ? 'block' : 'none';
+    const arrow = el.querySelector('.sk-acc-arrow');
+    if (arrow) arrow.style.transform = isOpenNow ? 'rotate(90deg)' : 'rotate(0deg)';
   });
 
   updateSkillsToggleAllBtn(p);
@@ -237,55 +292,329 @@ function updateSkillsToggleAllBtn(p) {
 }
 
 /* ============================================================
-   ОБНОВЛЕНИЕ НАЗВАНИЙ
+   Модалка для редактирования критериев
+   ============================================================ */
+
+function editTechName(pid, idx) {
+  const p = DB.players.find(x => x.id === pid);
+  if (!p || !p.techDetail || !p.techDetail[idx]) return;
+  
+  uiPrompt(
+    'Введите новое название критерия:',
+    p.techDetail[idx].name,
+    (newName) => {
+      const trimmed = (newName || '').trim();
+      if (!trimmed || trimmed === p.techDetail[idx].name) return;
+      p.techDetail[idx].name = trimmed;
+      saveDB();
+      renderPlayerCard(p);
+    },
+    () => {},
+    { title: 'Редактировать критерий', okLabel: 'Сохранить' }
+  );
+}
+
+function editOtherRow(pid, idx) {
+  const p = DB.players.find(x => x.id === pid);
+  if (!p || !p.otherDetail || !p.otherDetail[idx]) return;
+  const r = p.otherDetail[idx];
+
+  openModal(`
+    <h3>Редактировать критерий</h3>
+    <div class="field">
+      <label>Подраздел</label>
+      <input type="text" id="edit-sub-${idx}" value="${escapeAttr(r.sub || '')}" placeholder="Оставьте пустым, если не нужен">
+    </div>
+    <div class="field">
+      <label>Критерий</label>
+      <input type="text" id="edit-name-${idx}" value="${escapeAttr(r.name || '')}" autofocus>
+    </div>
+    <div class="btn-row" style="margin-top:16px">
+      <button class="btn" onclick="saveOtherRow('${pid}', ${idx})">Сохранить</button>
+      <button class="btn-ghost btn" onclick="closeModal()">Отмена</button>
+    </div>
+  `);
+}
+
+function saveOtherRow(pid, idx) {
+  const p = DB.players.find(x => x.id === pid);
+  if (!p || !p.otherDetail || !p.otherDetail[idx]) return;
+  
+  const subInput = document.getElementById(`edit-sub-${idx}`);
+  const nameInput = document.getElementById(`edit-name-${idx}`);
+  if (!subInput || !nameInput) return;
+
+  const newSub = subInput.value.trim();
+  const newName = nameInput.value.trim();
+
+  if (!newName) {
+    uiAlert('Название критерия не может быть пустым.');
+    return;
+  }
+
+  p.otherDetail[idx].sub = newSub;
+  p.otherDetail[idx].name = newName;
+  
+  saveDB();
+  closeModal();
+  renderPlayerCard(p);
+}
+
+/* ============================================================
+   Переименование разделов / добавление (без изменений)
+   ============================================================ */
+
+function renameTechSubgroup(pid, oldSub) {
+  const p = DB.players.find(x => x.id === pid);
+  if (!p) return;
+
+  uiPrompt(
+    `Переименовать подраздел «${oldSub}».\nНовое название будет применено ко всем игрокам текущего сезона.`,
+    oldSub,
+    (newName) => {
+      const trimmed = (newName || '').trim();
+      if (!trimmed || trimmed === oldSub) return;
+      const hasExisting = (p.techDetail || []).some(r => r.sub === trimmed);
+      if (hasExisting) {
+        uiConfirm(
+          `У игрока уже есть подраздел «${trimmed}». Объединить с ним?`,
+          () => { applyTechSubRename(oldSub, trimmed); },
+          () => {}
+        );
+        return;
+      }
+      applyTechSubRename(oldSub, trimmed);
+    },
+    () => {},
+    { title: 'Переименовать подраздел', placeholder: oldSub, okLabel: 'Переименовать' }
+  );
+}
+
+function applyTechSubRename(oldSub, newSub) {
+  let affected = 0;
+  DB.players.forEach(p => {
+    let touched = false;
+    (p.techDetail || []).forEach(r => {
+      if (r.sub === oldSub) { r.sub = newSub; touched = true; }
+    });
+    if (touched) affected++;
+  });
+  if (affected === 0) return;
+
+  uiConfirm(
+    `Переименовать подраздел «${oldSub}» → «${newSub}»?\nБудет затронуто игроков: ${affected}.`,
+    () => {
+      if (!DB.meta.skillStructure) DB.meta.skillStructure = { tech: {}, other: {} };
+      if (!DB.meta.skillStructure.tech) DB.meta.skillStructure.tech = {};
+      DB.meta.skillStructure.tech[oldSub] = newSub;
+      saveDB();
+      if (currentPlayerId) {
+        const cur = DB.players.find(x => x.id === currentPlayerId);
+        if (cur) renderPlayerCard(cur);
+      }
+      toast(`Подраздел переименован: ${affected} игроков`);
+    },
+    () => {}
+  );
+}
+
+function renameOtherGroup(pid, oldGroup) {
+  const p = DB.players.find(x => x.id === pid);
+  if (!p) return;
+
+  uiPrompt(
+    `Переименовать раздел «${oldGroup}».\nНовое название будет применено ко всем игрокам текущего сезона.`,
+    oldGroup,
+    (newName) => {
+      const trimmed = (newName || '').trim();
+      if (!trimmed || trimmed === oldGroup) return;
+      const hasExisting = (p.otherDetail || []).some(r => r.group === trimmed);
+      if (hasExisting) {
+        uiConfirm(
+          `У игрока уже есть раздел «${trimmed}». Объединить с ним?`,
+          () => { applyOtherGroupRename(oldGroup, trimmed); },
+          () => {}
+        );
+        return;
+      }
+      applyOtherGroupRename(oldGroup, trimmed);
+    },
+    () => {},
+    { title: 'Переименовать раздел', placeholder: oldGroup, okLabel: 'Переименовать' }
+  );
+}
+
+function applyOtherGroupRename(oldGroup, newGroup) {
+  let affected = 0;
+  DB.players.forEach(p => {
+    let touched = false;
+    (p.otherDetail || []).forEach(r => {
+      if (r.group === oldGroup) { r.group = newGroup; touched = true; }
+    });
+    if (touched) affected++;
+  });
+  if (affected === 0) return;
+
+  uiConfirm(
+    `Переименовать раздел «${oldGroup}» → «${newGroup}»?\nБудет затронуто игроков: ${affected}.`,
+    () => {
+      if (!DB.meta.skillStructure) DB.meta.skillStructure = { tech: {}, other: {} };
+      if (!DB.meta.skillStructure.other) DB.meta.skillStructure.other = {};
+      DB.meta.skillStructure.other[oldGroup] = newGroup;
+      saveDB();
+      if (currentPlayerId) {
+        const cur = DB.players.find(x => x.id === currentPlayerId);
+        if (cur) renderPlayerCard(cur);
+      }
+      toast(`Раздел переименован: ${affected} игроков`);
+    },
+    () => {}
+  );
+}
+
+function addTechSubgroup(pid) {
+  const p = DB.players.find(x => x.id === pid);
+  if (!p) return;
+
+  uiPrompt(
+    'Название нового подраздела техники (например: «Вбрасывание»).\nБудет добавлено ко всем игрокам сезона.',
+    '',
+    (newName) => {
+      const trimmed = (newName || '').trim();
+      if (!trimmed) return;
+
+      const hasExisting = (p.techDetail || []).some(r => r.sub === trimmed);
+      if (hasExisting) { uiAlert(`Подраздел «${trimmed}» уже существует.`); return; }
+
+      let affected = 0;
+      DB.players.forEach(player => {
+        if (!Array.isArray(player.techDetail)) player.techDetail = [];
+        player.techDetail.push({
+          group: 'Катание',
+          sub: trimmed,
+          name: 'Новый навык',
+          start: null, mid: null, end: null
+        });
+        affected++;
+      });
+
+      saveDB();
+      SKILLS_OPEN.add('tech:' + trimmed);
+      if (currentPlayerId) {
+        const cur = DB.players.find(x => x.id === currentPlayerId);
+        if (cur) renderPlayerCard(cur);
+      }
+      toast(`Подраздел «${trimmed}» добавлен: ${affected} игроков`);
+    },
+    () => {},
+    { title: 'Новый подраздел', placeholder: 'Вбрасывание', okLabel: 'Создать' }
+  );
+}
+
+function addTechCriterion(pid, subName) {
+  const p = DB.players.find(x => x.id === pid);
+  if (!p) return;
+
+  uiPrompt(
+    `Название нового навыка в подразделе «${subName}».\nБудет добавлено всем игрокам сезона.`,
+    '',
+    (newName) => {
+      const trimmed = (newName || '').trim();
+      if (!trimmed) return;
+
+      const hasExisting = (p.techDetail || []).some(r => r.sub === subName && r.name === trimmed);
+      if (hasExisting) { uiAlert(`Навык «${trimmed}» уже существует в этом подразделе.`); return; }
+
+      let affected = 0;
+      DB.players.forEach(player => {
+        if (!Array.isArray(player.techDetail)) player.techDetail = [];
+        const existing = player.techDetail.find(r => r.sub === subName);
+        const group = existing ? existing.group : 'Катание';
+        player.techDetail.push({
+          group: group,
+          sub: subName,
+          name: trimmed,
+          start: null, mid: null, end: null
+        });
+        affected++;
+      });
+
+      saveDB();
+      if (currentPlayerId) {
+        const cur = DB.players.find(x => x.id === currentPlayerId);
+        if (cur) renderPlayerCard(cur);
+      }
+      toast(`Навык «${trimmed}» добавлен: ${affected} игроков`);
+    },
+    () => {},
+    { title: 'Новый навык', placeholder: 'Например: Виражи спиной', okLabel: 'Создать' }
+  );
+}
+
+function addOtherCriterion(pid, groupName) {
+  const p = DB.players.find(x => x.id === pid);
+  if (!p) return;
+
+  uiPrompt(
+    `Название нового критерия в разделе «${groupName}».\nБудет добавлено всем игрокам сезона.`,
+    '',
+    (newName) => {
+      const trimmed = (newName || '').trim();
+      if (!trimmed) return;
+
+      const hasExisting = (p.otherDetail || []).some(r => r.group === groupName && r.name === trimmed);
+      if (hasExisting) { uiAlert(`Критерий «${trimmed}» уже существует в этом разделе.`); return; }
+
+      uiPrompt(
+        'Укажите подраздел (или оставьте пустым):',
+        '',
+        (subName) => {
+          const finalSub = (subName || '').trim();
+          let affected = 0;
+
+          DB.players.forEach(player => {
+            if (!Array.isArray(player.otherDetail)) player.otherDetail = [];
+            player.otherDetail.push({
+              group: groupName,
+              sub: finalSub,
+              name: trimmed,
+              start: null, plan: null, fact: null
+            });
+            affected++;
+          });
+
+          saveDB();
+          if (currentPlayerId) {
+            const cur = DB.players.find(x => x.id === currentPlayerId);
+            if (cur) renderPlayerCard(cur);
+          }
+          toast(`Критерий «${trimmed}» добавлен: ${affected} игроков`);
+        },
+        () => {},
+        { title: 'Подраздел', placeholder: 'Необязательно', okLabel: 'Добавить' }
+      );
+    },
+    () => {},
+    { title: 'Новый критерий', placeholder: 'Например: Игровое мышление', okLabel: 'Далее' }
+  );
+}
+
+/* ============================================================
+   Обновление оценок
    ============================================================ */
 
 function updateTech(pid, i, f, v) {
   const p = DB.players.find(x => x.id === pid);
   if (!p || !p.techDetail || !p.techDetail[i]) return;
   p.techDetail[i][f] = v === '' ? null : Number(v);
-  touchMeta('players');
   saveDB();
   refreshProfile(pid);
-}
-
-function updateTechName(pid, i, f, v) {
-  const p = DB.players.find(x => x.id === pid);
-  if (!p || !p.techDetail || !p.techDetail[i]) return;
-  v = (v || '').trim();
-  if (!v || p.techDetail[i][f] === v) return;
-  p.techDetail[i][f] = v;
-  
-  // Сохраняем новую структуру в базу (чтобы новые игроки получали её)
-  if (!DB.techStructure) DB.techStructure = [];
-  const targetRow = p.techDetail[i];
-  const existingIdx = DB.techStructure.findIndex(r => r.group === targetRow.group && r.sub === targetRow.sub && r.name === targetRow.name);
-  // Если не нашли — просто перезапишем всю структуру из текущего игрока (без оценок)
-  DB.techStructure = p.techDetail.map(r => ({ group: r.group, sub: r.sub, name: r.name }));
-
-  touchMeta('players');
-  saveDB();
 }
 
 function updateOther(pid, i, f, v) {
   const p = DB.players.find(x => x.id === pid);
   if (!p || !p.otherDetail || !p.otherDetail[i]) return;
   p.otherDetail[i][f] = v === '' ? null : Number(v);
-  touchMeta('players');
   saveDB();
   refreshProfile(pid);
-}
-
-function updateOtherName(pid, i, f, v) {
-  const p = DB.players.find(x => x.id === pid);
-  if (!p || !p.otherDetail || !p.otherDetail[i]) return;
-  v = (v || '').trim();
-  if (!v || p.otherDetail[i][f] === v) return;
-  p.otherDetail[i][f] = v;
-
-  // Сохраняем новую структуру в базу
-  DB.otherStructure = p.otherDetail.map(r => ({ group: r.group, sub: r.sub, name: r.name }));
-
-  touchMeta('players');
-  saveDB();
 }
