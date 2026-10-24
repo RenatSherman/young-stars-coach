@@ -2,6 +2,13 @@
    05b-player-calendar.js
    Календарь игрока.
    Все отметки фактов вызывают touchMeta('players').
+
+   ВАЖНО: в режиме игрока (isPlayerMode=true) менять можно
+   ТОЛЬКО блоки формата «Самостоятельная». Остальные — просмотр.
+   Гварды добавлены в:
+     - onPlayerDayFactChange
+     - onPlayerDayFactComment
+     - savePlayerDayFact
    ============================================================ */
 
 let playerCalMonth = null;
@@ -25,7 +32,7 @@ function monthLabelFromKeyLocal(ym) {
 function renderPlayerCalendarTab(p) {
   return `<div class="card">
     <h2>Календарь тренировок игрока</h2>
-    <p class="subtitle" style="margin-top:-8px">Тренировки назначаются в «Календаре тренера». Здесь отображаются автоматически. Можно отметить факт прямо здесь.</p>
+    <p class="subtitle" style="margin-top:-8px">Тренировки назначаются в «Календаре тренера». Здесь отображаются автоматически. ${!isPlayerMode ? 'Можно отметить факт прямо здесь.' : 'Вы можете отмечать только самостоятельные тренировки.'}</p>
     <div id="player-calendar-content"></div>
   </div>`;
 }
@@ -233,6 +240,13 @@ function renderPlayerMonthGrid(p, year, month) {
 
 let __playerDayFactCtx = null;
 
+// Проверка: можно ли игроку редактировать блок
+function __canPlayerEditBlock(blockRef) {
+  if (!isPlayerMode) return true;
+  const fmt = ((blockRef && blockRef.format) || '').trim();
+  return fmt === 'Самостоятельная';
+}
+
 function openPlayerDaySessions(pid, ds) {
   const p = DB.players.find(x => x.id === pid);
   if (!p) return;
@@ -249,6 +263,8 @@ function openPlayerDaySessions(pid, ds) {
     return;
   }
 
+  let hasEditableBlocks = false;
+
   const rowsHtml = blocks.map((b, i) => {
     const end = minutesToTime(timeToMinutes(b.startTime) + (Number(b.duration) || 0));
     const factOptions = FACT_OPTIONS.map(f => {
@@ -260,13 +276,21 @@ function openPlayerDaySessions(pid, ds) {
 
     const exHtml = renderBlockExercisesLineForPlayer(b);
 
-    return `<div class="pde-block" data-block-index="${i}">
+    const canEdit = __canPlayerEditBlock(b.blockRef);
+    if (canEdit) hasEditableBlocks = true;
+
+    const disabledAttr = !canEdit ? 'disabled' : '';
+    const lockStyle = !canEdit ? 'opacity:0.6; pointer-events:none;' : '';
+
+    return `<div class="pde-block" data-block-index="${i}" style="${lockStyle}">
       <div class="pde-block-head">
         <span class="pde-block-time">${escapeHtml(b.startTime)}–${end} · ${b.duration} мин</span>
         ${b.sessionName ? `<span class="pde-block-session">${escapeHtml(b.sessionName)}</span>` : ''}
       </div>
       <div class="pde-block-name">${escapeHtml(b.complex || '—')} · ${escapeHtml(b.format || '—')}</div>
       ${exHtml}
+
+      ${canEdit ? `
       <div class="pde-block-fact-label">Оценка (на весь блок):</div>
       <div class="pde-block-fields">
         <select class="pde-fact ${factCls}" onchange="onPlayerDayFactChange(${i}, this.value)">
@@ -277,6 +301,7 @@ function openPlayerDaySessions(pid, ds) {
                oninput="onPlayerDayFactComment(${i}, this.value)"
                style="display:${needComment ? 'block' : 'none'}">
       </div>
+      ` : `<div class="pde-block-fact-label" style="color:#999">Заполняется тренером</div>`}
     </div>`;
   }).join('');
 
@@ -292,10 +317,12 @@ function openPlayerDaySessions(pid, ds) {
   };
 
   openModal(`<h3>${escapeHtml(title)}</h3>
-    <p class="subtitle" style="margin-top:-8px">Можно отметить факт прямо здесь. Оценка ставится на весь блок.</p>
+    <p class="subtitle" style="margin-top:-8px">
+      ${isPlayerMode ? 'Вы можете отмечать только самостоятельные тренировки. Оценка ставится на весь блок.' : 'Можно отметить факт прямо здесь. Оценка ставится на весь блок.'}
+    </p>
     <div class="pde-list">${rowsHtml}</div>
     <div class="btn-row" style="margin-top:16px">
-      <button class="btn" onclick="savePlayerDayFact()">Сохранить факт</button>
+      ${hasEditableBlocks ? `<button class="btn" onclick="savePlayerDayFact()">Сохранить факт</button>` : ''}
       <button class="btn-ghost btn" onclick="closeModal()">Закрыть</button>
     </div>`);
 }
@@ -332,6 +359,10 @@ function renderBlockExercisesLineForPlayer(b) {
 function onPlayerDayFactChange(i, value) {
   if (!__playerDayFactCtx || !__playerDayFactCtx.blocks[i]) return;
   const b = __playerDayFactCtx.blocks[i];
+
+  // ГВАРД: в режиме игрока только «Самостоятельные»
+  if (!__canPlayerEditBlock(b.blockRef)) return;
+
   b.fact = value;
   if (value !== 'partial' && value !== 'notdone') b.comment = '';
 
@@ -357,15 +388,22 @@ function onPlayerDayFactChange(i, value) {
 
 function onPlayerDayFactComment(i, value) {
   if (!__playerDayFactCtx || !__playerDayFactCtx.blocks[i]) return;
-  __playerDayFactCtx.blocks[i].comment = value;
+  const b = __playerDayFactCtx.blocks[i];
+
+  // ГВАРД: в режиме игрока только «Самостоятельные»
+  if (!__canPlayerEditBlock(b.blockRef)) return;
+
+  b.comment = value;
 }
 
 function savePlayerDayFact() {
   const ctx = __playerDayFactCtx;
   if (!ctx) return;
 
+  // Валидация комментариев — только для блоков, которые реально можно сохранить
   for (let i = 0; i < ctx.blocks.length; i++) {
     const b = ctx.blocks[i];
+    if (!__canPlayerEditBlock(b.blockRef)) continue;
     if ((b.fact === 'partial' || b.fact === 'notdone') && !(b.comment || '').trim()) {
       uiAlert(`Блок #${i + 1}: для «${factLabel(b.fact)}» обязателен комментарий`);
       return;
@@ -373,12 +411,16 @@ function savePlayerDayFact() {
   }
 
   let saved = 0;
+  let skipped = 0;
   ctx.blocks.forEach(b => {
-    if (b.blockRef && typeof b.blockRef === 'object') {
-      b.blockRef.fact = b.fact || '';
-      b.blockRef.comment = (b.comment || '').trim();
-      saved++;
-    }
+    if (!b.blockRef || typeof b.blockRef !== 'object') return;
+
+    // ГВАРД: в режиме игрока нельзя писать в не-«Самостоятельные» блоки
+    if (!__canPlayerEditBlock(b.blockRef)) { skipped++; return; }
+
+    b.blockRef.fact = b.fact || '';
+    b.blockRef.comment = (b.comment || '').trim();
+    saved++;
   });
 
   touchMeta('players');
@@ -391,5 +433,12 @@ function savePlayerDayFact() {
 
   const p = DB.players.find(x => x.id === pid);
   if (p) renderPlayerCalendarContent(p);
-  toast(`Сохранено блоков: ${saved}`);
+
+  if (isPlayerMode && skipped > 0 && saved > 0) {
+    toast(`Сохранено самостоятельных блоков: ${saved}. Остальные — только просмотр.`);
+  } else if (isPlayerMode && saved === 0 && skipped > 0) {
+    toast('Нет самостоятельных тренировок для сохранения');
+  } else {
+    toast(`Сохранено блоков: ${saved}`);
+  }
 }

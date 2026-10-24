@@ -23,17 +23,28 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden') saveDBNow();
 });
 
+/* ===== Миграция PIN ===== */
+function __ensurePlayerPin(p) {
+  if (!p) return;
+  if (typeof p.accessPin !== 'string') p.accessPin = '';
+}
+
+function personPinKey(p) {
+  if (!p) return '';
+  return `${(p.fio || '').toLowerCase().trim()}|${(p.birthYear || '').toString().trim()}`;
+}
+
 function loadDB() {
   const raw = localStorage.getItem(STORAGE_KEY) || localStorage.getItem('akbars_hockey_v1');
   if (raw) { try { DB = JSON.parse(raw); } catch (e) {} }
-  
+
   if (!DB.players)   DB.players = [];
   if (!DB.exercises) DB.exercises = [];
   if (!DB.meta)      DB.meta = {};
   if (!DB.meta.updatedAt) DB.meta.updatedAt = {};
   if (!DB.seasons)   DB.seasons = {};
   if (!Array.isArray(DB.templates)) DB.templates = [];
-  
+
   if (!DB.playerGroups) {
     DB.playerGroups = {
       stars: { id: 'g_stars', name: 'Звездочки', subgroups: [] },
@@ -44,9 +55,20 @@ function loadDB() {
 
   DB.players.forEach(p => {
     migrateCalendar(p);
+    __ensurePlayerPin(p);
     if (!Array.isArray(p.developmentPlans)) p.developmentPlans = [];
     if (!p.groupId) p.groupId = 'g_stars';
   });
+
+  // Миграция PIN во всех сезонах
+  if (DB.seasons && typeof DB.seasons === 'object') {
+    Object.keys(DB.seasons).forEach(k => {
+      const s = DB.seasons[k];
+      if (s && Array.isArray(s.players)) {
+        s.players.forEach(__ensurePlayerPin);
+      }
+    });
+  }
 }
 
 function seedDemoData() {
@@ -96,6 +118,15 @@ function overallScoreEnd(p) {
   return (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1);
 }
 
+function __uniqueNewPin(exclude) {
+  const allPins = new Set((DB.players || []).map(p => p.accessPin).filter(Boolean));
+  if (exclude) allPins.delete(exclude);
+  let pin;
+  let guard = 0;
+  do { pin = generatePin(); guard++; } while (allPins.has(pin) && guard < 50);
+  return pin;
+}
+
 function addPlayer() {
   let groupOptions = `<option value="g_stars">Звездочки</option><option value="g_special">Спецгруппа</option>`;
   if (DB.playerGroups && DB.playerGroups.general.subgroups) {
@@ -110,6 +141,8 @@ function addPlayer() {
     <div class="field"><label>Команда (текст)</label><input id="np-team" placeholder="Ак Барс 2012"></div>
     <div class="field"><label>Город</label><input id="np-city" placeholder="Казань"></div>
     <div class="field"><label>Амплуа</label><select id="np-pos"><option>Нападающий</option><option>Защитник</option><option>Вратарь</option></select></div>
+    <div class="field"><label>PIN для входа (4 цифры)</label><input id="np-pin" maxlength="4" inputmode="numeric" pattern="[0-9]*" value="${generatePin()}" autocomplete="off" style="font-family:monospace;letter-spacing:4px;font-size:16px"></div>
+    <p class="subtitle" style="font-size:11px;margin-top:-8px">Сообщите PIN игроку лично. Изменить можно в карточке игрока или в разделе «🔑 PIN-коды».</p>
     <div class="btn-row" style="margin-top:16px">
       <button class="btn" onclick="saveNewPlayer()">Создать</button>
       <button class="btn-ghost btn" onclick="closeModal()">Отмена</button>
@@ -120,12 +153,13 @@ function addPlayer() {
 function saveNewPlayer() {
   const fio = document.getElementById('np-fio').value.trim();
   if (!fio) { uiAlert('Введите ФИО'); return; }
-  
-  // Копируем структуру навыков из базы (или дефолтную)
+  const pinInput = document.getElementById('np-pin');
+  let pin = (pinInput ? pinInput.value : '').trim();
+  if (!/^\d{4}$/.test(pin)) pin = generatePin();
+
   let techD = Array.isArray(DB.techStructure) ? JSON.parse(JSON.stringify(DB.techStructure)) : defaultTechDetail();
   let otherD = Array.isArray(DB.otherStructure) ? JSON.parse(JSON.stringify(DB.otherStructure)) : defaultOtherDetail();
-  
-  // Очищаем оценки
+
   techD.forEach(r => { r.start = null; r.mid = null; r.end = null; });
   otherD.forEach(r => { r.start = null; r.plan = null; r.fact = null; });
 
@@ -140,6 +174,7 @@ function saveNewPlayer() {
     firstSchool: '',
     position: document.getElementById('np-pos').value,
     grip: 'Правый', photo: '', characteristic: '',
+    accessPin: pin,
     techDetail: techD,
     otherDetail: otherD,
     plans: {}, calendar: {}, stats: [], tests: [],
@@ -152,7 +187,7 @@ function saveNewPlayer() {
 
   touchMeta('players');
   saveDB(); closeModal(); renderPlayers();
-  toast(`Игрок «${fio}» добавлен`);
+  toast(`Игрок «${fio}» добавлен. PIN: ${pin}`);
 }
 
 function confirmDeletePlayer(pid) {
@@ -212,7 +247,7 @@ function deletePlayerFromTile(event, pid) { event.stopPropagation(); confirmDele
 
 function openPlayer(id) {
   currentPlayerId = id;
-  currentTab = 'skills';
+  currentTab = isPlayerMode ? 'calendar' : 'skills';
   const p = DB.players.find(x => x.id === id);
   if (!p) return;
   currentPlanMonth = null;
@@ -224,6 +259,11 @@ function openPlayer(id) {
 function renderPlayerCard(p) {
   const el = document.getElementById('player-card');
   if (!el) return;
+
+  if (isPlayerMode && (currentTab === 'skills' || currentTab === 'stats' || currentTab === 'charts' || currentTab === 'development')) {
+      currentTab = 'calendar';
+  }
+
   const s = getCurrentScores(p);
   const sEnd = getEndScores(p);
   const age = computeAge(p);
@@ -236,36 +276,63 @@ function renderPlayerCard(p) {
     if (sg) groupName = 'Общая · ' + sg.name;
   }
 
+  const actionsBlock = document.getElementById('player-actions');
+  if (actionsBlock) {
+    if (isPlayerMode) {
+      document.getElementById('btn-back-to-list').style.display = 'none';
+      document.getElementById('btn-pdf-full').style.display = 'none';
+      document.getElementById('btn-pdf-short').style.display = 'none';
+      document.getElementById('btn-excel').style.display = 'none';
+      document.getElementById('btn-delete-player').style.display = 'none';
+    } else {
+      document.getElementById('btn-back-to-list').style.display = 'block';
+      document.getElementById('btn-pdf-full').style.display = 'block';
+      document.getElementById('btn-pdf-short').style.display = 'block';
+      document.getElementById('btn-excel').style.display = 'block';
+      document.getElementById('btn-delete-player').style.display = 'block';
+    }
+  }
+
   el.innerHTML = `
     <div class="card"><div class="passport">
       <div>
         <div class="passport-photo">${p.photo ? `<img src="${p.photo}">` : 'ФОТО'}</div>
-        <div style="margin-top:12px;text-align:center" class="no-print">
-          <button class="btn btn-sm btn-ghost" onclick="uploadPhoto('${p.id}')">Загрузить фото</button></div>
+        ${!isPlayerMode ? `<div style="margin-top:12px;text-align:center" class="no-print">
+          <button class="btn btn-sm btn-ghost" onclick="uploadPhoto('${p.id}')">Загрузить фото</button></div>` : ''}
       </div>
       <div>
-        <h1 contenteditable="true" onblur="updateField('${p.id}','fio',this.innerText)" style="outline:none;border-radius:4px;padding:2px 4px">${escapeHtml(p.fio)}</h1>
+        <h1 ${!isPlayerMode ? `contenteditable="true" onblur="updateField('${p.id}','fio',this.innerText)"` : ''} style="outline:none;border-radius:4px;padding:2px 4px">${escapeHtml(p.fio)}</h1>
         <p class="subtitle">${escapeHtml(p.team)} · ${escapeHtml(p.city)} · <strong>${escapeHtml(groupName)}</strong></p>
         <div class="passport-fields">
-          <div class="field"><label>День рождения</label><div class="value" contenteditable="true" onblur="updateField('${p.id}','birthDay',this.innerText);updateAgeDisplay('${p.id}')">${escapeHtml(p.birthDay)}</div></div>
-          <div class="field"><label>Месяц</label><div class="value" contenteditable="true" onblur="updateField('${p.id}','birthMonth',this.innerText);updateAgeDisplay('${p.id}')">${escapeHtml(p.birthMonth)}</div></div>
-          <div class="field"><label>Год</label><div class="value" contenteditable="true" onblur="updateField('${p.id}','birthYear',this.innerText);updateAgeDisplay('${p.id}')">${escapeHtml(p.birthYear)}</div></div>
+          <div class="field"><label>День рождения</label><div class="value" ${!isPlayerMode ? `contenteditable="true" onblur="updateField('${p.id}','birthDay',this.innerText);updateAgeDisplay('${p.id}')"` : ''}>${escapeHtml(p.birthDay)}</div></div>
+          <div class="field"><label>Месяц</label><div class="value" ${!isPlayerMode ? `contenteditable="true" onblur="updateField('${p.id}','birthMonth',this.innerText);updateAgeDisplay('${p.id}')"` : ''}>${escapeHtml(p.birthMonth)}</div></div>
+          <div class="field"><label>Год</label><div class="value" ${!isPlayerMode ? `contenteditable="true" onblur="updateField('${p.id}','birthYear',this.innerText);updateAgeDisplay('${p.id}')"` : ''}>${escapeHtml(p.birthYear)}</div></div>
           <div class="field"><label>Возраст</label><div class="value readonly" id="age-field-${p.id}">${age || '—'}</div></div>
-          <div class="field"><label>Рост (см)</label><div class="value" contenteditable="true" onblur="updateField('${p.id}','height',this.innerText)">${escapeHtml(p.height)}</div></div>
-          <div class="field"><label>Вес (кг)</label><div class="value" contenteditable="true" onblur="updateField('${p.id}','weight',this.innerText)">${escapeHtml(p.weight)}</div></div>
-          <div class="field"><label>Команда</label><div class="value" contenteditable="true" onblur="updateField('${p.id}','team',this.innerText)">${escapeHtml(p.team)}</div></div>
-          <div class="field"><label>Город</label><div class="value" contenteditable="true" onblur="updateField('${p.id}','city',this.innerText)">${escapeHtml(p.city)}</div></div>
-          <div class="field"><label>Первая школа</label><div class="value" contenteditable="true" onblur="updateField('${p.id}','firstSchool',this.innerText)">${escapeHtml(p.firstSchool)}</div></div>
-          <div class="field"><label>Амплуа</label><select class="value" style="border:none;background:transparent" onchange="updateField('${p.id}','position',this.value)">
+          <div class="field"><label>Рост (см)</label><div class="value" ${!isPlayerMode ? `contenteditable="true" onblur="updateField('${p.id}','height',this.innerText)"` : ''}>${escapeHtml(p.height)}</div></div>
+          <div class="field"><label>Вес (кг)</label><div class="value" ${!isPlayerMode ? `contenteditable="true" onblur="updateField('${p.id}','weight',this.innerText)"` : ''}>${escapeHtml(p.weight)}</div></div>
+          <div class="field"><label>Команда</label><div class="value" ${!isPlayerMode ? `contenteditable="true" onblur="updateField('${p.id}','team',this.innerText)"` : ''}>${escapeHtml(p.team)}</div></div>
+          <div class="field"><label>Город</label><div class="value" ${!isPlayerMode ? `contenteditable="true" onblur="updateField('${p.id}','city',this.innerText)"` : ''}>${escapeHtml(p.city)}</div></div>
+          <div class="field"><label>Первая школа</label><div class="value" ${!isPlayerMode ? `contenteditable="true" onblur="updateField('${p.id}','firstSchool',this.innerText)"` : ''}>${escapeHtml(p.firstSchool)}</div></div>
+          <div class="field"><label>Амплуа</label><select class="value" ${isPlayerMode ? 'disabled style="border:none;background:transparent;appearance:none;"' : 'onchange="updateField(\'' + p.id + '\',\'position\',this.value)" style="border:none;background:transparent"'}>
             ${['Нападающий','Защитник','Вратарь'].map(o => `<option ${p.position === o ? 'selected' : ''}>${o}</option>`).join('')}</select></div>
-          <div class="field"><label>Хват</label><select class="value" style="border:none;background:transparent" onchange="updateField('${p.id}','grip',this.value)">
+          <div class="field"><label>Хват</label><select class="value" ${isPlayerMode ? 'disabled style="border:none;background:transparent;appearance:none;"' : 'onchange="updateField(\'' + p.id + '\',\'grip\',this.value)" style="border:none;background:transparent"'}>
             ${['Правый','Левый'].map(o => `<option ${p.grip === o ? 'selected' : ''}>${o}</option>`).join('')}</select></div>
-          <div class="char-block"><label>Краткая характеристика</label>
-            <div class="value" contenteditable="true" onblur="updateField('${p.id}','characteristic',this.innerText)">${escapeHtml(p.characteristic)}</div></div>
+
+          ${!isPlayerMode ? `<div class="field">
+            <label>PIN для входа</label>
+            <div class="value" style="display:flex;align-items:center;gap:8px">
+              <code style="font-family:monospace;letter-spacing:3px;font-size:16px;font-weight:900;color:var(--ak-green)">${escapeHtml(p.accessPin || '— не задан —')}</code>
+              <button class="btn btn-sm btn-ghost no-print" onclick="regeneratePlayerPin('${p.id}')">${p.accessPin ? 'Сбросить' : 'Создать'}</button>
+            </div>
+          </div>` : ''}
+
+          ${!isPlayerMode ? `<div class="char-block"><label>Краткая характеристика</label>
+            <div class="value" contenteditable="true" onblur="updateField('${p.id}','characteristic',this.innerText)">${escapeHtml(p.characteristic)}</div></div>` : ''}
         </div>
       </div>
     </div></div>
 
+    ${!isPlayerMode ? `
     <div class="card"><h2>Профиль навыков</h2>
       <p class="subtitle" style="margin-top:-8px">Оценки рассчитываются автоматически как средние по разделам</p>
       <div class="radar-wrap">
@@ -296,22 +363,23 @@ function renderPlayerCard(p) {
         </div>
       </div>
     </div>
+    ` : ''}
 
     <div class="tabs no-print">
-      <button data-tab="skills" class="${currentTab === 'skills' ? 'active' : ''}">Навыки</button>
-      <button data-tab="development" class="${currentTab === 'development' ? 'active' : ''}">План развития</button>
+      ${!isPlayerMode ? `<button data-tab="skills" class="${currentTab === 'skills' ? 'active' : ''}">Навыки</button>
+      <button data-tab="development" class="${currentTab === 'development' ? 'active' : ''}">План развития</button>` : ''}
       <button data-tab="calendar" class="${currentTab === 'calendar' ? 'active' : ''}">Календарь</button>
-      <button data-tab="stats" class="${currentTab === 'stats' ? 'active' : ''}">Статистика</button>
+      ${!isPlayerMode ? `<button data-tab="stats" class="${currentTab === 'stats' ? 'active' : ''}">Статистика</button>` : ''}
       <button data-tab="tests" class="${currentTab === 'tests' ? 'active' : ''}">Тесты</button>
-      <button data-tab="charts" class="${currentTab === 'charts' ? 'active' : ''}">Графики</button>
+      ${!isPlayerMode ? `<button data-tab="charts" class="${currentTab === 'charts' ? 'active' : ''}">Графики</button>` : ''}
     </div>
 
-    <div id="tab-skills" class="tab-content ${currentTab === 'skills' ? 'active' : ''}">${renderSkillsTab(p)}</div>
-    <div id="tab-development" class="tab-content ${currentTab === 'development' ? 'active' : ''}">${renderDevelopmentPlan(p)}</div>
+    ${!isPlayerMode ? `<div id="tab-skills" class="tab-content ${currentTab === 'skills' ? 'active' : ''}">${renderSkillsTab(p)}</div>
+    <div id="tab-development" class="tab-content ${currentTab === 'development' ? 'active' : ''}">${renderDevelopmentPlan(p)}</div>` : ''}
     <div id="tab-calendar" class="tab-content ${currentTab === 'calendar' ? 'active' : ''}">${renderPlayerCalendarTab(p)}</div>
-    <div id="tab-stats" class="tab-content ${currentTab === 'stats' ? 'active' : ''}">${renderStats(p)}</div>
+    ${!isPlayerMode ? `<div id="tab-stats" class="tab-content ${currentTab === 'stats' ? 'active' : ''}">${renderStats(p)}</div>` : ''}
     <div id="tab-tests" class="tab-content ${currentTab === 'tests' ? 'active' : ''}">${renderTests(p)}</div>
-    <div id="tab-charts" class="tab-content ${currentTab === 'charts' ? 'active' : ''}">${renderTestCharts(p)}</div>
+    ${!isPlayerMode ? `<div id="tab-charts" class="tab-content ${currentTab === 'charts' ? 'active' : ''}">${renderTestCharts(p)}</div>` : ''}
   `;
 
   el.querySelectorAll('.tabs button').forEach(btn => {
@@ -321,22 +389,26 @@ function renderPlayerCard(p) {
       el.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
       btn.classList.add('active');
       document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
-      if (btn.dataset.tab === 'charts')      drawTestCharts(p);
-      if (btn.dataset.tab === 'calendar')    renderPlayerCalendarContent(p);
-      if (btn.dataset.tab === 'development') renderDevelopmentPlanContent(p);
-      if (btn.dataset.tab === 'skills')      renderSkillsContent(p);
+      if (btn.dataset.tab === 'charts' && typeof drawTestCharts === 'function')      drawTestCharts(p);
+      if (btn.dataset.tab === 'calendar' && typeof renderPlayerCalendarContent === 'function')    renderPlayerCalendarContent(p);
+      if (btn.dataset.tab === 'development' && typeof renderDevelopmentPlanContent === 'function') renderDevelopmentPlanContent(p);
+      if (btn.dataset.tab === 'skills' && typeof renderSkillsContent === 'function')      renderSkillsContent(p);
     });
   });
 
-  drawRadar(p);
-  drawRadarCompare(p);
-  if (currentTab === 'charts')      drawTestCharts(p);
+  if (!isPlayerMode) {
+      if (typeof drawRadar === 'function') drawRadar(p);
+      if (typeof drawRadarCompare === 'function') drawRadarCompare(p);
+      if (currentTab === 'charts' && typeof drawTestCharts === 'function')      drawTestCharts(p);
+      if (currentTab === 'development' && typeof renderDevelopmentPlanContent === 'function') renderDevelopmentPlanContent(p);
+      if (currentTab === 'skills' && typeof renderSkillsContent === 'function')      renderSkillsContent(p);
+  }
+
   if (currentTab === 'calendar')    renderPlayerCalendarContent(p);
-  if (currentTab === 'development') renderDevelopmentPlanContent(p);
-  if (currentTab === 'skills')      renderSkillsContent(p);
 }
 
 function updateField(playerId, field, val) {
+  if (isPlayerMode) return;
   const p = DB.players.find(x => x.id === playerId);
   if (!p || p[field] === val) return;
   p[field] = val;

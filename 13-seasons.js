@@ -4,6 +4,9 @@
 
    Приоритет currentSeason: localStorage > облако > календарь.
    switchSeason() сохраняет выбор в localStorage.
+   В режиме игрока (isPlayerMode) — все операции редактирования
+   сезонов заблокированы, switchSeason переключает только
+   его собственный календарь/тесты.
    ============================================================ */
 
 /* ============================================================
@@ -19,7 +22,6 @@ function migrateToSeasons() {
   const legacyPlayers = Array.isArray(DB.players) ? DB.players : [];
   const now = new Date().toISOString();
 
-  // Если в localStorage уже есть валидный выбор — используем его
   const stored = (() => { try { return localStorage.getItem(STORAGE_SEASON_KEY); } catch (e) { return null; } })();
   const initialKey = (stored && /^\d{4}\/\d{2}$/.test(stored))
     ? stored
@@ -50,7 +52,14 @@ function switchSeason(key) {
   }
   if (key === currentSeason) return;
 
-  // Сначала сохраняем players в старый сезон
+  // В режиме игрока — сохраняем ФИО до того, как подменим DB.players,
+  // чтобы найти его же в новом сезоне (id у копий разные).
+  let playerFio = null;
+  if (isPlayerMode && currentPlayerId) {
+    const cur = (DB.players || []).find(x => x.id === currentPlayerId);
+    if (cur) playerFio = cur.fio || '';
+  }
+
   if (DB.seasons[currentSeason]) {
     DB.seasons[currentSeason].players = DB.players;
   }
@@ -59,15 +68,59 @@ function switchSeason(key) {
   DB.players = DB.seasons[key].players || [];
   seasonsEditable = false;
 
-  // Фиксируем выбор в localStorage немедленно
   persistCurrentSeason();
 
-  currentPlayerId = null;
-  currentTab = 'skills';
   currentPlanMonth = null;
   if (typeof playerCalMonth !== 'undefined') playerCalMonth = null;
   if (typeof coachCalMonth !== 'undefined')  coachCalMonth = null;
   reportMonth = null;
+
+  /* ---------- РЕЖИМ ИГРОКА ---------- */
+  if (isPlayerMode) {
+    let found = null;
+    if (playerFio) {
+      const target = playerFio.trim().toLowerCase();
+      found = DB.players.find(p => (p.fio || '').trim().toLowerCase() === target)
+           || DB.players.find(p => (p.fio || '').toLowerCase().includes(target));
+    }
+
+    if (found) {
+      currentPlayerId = found.id;
+      currentTab = 'calendar';
+    } else {
+      currentPlayerId = null;
+      currentTab = 'calendar';
+    }
+
+    // Не вызываем saveDB (это триггерит push в облако) — только локально.
+    if (typeof saveDBNow === 'function') saveDBNow();
+
+    updateSeasonSelector();
+    updateArchiveBadge();
+
+    showScreen('player');
+
+    if (found) {
+      // renderPlayerCard вызовется из showScreen (см. 04-ui.js)
+      toast('Сезон: ' + formatSeasonLabel(key));
+    } else {
+      setTimeout(() => {
+        const pc = document.getElementById('player-card');
+        if (pc) {
+          pc.innerHTML = `<div class="card"><div class="empty-state">
+            <div class="big">📅</div>
+            <p>В сезоне <strong>${escapeHtml(formatSeasonLabel(key))}</strong> ваших данных нет.<br>Выберите другой сезон в шапке.</p>
+          </div></div>`;
+        }
+      }, 20);
+      toast('В сезоне ' + formatSeasonLabel(key) + ' ваших данных нет');
+    }
+    return;
+  }
+
+  /* ---------- РЕЖИМ ТРЕНЕРА ---------- */
+  currentPlayerId = null;
+  currentTab = 'skills';
 
   saveDB();
   updateSeasonSelector();
@@ -85,6 +138,8 @@ function switchSeason(key) {
    ============================================================ */
 
 function createSeason(opts) {
+  if (isPlayerMode) return false;
+
   const { key, fromSeason, playerIds, copy } = opts;
 
   if (!key || !/^\d{4}\/\d{2}$/.test(key)) {
@@ -173,6 +228,7 @@ function deepClone(obj) {
    ============================================================ */
 
 function deleteSeason(key) {
+  if (isPlayerMode) return false;
   if (!DB.seasons[key]) return false;
   if (key === currentSeason) {
     uiAlert('Нельзя удалить текущий сезон. Сначала переключитесь на другой.');
@@ -191,7 +247,6 @@ function deleteSeason(key) {
       updateSeasonSelector();
       toast('Сезон ' + formatSeasonLabel(key) + ' удалён');
       if (typeof openManageSeasonsModal === 'function') {
-        // если модалка управления открыта — перерисуем её
         const modalContent = document.getElementById('modal-content');
         if (modalContent && modalContent.querySelector('.ms-list')) {
           openManageSeasonsModal();
@@ -205,6 +260,7 @@ function deleteSeason(key) {
 }
 
 function renameSeason(oldKey, newKey) {
+  if (isPlayerMode) return false;
   if (!DB.seasons[oldKey]) { uiAlert('Сезон не найден'); return false; }
   if (!newKey || !/^\d{4}\/\d{2}$/.test(newKey)) { uiAlert('Формат: 2027/28'); return false; }
   if (newKey === oldKey) return true;
@@ -224,6 +280,7 @@ function renameSeason(oldKey, newKey) {
 }
 
 function setSeasonsEditable(on) {
+  if (isPlayerMode) return;
   seasonsEditable = !!on;
   updateArchiveBadge();
   if (currentPlayerId) {
@@ -256,15 +313,15 @@ function renderSeasonSelector() {
         ${keys.map(k => `
           <button class="season-menu-item ${k === currentSeason ? 'active' : ''}" onclick="onSeasonMenuItem('${escapeAttr(k)}')">
             <span class="season-menu-label">${escapeHtml(formatSeasonLabel(k))}</span>
-            <span class="season-menu-count">${(DB.seasons[k].players || []).length}</span>
+            ${isPlayerMode ? '' : `<span class="season-menu-count">${(DB.seasons[k].players || []).length}</span>`}
             ${k === currentSeason ? '<span class="season-menu-check">✓</span>' : ''}
           </button>
         `).join('')}
       </div>
-      <div class="season-menu-foot">
+      ${isPlayerMode ? '' : `<div class="season-menu-foot">
         <button type="button" class="season-menu-action" onclick="openCreateSeasonModal()">+ Новый сезон</button>
         <button type="button" class="season-menu-action ghost" onclick="openManageSeasonsModal()">Управление</button>
-      </div>
+      </div>`}
     </div>
   `;
 }
@@ -309,6 +366,17 @@ function updateArchiveBadge() {
     return;
   }
 
+  // Игрок: только просмотр, без кнопки разблокировки.
+  if (isPlayerMode) {
+    el.style.display = 'flex';
+    el.className = 'archive-badge';
+    el.innerHTML = `
+      <span class="archive-icon">🔒</span>
+      <span>Архивный сезон <strong>${escapeHtml(formatSeasonLabel(currentSeason))}</strong> (только просмотр)</span>
+    `;
+    return;
+  }
+
   el.style.display = 'flex';
   if (seasonsEditable) {
     el.className = 'archive-badge editable';
@@ -334,6 +402,8 @@ function updateArchiveBadge() {
 let __createSeasonCtx = null;
 
 function openCreateSeasonModal() {
+  if (isPlayerMode) return;
+
   const menu = document.getElementById('season-menu');
   if (menu) menu.classList.remove('active');
 
@@ -363,6 +433,7 @@ function openCreateSeasonModal() {
 function renderCreateSeasonModal() {
   const ctx = __createSeasonCtx;
   if (!ctx) return;
+  if (isPlayerMode) return;
 
   const sourcePlayers = (DB.seasons[ctx.sourceKey] && DB.seasons[ctx.sourceKey].players) || [];
   const allKeys = getSeasonKeys();
@@ -503,6 +574,7 @@ function createSeasonCopyToggle(field, checked) {
 }
 
 function submitCreateSeason() {
+  if (isPlayerMode) return;
   const ctx = __createSeasonCtx;
   if (!ctx) return;
 
@@ -535,6 +607,8 @@ function submitCreateSeason() {
    ============================================================ */
 
 function openManageSeasonsModal() {
+  if (isPlayerMode) return;
+
   const menu = document.getElementById('season-menu');
   if (menu) menu.classList.remove('active');
 
@@ -572,11 +646,13 @@ function openManageSeasonsModal() {
 }
 
 function manageSwitchSeason(key) {
+  if (isPlayerMode) return;
   closeModal();
   switchSeason(key);
 }
 
 function manageRenameSeason(key) {
+  if (isPlayerMode) return;
   uiPrompt(
     'Новое название сезона (формат 2027/28):',
     key,
@@ -593,27 +669,18 @@ function manageRenameSeason(key) {
 }
 
 function manageDeleteSeason(key) {
-  // deleteSeason сам вызывает uiConfirm, но мы хотим перерисовать
-  // модалку управления после успешного удаления.
-  // Поэтому повторно открываем её только при успехе.
+  if (isPlayerMode) return;
   const before = DB.seasons[key] ? 1 : 0;
   deleteSeason(key);
-  // Проверяем через микрозадержку: если сезон реально удалился —
-  // uiConfirm выполнил callback синхронно, значит сезона уже нет.
   if (before === 1 && !DB.seasons[key]) {
-    // уже удалён — перерисуем список
     openManageSeasonsModal();
     return;
   }
-  // Если не удалён (отмена или защита) — ничего не делаем.
-  // Если удаление произошло в callback асинхронно — перерисуем
-  // список после закрытия модалки.
   const check = setInterval(() => {
     if (!DB.seasons[key]) {
       clearInterval(check);
       if (typeof openManageSeasonsModal === 'function') openManageSeasonsModal();
     } else {
-      // Ждём максимум 5 секунд (защита от вечного таймера)
       if (!document.querySelector('.ui-choice-row') && !document.getElementById('ui-confirm-ok')) {
         clearInterval(check);
       }

@@ -1,48 +1,72 @@
 /* ============================================================
    04-ui.js
-   Навигация, уведомления, рендер игроков (вертикальный список).
+   Навигация, уведомления, рендер игроков, PIN-модалка.
    ============================================================ */
 
 function goHome() {
+  if (isPlayerMode) {
+    if (currentPlayerId) {
+      const p = DB.players.find(x => x.id === currentPlayerId);
+      if (p) { showScreen('player'); renderPlayerCard(p); return; }
+    }
+    showScreen('player');
+    return;
+  }
   currentPlayerId = null;
   currentTab = 'skills';
   showScreen('players');
 }
 
 function showScreen(name) {
-  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-  const target = document.getElementById('screen-' + name);
-  if (target) target.classList.add('active');
-  document.querySelectorAll('nav button[data-screen]').forEach(b => {
-    b.classList.toggle('active', b.dataset.screen === name);
-  });
-
-  setTimeout(() => {
-    try {
-      if (name === 'players')        renderPlayers();
-      if (name === 'exercises')      renderExercises();
-      if (name === 'dashboard')      renderDashboard();
-      if (name === 'report')         renderReport();
-      if (name === 'coach-calendar') renderCoachCalendar();
-      if (name === 'coach-report')   renderCoachReport();
-    } catch (err) {
-      console.error('showScreen error for', name, err);
+  try {
+    if (isPlayerMode && name !== 'player') {
+      name = 'player';
     }
-  }, 0);
 
-  closeMobileNav();
-  const notifPanel = document.getElementById('notif-panel');
-  if (notifPanel) notifPanel.classList.remove('active');
-  window.scrollTo(0, 0);
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    const target = document.getElementById('screen-' + name);
+    if (target) target.classList.add('active');
 
-  if (typeof updateArchiveBadge === 'function') updateArchiveBadge();
+    document.querySelectorAll('nav button[data-screen]').forEach(b => {
+      b.classList.toggle('active', b.dataset.screen === name);
+    });
+
+    setTimeout(() => {
+      try {
+        if (name === 'players')        renderPlayers();
+        if (name === 'exercises')      renderExercises();
+        if (name === 'dashboard')      renderDashboard();
+        if (name === 'report')         renderReport();
+        if (name === 'coach-calendar' && !isPlayerMode) renderCoachCalendar();
+        if (name === 'coach-report'   && !isPlayerMode) renderCoachReport();
+        if (name === 'player' && isPlayerMode && currentPlayerId && typeof renderPlayerCard === 'function') {
+          const p = DB.players.find(x => x.id === currentPlayerId);
+          if (p) renderPlayerCard(p);
+        }
+      } catch (err) {
+        console.error('showScreen render error for', name, err);
+      }
+    }, 0);
+
+    closeMobileNav();
+    const notifPanel = document.getElementById('notif-panel');
+    if (notifPanel) notifPanel.classList.remove('active');
+    window.scrollTo(0, 0);
+
+    if (typeof updateArchiveBadge === 'function') updateArchiveBadge();
+  } catch (err) {
+    console.error('showScreen error:', err);
+  }
+}
+
+function bindNavigation() {
+  document.querySelectorAll('nav button[data-screen]').forEach(btn => {
+    btn.onclick = () => showScreen(btn.dataset.screen);
+  });
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  document.querySelectorAll('nav button[data-screen]').forEach(btn => {
-    btn.addEventListener('click', () => showScreen(btn.dataset.screen));
-  });
-
+  bindNavigation();
   if (typeof renderSeasonSelector === 'function') renderSeasonSelector();
   if (typeof updateArchiveBadge === 'function')   updateArchiveBadge();
 });
@@ -252,9 +276,9 @@ document.addEventListener('click', e => {
 });
 
 /* ============================================================
-   СПИСОК ИГРОКОВ С ГРУППИРОВКОЙ (вертикально, как в упражнениях)
+   СПИСОК ИГРОКОВ С ГРУППИРОВКОЙ
    ============================================================ */
-const __playerGroupOpen = new Set(); // Пустой Set = все свернуты по умолчанию
+const __playerGroupOpen = new Set();
 
 function togglePlayerGroup(gid) {
   if (__playerGroupOpen.has(gid)) __playerGroupOpen.delete(gid);
@@ -296,7 +320,6 @@ function renderPlayers() {
 
   let html = '';
 
-  // 1. Звездочки
   const starsOpen = __playerGroupOpen.has('g_stars');
   html += `<div class="ex-parent ${starsOpen ? 'open' : ''}" style="margin-bottom:12px">
     <div class="ex-parent-head">
@@ -311,7 +334,6 @@ function renderPlayers() {
     </div>` : ''}
   </div>`;
 
-  // 2. Общая группа
   const generalOpen = __playerGroupOpen.has('g_general');
   html += `<div class="ex-parent ${generalOpen ? 'open' : ''}" style="margin-bottom:12px">
     <div class="ex-parent-head">
@@ -348,7 +370,6 @@ function renderPlayers() {
     </div>` : ''}
   </div>`;
 
-  // 3. Спецгруппа
   const specialOpen = __playerGroupOpen.has('g_special');
   html += `<div class="ex-parent ${specialOpen ? 'open' : ''}">
     <div class="ex-parent-head">
@@ -368,6 +389,7 @@ function renderPlayers() {
 }
 
 function addPlayerSubgroup() {
+  if (isPlayerMode) return;
   uiPrompt('Название команды (подраздела):', '', (name) => {
     if (!name.trim()) return;
     if (!DB.playerGroups.general.subgroups) DB.playerGroups.general.subgroups = [];
@@ -378,6 +400,7 @@ function addPlayerSubgroup() {
 }
 
 function renamePlayerSubgroup(sgId) {
+  if (isPlayerMode) return;
   const sg = DB.playerGroups?.general?.subgroups?.find(x => x.id === sgId);
   if (!sg) return;
   uiPrompt('Новое название команды:', sg.name, (name) => {
@@ -389,6 +412,7 @@ function renamePlayerSubgroup(sgId) {
 }
 
 function deletePlayerSubgroup(sgId) {
+  if (isPlayerMode) return;
   uiConfirm('Удалить этот подраздел? Игроки из него перейдут в "Звездочки".', () => {
     DB.playerGroups.general.subgroups = DB.playerGroups.general.subgroups.filter(x => x.id !== sgId);
     DB.players.forEach(p => { if (p.groupId === sgId) p.groupId = 'g_stars'; });
@@ -401,6 +425,7 @@ function deletePlayerSubgroup(sgId) {
    ДАШБОРД
    ============================================================ */
 function renderDashboard() {
+  if (isPlayerMode) return;
   const el = document.getElementById('dashboard-content');
   if (!el) return;
 
@@ -494,5 +519,144 @@ function renderDashboard() {
         plugins: { legend: { position: 'bottom', labels: { font: { size: 12 }, padding: 16 } } }
       }
     });
+  }
+}
+
+/* ============================================================
+   PIN-КОДЫ ИГРОКОВ
+   ============================================================ */
+
+function syncPinsAcrossSeasons() {
+  if (!DB.seasons) return;
+
+  const canonical = {};
+  if (Array.isArray(DB.players)) {
+    DB.players.forEach(p => {
+      if (!p.accessPin) return;
+      const k = (typeof personPinKey === 'function') ? personPinKey(p) : '';
+      if (k) canonical[k] = p.accessPin;
+    });
+  }
+  Object.keys(DB.seasons).forEach(sk => {
+    (DB.seasons[sk].players || []).forEach(p => {
+      if (!p.accessPin) return;
+      const k = (typeof personPinKey === 'function') ? personPinKey(p) : '';
+      if (!k) return;
+      if (!canonical[k]) canonical[k] = p.accessPin;
+    });
+  });
+
+  Object.keys(DB.seasons).forEach(sk => {
+    (DB.seasons[sk].players || []).forEach(p => {
+      const k = (typeof personPinKey === 'function') ? personPinKey(p) : '';
+      if (k && canonical[k]) p.accessPin = canonical[k];
+    });
+  });
+}
+
+function openPlayerPinsModal() {
+  if (isPlayerMode) return;
+
+  const players = DB.players || [];
+  const missing = players.filter(p => !p.accessPin).length;
+
+  const rows = players.map(p => {
+    const hasPin = !!p.accessPin;
+    const pinCell = hasPin
+      ? `<code style="font-family:monospace;letter-spacing:2px;font-size:15px;font-weight:900;color:var(--ak-green);padding:4px 10px;background:#f0f4f2;border-radius:4px;display:inline-block">${escapeHtml(p.accessPin)}</code>
+         <button class="btn btn-sm btn-ghost" onclick="regeneratePlayerPin('${p.id}', true)">Сбросить</button>`
+      : `<span style="color:var(--ak-red);font-size:12px">— не задан —</span>
+         <button class="btn btn-sm" onclick="regeneratePlayerPin('${p.id}', true)">Сгенерировать</button>`;
+
+    return `<div class="ms-row" style="align-items:center">
+      <div class="ms-row-info">
+        <div class="ms-row-name">${escapeHtml(p.fio || '')}</div>
+        <div class="ms-row-meta">${escapeHtml(p.position || '')}${p.team ? ' · ' + escapeHtml(p.team) : ''}${p.birthYear ? ' · ' + escapeHtml(p.birthYear) : ''}</div>
+      </div>
+      <div class="ms-row-actions" style="align-items:center;gap:8px">
+        ${pinCell}
+      </div>
+    </div>`;
+  }).join('');
+
+  openModal(`
+    <h3>🔑 PIN-коды игроков</h3>
+    <p class="subtitle" style="margin-top:-8px">4-значный код для входа в личный кабинет. Выдайте каждому игроку лично.</p>
+    <div class="btn-row" style="margin:12px 0;flex-wrap:wrap">
+      ${missing ? `<button class="btn" onclick="generatePinsForAll()">Сгенерировать всем (${missing} без PIN)</button>` : ''}
+      <button class="btn btn-ghost" onclick="exportPlayerPinsExcel()">📤 Экспорт в Excel</button>
+    </div>
+    <div class="ms-list" style="max-height:60vh;overflow-y:auto">${rows || '<p class="subtitle">Нет игроков.</p>'}</div>
+    <div class="btn-row" style="margin-top:16px">
+      <button class="btn-ghost btn" onclick="closeModal()">Закрыть</button>
+    </div>
+  `);
+}
+
+function generatePinsForAll() {
+  if (isPlayerMode) return;
+
+  const personPin = {};
+  const allPins = new Set();
+  if (DB.seasons) {
+    Object.keys(DB.seasons).forEach(k => {
+      (DB.seasons[k].players || []).forEach(p => {
+        if (p.accessPin) {
+          const pk = (typeof personPinKey === 'function') ? personPinKey(p) : '';
+          if (pk && !personPin[pk]) personPin[pk] = p.accessPin;
+          allPins.add(p.accessPin);
+        }
+      });
+    });
+  }
+
+  let generated = 0, reused = 0;
+  (DB.players || []).forEach(p => {
+    if (p.accessPin) return;
+    const pk = (typeof personPinKey === 'function') ? personPinKey(p) : '';
+    let pin = pk ? personPin[pk] : null;
+    if (!pin) {
+      let guard = 0;
+      do { pin = generatePin(); guard++; } while (allPins.has(pin) && guard < 50);
+      allPins.add(pin);
+      if (pk) personPin[pk] = pin;
+      generated++;
+    } else {
+      reused++;
+    }
+    p.accessPin = pin;
+  });
+
+  if (generated || reused) {
+    touchMeta('players');
+    saveDB();
+    syncPinsAcrossSeasons();
+    toast(`PIN: новых ${generated}, скопировано из других сезонов ${reused}`);
+  }
+  openPlayerPinsModal();
+}
+
+function regeneratePlayerPin(pid, inModal) {
+  if (isPlayerMode) return;
+  const p = DB.players.find(x => x.id === pid);
+  if (!p) return;
+
+  const doIt = () => {
+    const allPins = new Set((DB.players || []).map(x => x.accessPin).filter(x => x && x !== p.accessPin));
+    let pin, guard = 0;
+    do { pin = generatePin(); guard++; } while (allPins.has(pin) && guard < 50);
+    p.accessPin = pin;
+    touchMeta('players');
+    saveDB();
+    syncPinsAcrossSeasons();
+    toast(`Новый PIN для «${p.fio}»: ${pin}`);
+    if (inModal) openPlayerPinsModal();
+    else if (currentPlayerId === pid) refreshProfile(pid);
+  };
+
+  if (inModal) {
+    doIt();
+  } else {
+    uiConfirm(`Сгенерировать новый PIN для «${p.fio}»? Старый перестанет работать.`, doIt, () => {});
   }
 }

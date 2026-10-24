@@ -29,22 +29,28 @@
       <div class="text">АК БАРС<small>Система развития</small></div>
     </div>
     <div class="auth-tabs">
-      <button id="tab-login" class="active" onclick="switchAuthTab('login')">Вход</button>
-      <button id="tab-register" onclick="switchAuthTab('register')">Регистрация</button>
+      <button id="tab-login" class="active" onclick="switchAuthTab('login')">Тренер</button>
+      <button id="tab-player" onclick="switchAuthTab('player')">Игрок</button>
     </div>
     <div id="auth-error" class="auth-error"></div>
     <div id="auth-info" class="auth-info"></div>
+
     <div id="auth-form-login">
       <div class="auth-field"><label>Email</label><input type="email" id="login-email" placeholder="coach@example.com" autocomplete="email"></div>
       <div class="auth-field"><label>Пароль</label><input type="password" id="login-password" placeholder="••••••••" autocomplete="current-password" onkeypress="if(event.key==='Enter')doLogin()"></div>
       <button class="btn btn-block" onclick="doLogin()">Войти</button>
     </div>
-    <div id="auth-form-register" style="display:none">
-      <div class="auth-field"><label>Email</label><input type="email" id="reg-email" placeholder="coach@example.com" autocomplete="email"></div>
-      <div class="auth-field"><label>Пароль (минимум 6 символов)</label><input type="password" id="reg-password" placeholder="••••••••" autocomplete="new-password"></div>
-      <div class="auth-field"><label>Повторите пароль</label><input type="password" id="reg-password2" placeholder="••••••••" autocomplete="new-password" onkeypress="if(event.key==='Enter')doRegister()"></div>
-      <button class="btn btn-block btn-red" onclick="doRegister()">Зарегистрироваться</button>
+
+    <div id="auth-form-player" style="display:none">
+      <div id="player-auth-step-fio">
+        <p style="font-size:12px;color:#5a6169;margin-bottom:12px;text-align:center;">Введите вашу фамилию для входа в личный кабинет</p>
+        <div class="auth-field"><label>Фамилия</label><input type="text" id="player-login-fio" placeholder="Например: Зарипов" onkeypress="if(event.key==='Enter')playerAuthStepFio()"></div>
+        <button class="btn btn-block btn-red" onclick="playerAuthStepFio()">Далее</button>
+      </div>
+      <div id="player-auth-step-select" style="display:none"></div>
+      <div id="player-auth-step-pin" style="display:none"></div>
     </div>
+
     <div id="auth-loading" class="auth-loading">
       <div class="spinner"></div>
       <div>Загрузка данных…</div>
@@ -61,13 +67,13 @@
   <button class="burger" id="burger-btn" onclick="toggleMobileNav(event)" aria-label="Меню">☰</button>
 
   <nav id="main-nav">
-    <button data-screen="dashboard">Дашборд</button>
-    <button data-screen="coach-calendar" class="active">Календарь тренера</button>
-    <button data-screen="coach-report">Отчёт тренера</button>
-    <button data-screen="players">Игроки</button>
-    <button data-screen="report">Отчёт по игрокам</button>
-    <button data-screen="exercises">Упражнения</button>
-    <button data-screen="data">Данные</button>
+    <button data-screen="dashboard" onclick="showScreen('dashboard')">Дашборд</button>
+    <button data-screen="coach-calendar" onclick="showScreen('coach-calendar')" class="active">Календарь тренера</button>
+    <button data-screen="coach-report" onclick="showScreen('coach-report')">Отчёт тренера</button>
+    <button data-screen="players" onclick="showScreen('players')">Игроки</button>
+    <button data-screen="report" onclick="showScreen('report')">Отчёт по игрокам</button>
+    <button data-screen="exercises" onclick="showScreen('exercises')">Упражнения</button>
+    <button data-screen="data" onclick="showScreen('data')">Данные</button>
     <button class="notif-btn" onclick="toggleNotif(event)">🔔<span id="notif-badge" class="notif-badge" style="display:none">0</span></button>
     <div class="season-selector" id="season-selector"></div>
     <div class="sync-status" id="sync-status"><span class="dot"></span><span id="sync-text">Готово</span></div>
@@ -104,21 +110,21 @@
     <div class="flex-between">
       <div><h1>Игроки</h1><p class="subtitle">Группа развития · Академия «Ак Барс»</p></div>
       <div class="btn-row" style="margin:0">
+        <button class="btn btn-ghost" onclick="openPlayerPinsModal()">🔑 PIN-коды</button>
         <button class="btn btn-ghost" onclick="importPlayerFromExcel()">📥 Игрок из Excel</button>
         <button class="btn" onclick="addPlayer()">+ Добавить игрока</button>
       </div>
     </div>
-    <!-- УБРАЛИ КЛАСС players-grid, ЧТОБЫ БЛОКИ ШЛИ ВЕРТИКАЛЬНО -->
     <div id="players-list"></div>
   </section>
 
   <section id="screen-player" class="screen">
-    <div class="btn-row no-print">
-      <button class="btn-ghost btn" onclick="showScreen('players')">← К списку</button>
-      <button class="btn btn-red" onclick="exportPlayerToPDF(currentPlayerId)">📄 Экспорт в PDF (полный)</button>
-      <button class="btn btn-ghost" onclick="exportPlayerToShortPDF(currentPlayerId)">📄 PDF (без тех/тестов/характеристики)</button>
-      <button class="btn btn-ghost" onclick="exportPlayerToExcel(currentPlayerId)">📤 Excel</button>
-      <button class="btn btn-danger" onclick="confirmDeletePlayer(currentPlayerId)" style="margin-left:auto">🗑 Удалить игрока</button>
+    <div class="btn-row no-print" id="player-actions">
+      <button class="btn-ghost btn" onclick="showScreen('players')" id="btn-back-to-list">← К списку</button>
+      <button class="btn btn-red" onclick="exportPlayerToPDF(currentPlayerId)" id="btn-pdf-full">📄 Экспорт в PDF (полный)</button>
+      <button class="btn btn-ghost" onclick="exportPlayerToShortPDF(currentPlayerId)" id="btn-pdf-short">📄 PDF (без тех/тестов/характеристики)</button>
+      <button class="btn btn-ghost" onclick="exportPlayerToExcel(currentPlayerId)" id="btn-excel">📤 Excel</button>
+      <button class="btn btn-danger" onclick="confirmDeletePlayer(currentPlayerId)" id="btn-delete-player" style="margin-left:auto">🗑 Удалить игрока</button>
     </div>
     <div id="player-card"></div>
   </section>
@@ -212,7 +218,7 @@
     <div class="card"><h3>Массовый импорт игроков из CSV</h3>
       <p style="margin-bottom:12px;color:var(--ak-gray-dark);font-size:13px">
         Формат: <code>ФИО;Команда;Город;Амплуа;Хват;Рост;Вес;Год рождения</code><br>
-        Первая строка — заголовки. Кодировка UTF-8.
+        Первая строка — заголовки. Кодировка UTF-8. PIN-коды генерируются автоматически.
       </p>
       <input type="file" id="csv-file" accept=".csv" style="margin-bottom:12px">
       <button class="btn" onclick="importCSVFile()">📥 Загрузить CSV</button>

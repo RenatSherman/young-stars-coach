@@ -105,6 +105,8 @@ function importPlayerFromExcel() {
       try {
         const wb = XLSX.read(new Uint8Array(ev.target.result), { type: 'array' });
         const parsed = parseExcelWorkbook(wb);
+        if (typeof __ensurePlayerPin === 'function') __ensurePlayerPin(parsed);
+        if (!parsed.accessPin) parsed.accessPin = generatePin();
 
         const finishImport = () => {
           DB.players.push(parsed);
@@ -112,6 +114,7 @@ function importPlayerFromExcel() {
 
           const report = [
             `Игрок «${parsed.fio}» добавлен.`,
+            `PIN для входа: ${parsed.accessPin}`,
             `Технических критериев: ${parsed.techDetail.length}`,
             `Физ/Такт/Псих критериев: ${parsed.otherDetail.length}`,
             `Тестов: ${parsed.tests.length}, статистики: ${parsed.stats.length}`,
@@ -152,6 +155,7 @@ function parseExcelWorkbook(wb) {
     birthDay: '', birthMonth: '', birthYear: '',
     height: '', weight: '', team: '', city: '', firstSchool: '',
     position: 'Нападающий', grip: 'Правый', photo: '', characteristic: '',
+    accessPin: '',
     techDetail: [], otherDetail: [],
     plans: {}, calendar: {}, stats: [], tests: [],
     developmentPlans: []
@@ -389,6 +393,7 @@ function importData() {
       if (!DB.meta)      DB.meta = {};
       DB.players.forEach(p => {
         migrateCalendar(p);
+        if (typeof __ensurePlayerPin === 'function') __ensurePlayerPin(p);
         if (!Array.isArray(p.developmentPlans)) p.developmentPlans = [];
       });
 
@@ -435,6 +440,7 @@ function importCSVFile() {
           weight: cols[6] || '',
           birthYear: cols[7] || '',
           birthDay: '', birthMonth: '', firstSchool: '', photo: '', characteristic: '',
+          accessPin: generatePin(),
           techDetail: defaultTechDetail(),
           otherDetail: defaultOtherDetail(),
           plans: {}, calendar: {}, stats: [], tests: [],
@@ -444,7 +450,7 @@ function importCSVFile() {
       }
 
       saveDB();
-      uiAlert(`Добавлено игроков: ${added}`, () => {
+      uiAlert(`Добавлено игроков: ${added}.\nНе забудьте раздать PIN'ы через раздел «PIN-коды».`, () => {
         renderPlayers();
         showScreen('players');
       });
@@ -453,6 +459,27 @@ function importCSVFile() {
     }
   };
   reader.readAsText(file, 'UTF-8');
+}
+
+/* ============================================================
+   Экспорт PIN-кодов игроков в Excel
+   ============================================================ */
+
+function exportPlayerPinsExcel() {
+  if (!DB.players || !DB.players.length) { uiAlert('Нет игроков'); return; }
+  const rows = [['ФИО', 'Амплуа', 'Команда', 'Год рождения', 'PIN']];
+  DB.players.forEach(p => {
+    rows.push([
+      p.fio || '',
+      p.position || '',
+      p.team || '',
+      p.birthYear || '',
+      p.accessPin || ''
+    ]);
+  });
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), 'PIN-коды');
+  XLSX.writeFile(wb, `PIN-коды_${new Date().toISOString().slice(0, 10)}.xlsx`);
 }
 
 /* ============================================================

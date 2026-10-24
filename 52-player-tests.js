@@ -2,6 +2,10 @@
    52-player-tests.js
    Вкладка «Тесты» + графики тестов в карточке игрока.
 
+   ВАЖНО: в режиме игрока (isPlayerMode=true) тесты доступны
+   ТОЛЬКО для просмотра. Все функции изменения защищены
+   гвардами isPlayerMode; UI рендерится без кнопок и полей.
+
    Содержит:
    - renderTests
    - renameTestColumn / resetTestColumns
@@ -15,29 +19,47 @@
 
 function renderTests(p) {
   const cols = getTestColumns();
+  const canEdit = !isPlayerMode;
+
   const headHtml = `<th>Дата</th>` +
-    cols.map(c => `<th><span class="editable-name" contenteditable="true" onblur="renameTestColumn('${c.key}', this.innerText)">${escapeHtml(c.label)}</span></th>`).join('') +
-    `<th class="no-print"></th>`;
+    cols.map(c => canEdit
+      ? `<th><span class="editable-name" contenteditable="true" onblur="renameTestColumn('${c.key}', this.innerText)">${escapeHtml(c.label)}</span></th>`
+      : `<th>${escapeHtml(c.label)}</th>`
+    ).join('') +
+    (canEdit ? `<th class="no-print"></th>` : '');
 
   let rows = (p.tests || []).map((t, i) => {
-    const cells = cols.map(c => `<td><input class="cell" value="${escapeAttr(t[c.key] || '')}" onchange="updateTest('${p.id}',${i},'${c.key}',this.value)"></td>`).join('');
-    return `<tr>
-      <td><input class="cell" type="date" value="${t.date || ''}" onchange="updateTest('${p.id}',${i},'date',this.value)"></td>
-      ${cells}
-      <td class="no-print"><button class="btn btn-sm btn-ghost" onclick="removeTest('${p.id}',${i})">×</button></td></tr>`;
+    const cells = cols.map(c => canEdit
+      ? `<td><input class="cell" value="${escapeAttr(t[c.key] || '')}" onchange="updateTest('${p.id}',${i},'${c.key}',this.value)"></td>`
+      : `<td>${escapeHtml(t[c.key] || '')}</td>`
+    ).join('');
+
+    const dateCell = canEdit
+      ? `<td><input class="cell" type="date" value="${t.date || ''}" onchange="updateTest('${p.id}',${i},'date',this.value)"></td>`
+      : `<td>${escapeHtml(t.date || '')}</td>`;
+
+    const delCell = canEdit
+      ? `<td class="no-print"><button class="btn btn-sm btn-ghost" onclick="removeTest('${p.id}',${i})">×</button></td>`
+      : '';
+
+    return `<tr>${dateCell}${cells}${delCell}</tr>`;
   }).join('');
 
-  return `<div class="card"><h2>Тесты</h2>
-    <p class="subtitle" style="margin-top:-8px">Названия столбцов редактируются кликом.</p>
+  const actionsHtml = canEdit ? `
     <div class="btn-row no-print">
       <button class="btn btn-sm" onclick="addTest('${p.id}')">+ Тест</button>
       <button class="btn btn-sm btn-ghost" onclick="resetTestColumns()">↺ Сбросить названия столбцов</button>
-    </div>
+    </div>` : '';
+
+  return `<div class="card"><h2>Тесты</h2>
+    <p class="subtitle" style="margin-top:-8px">${canEdit ? 'Названия столбцов редактируются кликом.' : 'Тесты заполняются тренером.'}</p>
+    ${actionsHtml}
     <div style="overflow-x:auto"><table><thead><tr>${headHtml}</tr></thead>
-    <tbody>${rows}</tbody></table></div></div>`;
+    <tbody>${rows || `<tr><td colspan="${cols.length + (canEdit ? 2 : 1)}" style="text-align:center;color:#5a6169;padding:16px">Тестов пока нет</td></tr>`}</tbody></table></div></div>`;
 }
 
 function renameTestColumn(key, newLabel) {
+  if (isPlayerMode) return;
   newLabel = (newLabel || '').trim();
   if (!newLabel) return;
   if (!Array.isArray(DB.testColumns) || !DB.testColumns.length) {
@@ -48,6 +70,7 @@ function renameTestColumn(key, newLabel) {
 }
 
 function resetTestColumns() {
+  if (isPlayerMode) return;
   uiConfirm(
     'Сбросить названия столбцов тестов на стандартные?',
     () => {
@@ -60,6 +83,7 @@ function resetTestColumns() {
 }
 
 function updateTest(pid, i, f, v) {
+  if (isPlayerMode) return;
   const p = DB.players.find(x => x.id === pid);
   if (!p || !p.tests || !p.tests[i]) return;
   p.tests[i][f] = v;
@@ -67,6 +91,7 @@ function updateTest(pid, i, f, v) {
 }
 
 function addTest(pid) {
+  if (isPlayerMode) return;
   const p = DB.players.find(x => x.id === pid);
   if (!p) return;
   if (!p.tests) p.tests = [];
@@ -78,6 +103,7 @@ function addTest(pid) {
 }
 
 function removeTest(pid, i) {
+  if (isPlayerMode) return;
   const p = DB.players.find(x => x.id === pid);
   if (!p || !p.tests) return;
   p.tests.splice(i, 1);
@@ -86,7 +112,7 @@ function removeTest(pid, i) {
 }
 
 /* ============================================================
-   ГРАФИКИ ТЕСТОВ
+   ГРАФИКИ ТЕСТОВ (только просмотр, работают в обоих режимах)
    ============================================================ */
 
 function renderTestCharts(p) {

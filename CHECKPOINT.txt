@@ -1,0 +1,101 @@
+МАСТЕР-ЧЕКПОИНТ ПРОЕКТА YOUNG-STARS (ХОККЕЙ)
+
+1. ОБЩАЯ ИНФОРМАЦИЯ
+Стек: Vanilla JS, HTML, CSS, Supabase, Chart.js, jsPDF.
+Архитектура: Модульная (30+ файлов).
+Хранение: Supabase + LocalStorage.
+
+2. ПОРЯДОК ПОДКЛЮЧЕНИЯ СКРИПТОВ В index.html
+01-config.js -> 02-utils.js -> 03-sync.js -> 04-ui.js -> 05a-player-core.js -> 05b-player-calendar.js -> 06-plan.js -> 06b-report.js -> 07-calendar.js -> 08-pdf.js -> 09-excel.js -> 10-init.js -> 11-dashboard-calendar.js -> 12-coach-report.js -> 13-seasons.js -> 40-coach-grid.js -> 41-coach-day-modal.js -> 42-coach-fact-editor.js -> 43-coach-session-editor.js -> 44-coach-complex-picker.js -> 45-coach-repeat-block.js -> 46-coach-players-picker.js -> 47-coach-delete.js -> 48-coach-templates.js -> 50-player-skills.js -> 51-player-stats.js -> 52-player-tests.js -> 53-player-radars.js
+
+3. ПОДРОБНОЕ ОПИСАНИЕ МОДУЛЕЙ
+- 01-config.js: Ключи Supabase, глобальный DB, константы. PIN-константы (PIN_LENGTH=4, PIN_ATTEMPTS_MAX=3, PIN_BLOCK_SECONDS=60, PIN_STORAGE_KEY='akbars_pin_attempts'), generatePin().
+- 02-utils.js: Модалки, даты, возраст.
+- 03-sync.js: Авторизация, синхронизация, isPlayerMode.
+  * Вход тренера: doLogin — email+пароль. Регистрация через UI отключена (аккаунт тренера один, регистрацию не показываем, чтобы игроки не создавали лишние аккаунты).
+  * Вход игрока: playerAuthStepFio -> выбор при совпадениях -> doPlayerPinLogin.
+  * Вспомогательные: getPinAttempts/savePinAttempts/clearPinAttempts/playerAuthReset.
+  * switchAuthTab: только login/player, безопасно при отсутствующих элементах (null-checks).
+  * setAuthLoading: без register, безопасно при отсутствующих элементах.
+  * onAuthorized: вызывает bindNavigation() из 04-ui.js для перепривязки меню после входа.
+  * packPlayersForCloud: в режиме игрока не перезаписывает currentSeason тренера (coach_default_season).
+- 04-ui.js: Навигация, уведомления, рендер игроков, PIN-администрирование.
+  * bindNavigation(): назначает onclick каждой кнопке [data-screen] в nav. Вызывается из DOMContentLoaded и из onAuthorized (двойная защита).
+  * showScreen: обёрнут в try/catch, устойчив к падениям рендера. При isPlayerMode принудительно 'player'.
+  * PIN-функции: openPlayerPinsModal, generatePinsForAll, regeneratePlayerPin, syncPinsAcrossSeasons (по personPinKey: ФИО+год рождения).
+  * Гварды isPlayerMode в addPlayerSubgroup/renamePlayerSubgroup/deletePlayerSubgroup/renderDashboard.
+- 05a-player-core.js: Карточка игрока.
+  * Миграция: __ensurePlayerPin (accessPin:'' по умолчанию).
+  * personPinKey(p): ключ ФИО+год рождения для дедупликации и синхронизации PIN.
+  * saveNewPlayer: автогенерация PIN.
+  * renderPlayerCard: PIN показан только тренеру (в паспорте, с кнопкой «Сбросить/Создать»).
+- 05b-player-calendar.js: Календарь игрока. Игрок редактирует ТОЛЬКО «Самостоятельная» (хелпер __canPlayerEditBlock).
+- 09-excel.js: Excel/JSON/CSV.
+  * importPlayerFromExcel: автогенерация PIN, вывод PIN в отчёте.
+  * importCSVFile: автогенерация accessPin каждому новому игроку.
+  * exportPlayerPinsExcel: выгрузка списка PIN в xlsx.
+  * importData(JSON): прогоняет __ensurePlayerPin.
+- 10-init.js: Точка входа.
+- 13-seasons.js: Ядро сезонов + UI. switchSeason для игрока — только карточка (поиск по ФИО в новом сезоне). Гварды isPlayerMode во всех функциях редактирования сезонов.
+- 40-48: Модули календаря тренера.
+- 50-player-skills.js, 51-player-stats.js: карточка игрока (только тренер).
+- 52-player-tests.js: тесты. Игрок — просмотр. Гварды isPlayerMode: renameTestColumn, resetTestColumns, updateTest, addTest, removeTest.
+- 53-player-radars.js: радары.
+
+4. ТЕХНИЧЕСКИЕ ПРАВИЛА
+- Supabase RLS: "Allow anon read" (SELECT, using(true)) на coach_data. ID тренера — localStorage('coach_id'). «Сезон тренера» — localStorage('coach_default_season').
+- Аутентификация игрока: многошаговая (ФИО -> выбор -> PIN), p.accessPin.
+- PIN: 4 цифры, generatePin() через crypto.getRandomValues. Хранится в открытом виде (см. оговорку).
+- Rate-limit PIN: 3 попытки -> блок 60 сек (localStorage 'akbars_pin_attempts').
+- Игрок без PIN (accessPin='') -> «Доступ не настроен. Обратитесь к тренеру.».
+- Синхронизация PIN между сезонами: по personPinKey (ФИО+год рождения), syncPinsAcrossSeasons.
+- Навигация: кнопки nav имеют И onclick в HTML (гарантирует работу даже при сбое DOMContentLoaded) И bindNavigation() из JS (перепривязка после входа). Двойная защита.
+- Гвард isPlayerMode в начале любой функции изменения (кроме «Самостоятельных» в 05b).
+- Функции для onclick — глобальные.
+- Сброс кэша: Ctrl+F5.
+
+Оговорка про безопасность PIN:
+- От «сосед набрал мою фамилию» — защищает (нужен PIN).
+- От «подобрать перебором» — защищает rate-limit.
+- НЕ защищает от пользователя с F12, т.к. coach_data читается анонимно. Для полной защиты нужен Supabase Auth (Вариант Б).
+
+5. ПРАВИЛА РАБОТЫ
+1. Пользователь НЕ пишет код. Выдавай ПОЛНЫЙ код файла целиком.
+2. Не проси присылать "кусочки", если нужен файл — проси прислать файл.
+3. Скриншоты для редизайна присылать только обрезанные (1 скрин = 1 задача).
+4. ВАЖНО: После каждого выполненного шага ИИ обязан выдавать обновлённый текст МАСТЕР-ЧЕКПОИНТА.
+5. ВАЖНО: МАСТЕР-ЧЕКПОИНТ всегда присылать в виде файла TXT (готового к прямой замене CHECKPOINT.txt, кодировка UTF-8). Содержимое блока = полное содержимое файла.
+6. ВАЖНО: Любой изменённый модуль (js, html, css) ВСЕГДА выдавать ПОЛНОСТЬЮ (весь файл целиком), а не патчем/фрагментом. Пользователь заменяет файл целиком.
+7. ВАЖНО: Если в ответе несколько файлов — каждый файл оформлять отдельным заголовком с явной нумерацией и именем: «Файл 1: 04-ui.js», «Файл 2: 03-sync.js» и т.д. Пользователь должен точно понимать, сколько файлов пришло, какие именно и в каком порядке их сохранять.
+
+6. СТАТУС
+- СДЕЛАНО:
+  * Гостевой доступ (вход по фамилии + PIN).
+  * Регистрация через UI отключена (только Тренер и Игрок) — аккаунт тренера один, чтобы не появлялись лишние регистрации от игроков.
+  * Исправлен баг «меню не кликается после входа тренера»: кнопки nav получили onclick прямо в HTML + bindNavigation() из JS, showScreen обёрнут в try/catch, onAuthorized вызывает bindNavigation. switchAuthTab/setAuthLoading больше не падают на отсутствующих tab-register/auth-form-register (null-checks).
+  * Настроен RLS.
+  * При входе игрока сразу открывается вкладка «Календарь».
+  * Исправлен баг «игрок проваливался в тренерский календарь» через селектор сезона.
+  * Игрок при логине ищется по всем сезонам, корректно устанавливается currentSeason и DB.players.
+  * Система PIN-кодов для игроков:
+    - Многошаговый вход: фамилия -> выбор при совпадениях -> PIN.
+    - Модалка «PIN-коды игроков» (генерация всем, сброс индивидуально, экспорт в Excel).
+    - PIN в карточке игрока у тренера.
+    - Автогенерация PIN при создании игрока, импорте из Excel, импорте CSV.
+    - Rate-limit: 3 попытки -> блок 60 сек.
+    - Синхронизация PIN между сезонами (ФИО+год рождения).
+    - Игроки без PIN получают «Доступ не настроен. Обратитесь к тренеру».
+  * Гварды isPlayerMode в 05b-player-calendar.js и 52-player-tests.js.
+  * Обновлены файлы: 01-config.js, 03-sync.js, 04-ui.js, 05a-player-core.js, 05b-player-calendar.js, 09-excel.js, 52-player-tests.js, index.html.
+- СЛЕДУЮЩАЯ ЗАДАЧА: Глобальный редизайн (по скриншотам).
+- НА КОНТРОЛЕ (проверить при следующем тесте):
+  * Тренер: после входа открывается календарь, ВСЕ кнопки меню кликабельны (Дашборд, Отчёт тренера, Игроки, Отчёт по игрокам, Упражнения, Данные).
+  * Экран авторизации: только 2 вкладки — Тренер и Игрок.
+  * Тренер раздаёт PIN: «Игроки» -> «PIN-коды» -> «Сгенерировать всем».
+  * Экспорт PIN в Excel.
+  * Вход игрока под своим PIN.
+  * Вход при одинаковых фамилиях: появляется список выбора.
+  * Rate-limit при неверном PIN.
+  * Игрок без PIN: «Доступ не настроен».
+  * При смене сезона — карточка игрока (поиск по ФИО).
+- БУДУЩАЯ ЗАДАЧА (по запросу): Вариант Б (Supabase Auth на каждого игрока) для 100% защиты PIN.

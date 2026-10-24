@@ -23,13 +23,11 @@ let DB = {
   meta: { updatedAt: {} },
   testColumns: null,
   templates: [],
-  // Структура групп игроков
   playerGroups: {
     stars: { id: 'g_stars', name: 'Звездочки', subgroups: [] },
     general: { id: 'g_general', name: 'Общая группа', subgroups: [] },
     special: { id: 'g_special', name: 'Спецгруппа', subgroups: [] }
   },
-  // Редактируемые названия навыков
   techStructure: null,
   otherStructure: null
 };
@@ -47,6 +45,24 @@ let currentTab = 'skills';
 let currentPlanMonth = null;
 let reportMonth = null;
 let coachCalMonth = null;
+
+/* ===== PIN-коды для игроков ===== */
+const PIN_LENGTH = 4;
+const PIN_ATTEMPTS_MAX = 3;
+const PIN_BLOCK_SECONDS = 60;
+const PIN_STORAGE_KEY = 'akbars_pin_attempts';
+
+function generatePin() {
+  try {
+    const arr = new Uint8Array(PIN_LENGTH);
+    (window.crypto || window.msCrypto).getRandomValues(arr);
+    return Array.from(arr).map(b => (b % 10).toString()).join('');
+  } catch (e) {
+    let s = '';
+    for (let i = 0; i < PIN_LENGTH; i++) s += Math.floor(Math.random() * 10);
+    return s;
+  }
+}
 
 const WORK_TYPES = ['Самостоятельная', 'Индивидуальная с тренером', 'В группе', 'Командная'];
 
@@ -73,7 +89,6 @@ const DEFAULT_TEST_COLUMNS = [
   { key: 'pullups',  label: 'Подтягивания',  unit: 'раз' }
 ];
 
-/* Дефолтные структуры навыков (используются, если в базе ничего нет) */
 function defaultTechDetail() {
   return [
     { group: 'Катание', sub: 'Посадка', name: 'Прокат в посадке', start: null, mid: null, end: null },
@@ -121,7 +136,6 @@ function getMetaTs(section) {
   return v ? Date.parse(v) || 0 : 0;
 }
 
-/* ===== Сезоны ===== */
 function currentSeasonKey(date) {
   const d = date ? new Date(date) : new Date();
   const y = d.getFullYear();
