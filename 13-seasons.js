@@ -390,7 +390,7 @@ function updateArchiveBadge() {
     el.innerHTML = `
       <span class="archive-icon">🔒</span>
       <span>Вы в архивном сезоне <strong>${escapeHtml(formatSeasonLabel(currentSeason))}</strong>. Данные защищены от изменений.</span>
-      <button class="btn btn-sm btn-ghost" onclick="setSeasonsEditable(true)">Разрешить редактирование</button>
+      <button class="btn btn-sm" onclick="setSeasonsEditable(true)">Разрешить редактирование</button>
     `;
   }
 }
@@ -477,8 +477,8 @@ function renderCreateSeasonModal() {
         ${playerRows}
       </div>
       <div class="cs-bulk-actions">
-        <button type="button" class="btn btn-sm btn-ghost" onclick="createSeasonSelectAll(true)">Выбрать всех</button>
-        <button type="button" class="btn btn-sm btn-ghost" onclick="createSeasonSelectAll(false)">Снять всех</button>
+        <button type="button" class="btn btn-sm" onclick="createSeasonSelectAll(true)">Выбрать всех</button>
+        <button type="button" class="btn btn-sm" onclick="createSeasonSelectAll(false)">Снять всех</button>
       </div>
     </div>
 
@@ -507,7 +507,7 @@ function renderCreateSeasonModal() {
 
     <div class="btn-row" style="margin-top:16px">
       <button class="btn" onclick="submitCreateSeason()">Создать сезон</button>
-      <button class="btn-ghost btn" onclick="closeModal()">Отмена</button>
+      <button class="btn" onclick="closeModal()">Отмена</button>
     </div>
   `);
 
@@ -627,8 +627,8 @@ function openManageSeasonsModal() {
         <div class="ms-row-meta">${cnt} ${plural(cnt, 'игрок', 'игрока', 'игроков')}</div>
       </div>
       <div class="ms-row-actions">
-        ${!isCurrent ? `<button class="btn btn-sm btn-ghost" onclick="manageSwitchSeason('${escapeAttr(k)}')">Перейти</button>` : ''}
-        <button class="btn btn-sm btn-ghost" onclick="manageRenameSeason('${escapeAttr(k)}')">Переименовать</button>
+        ${!isCurrent ? `<button class="btn btn-sm" onclick="manageSwitchSeason('${escapeAttr(k)}')">Перейти</button>` : ''}
+        <button class="btn btn-sm" onclick="manageRenameSeason('${escapeAttr(k)}')">Переименовать</button>
         ${!isCurrent ? `<button class="btn btn-sm btn-danger" onclick="manageDeleteSeason('${escapeAttr(k)}')">Удалить</button>` : ''}
       </div>
     </div>`;
@@ -640,7 +640,7 @@ function openManageSeasonsModal() {
     <div class="ms-list">${rows}</div>
     <div class="btn-row" style="margin-top:16px">
       <button class="btn" onclick="openCreateSeasonModal()">+ Новый сезон</button>
-      <button class="btn-ghost btn" onclick="closeModal()">Закрыть</button>
+      <button class="btn" onclick="closeModal()">Закрыть</button>
     </div>
   `);
 }

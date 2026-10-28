@@ -435,7 +435,7 @@ function renderDashboard() {
       <div class="card"><h2>Быстрые переходы</h2>
         <div class="btn-row" style="margin:0">
           <button class="btn" onclick="showScreen('coach-calendar')">📅 Календарь тренера</button>
-          <button class="btn btn-red" onclick="showScreen('coach-report')">📊 Отчёт тренера</button>
+          <button class="btn" onclick="showScreen('coach-report')">📊 Отчёт тренера</button>
         </div>
       </div>`;
     return;
@@ -453,21 +453,21 @@ function renderDashboard() {
   const upcoming = collectNotifications().filter(i => i.type !== 'overdue').slice(0, 10);
 
   el.innerHTML = `
-    <div class="card" style="border-top-color:var(--ak-red)">
+    <div class="card">
       <h2>Быстрые переходы</h2>
       <div class="btn-row" style="margin:0">
         <button class="btn" onclick="showScreen('coach-calendar')">📅 Календарь тренера</button>
-        <button class="btn btn-red" onclick="showScreen('coach-report')">📊 Отчёт тренера</button>
-        <button class="btn btn-ghost" onclick="showScreen('report')">📄 Отчёт по игрокам</button>
+        <button class="btn" onclick="showScreen('coach-report')">📊 Отчёт тренера</button>
+        <button class="btn" onclick="showScreen('report')">📄 Отчёт по игрокам</button>
       </div>
     </div>
     <div class="dash-grid">
       <div class="kpi"><div class="lbl">Игроков</div><div class="val">${n}</div><div class="sub">в группе развития</div></div>
-      <div class="kpi red"><div class="lbl">Средняя общая</div><div class="val">${avgOverall}</div><div class="sub">из 10 баллов</div></div>
+      <div class="kpi"><div class="lbl">Средняя общая</div><div class="val">${avgOverall}</div><div class="sub">из 10 баллов</div></div>
       <div class="kpi"><div class="lbl">Техника</div><div class="val">${avgField('tehn')}</div><div class="sub">средняя по группе</div></div>
-      <div class="kpi red"><div class="lbl">Физика</div><div class="val">${avgField('fiz')}</div><div class="sub">средняя по группе</div></div>
+      <div class="kpi"><div class="lbl">Физика</div><div class="val">${avgField('fiz')}</div><div class="sub">средняя по группе</div></div>
       <div class="kpi"><div class="lbl">Тактика</div><div class="val">${avgField('takt')}</div><div class="sub">средняя по группе</div></div>
-      <div class="kpi red"><div class="lbl">Психология</div><div class="val">${avgField('psih')}</div><div class="sub">средняя по группе</div></div>
+      <div class="kpi"><div class="lbl">Психология</div><div class="val">${avgField('psih')}</div><div class="sub">средняя по группе</div></div>
     </div>
     <div class="card"><h2>Сравнение игроков</h2>
       <div style="position:relative;height:380px"><canvas id="dash-radar"></canvas></div></div>
@@ -485,7 +485,7 @@ function renderDashboard() {
         <td><strong style="color:var(--ak-green);font-family:var(--font-display)">${overallScore(p)}</strong></td></tr>`;
       }).join('')}
       </tbody></table></div></div>
-    <div class="card red-top"><h2>Ближайшие тренировки</h2>
+    <div class="card"><h2>Ближайшие тренировки</h2>
       ${upcoming.length ? upcoming.map(u => `<div class="upcoming" onclick="openPlayer('${u.pid}')">
         <div class="date">${formatDate(u.date)} · ${u.time}</div>
         <div class="what"><strong>${escapeHtml(u.ex || '')}</strong>${u.note ? ' · ' + escapeHtml(u.note) : ''}</div>
@@ -564,7 +564,7 @@ function openPlayerPinsModal() {
     const hasPin = !!p.accessPin;
     const pinCell = hasPin
       ? `<code style="font-family:monospace;letter-spacing:2px;font-size:15px;font-weight:900;color:var(--ak-green);padding:4px 10px;background:#f0f4f2;border-radius:4px;display:inline-block">${escapeHtml(p.accessPin)}</code>
-         <button class="btn btn-sm btn-ghost" onclick="regeneratePlayerPin('${p.id}', true)">Сбросить</button>`
+         <button class="btn btn-sm" onclick="regeneratePlayerPin('${p.id}', true)">Сбросить</button>`
       : `<span style="color:var(--ak-red);font-size:12px">— не задан —</span>
          <button class="btn btn-sm" onclick="regeneratePlayerPin('${p.id}', true)">Сгенерировать</button>`;
 
@@ -584,11 +584,11 @@ function openPlayerPinsModal() {
     <p class="subtitle" style="margin-top:-8px">4-значный код для входа в личный кабинет. Выдайте каждому игроку лично.</p>
     <div class="btn-row" style="margin:12px 0;flex-wrap:wrap">
       ${missing ? `<button class="btn" onclick="generatePinsForAll()">Сгенерировать всем (${missing} без PIN)</button>` : ''}
-      <button class="btn btn-ghost" onclick="exportPlayerPinsExcel()">📤 Экспорт в Excel</button>
+      <button class="btn" onclick="exportPlayerPinsExcel()">📤 Экспорт в Excel</button>
     </div>
     <div class="ms-list" style="max-height:60vh;overflow-y:auto">${rows || '<p class="subtitle">Нет игроков.</p>'}</div>
     <div class="btn-row" style="margin-top:16px">
-      <button class="btn-ghost btn" onclick="closeModal()">Закрыть</button>
+      <button class="btn" onclick="closeModal()">Закрыть</button>
     </div>
   `);
 }

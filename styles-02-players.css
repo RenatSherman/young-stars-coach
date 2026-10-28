@@ -30,7 +30,7 @@
   padding:16px;
   cursor:pointer;
   transition:.2s;
-  border-left:5px solid var(--ak-green);
+  border:1px solid var(--ak-gray-mid);
   display:flex;
   gap:14px;
   align-items:center;
@@ -39,7 +39,7 @@
 .player-tile:hover{
   box-shadow:var(--shadow-lg);
   transform:translateY(-2px);
-  border-left-color:var(--ak-red);
+  border-color:var(--ak-green);
 }
 .player-tile .tile-delete{
   position:absolute;
@@ -82,7 +82,7 @@
   color:var(--ak-green);
   overflow:hidden;
   flex-shrink:0;
-  border:3px solid var(--ak-green);
+  border:2px solid var(--ak-green);
   font-family:var(--font-display);
 }
 .player-avatar img{
@@ -139,17 +139,8 @@
   color:var(--ak-gray-dark);
   font-size:13px;
   overflow:hidden;
-  border:3px solid var(--ak-green);
+  border:2px solid var(--ak-gray-mid);
   position:relative;
-}
-.passport-photo::after{
-  content:'';
-  position:absolute;
-  bottom:-3px;
-  left:-3px;
-  right:-3px;
-  height:6px;
-  background:var(--ak-red);
 }
 .passport-photo img{
   width:100%;
@@ -186,7 +177,7 @@
   padding:10px 14px;
   background:var(--ak-gray-light);
   border-radius:6px;
-  border-left:3px solid var(--ak-green);
+  border-left:3px solid transparent;
 }
 .score-item .lbl{
   font-weight:900;
@@ -207,7 +198,7 @@
 .score-item .bar span{
   display:block;
   height:100%;
-  background:linear-gradient(90deg,var(--ak-green),var(--ak-red));
+  background:var(--ak-green);
   border-radius:4px;
 }
 .score-item .val{
@@ -237,23 +228,15 @@
   border-radius:6px;
   padding:18px;
   box-shadow:var(--shadow);
-  border-left:5px solid var(--ak-green);
+  border:1px solid var(--ak-gray-mid);
   position:relative;
   overflow:hidden;
 }
-.kpi.red{border-left-color:var(--ak-red)}
-.kpi::after{
-  content:'1956';
-  position:absolute;
-  right:10px;
-  bottom:6px;
-  font-family:var(--font-display);
-  font-weight:900;
-  font-size:32px;
-  color:rgba(21,71,52,.05);
-  letter-spacing:-1px;
-}
-.kpi.red::after{color:rgba(200,16,46,.05)}
+.kpi.red{border-color:var(--ak-gray-mid)}
+
+/* Убрали водяной знак 1956 */
+.kpi::after{ content: none; }
+
 .kpi .lbl{
   font-size:10px;
   text-transform:uppercase;
@@ -282,7 +265,7 @@
   padding:14px 16px;
   box-shadow:var(--shadow);
   margin-bottom:8px;
-  border-left:5px solid var(--ak-red);
+  border:1px solid var(--ak-gray-mid);
   display:flex;
   justify-content:space-between;
   align-items:center;
@@ -290,10 +273,13 @@
   cursor:pointer;
   transition:.15s;
 }
-.upcoming:hover{transform:translateX(4px)}
+.upcoming:hover{
+  transform:translateX(4px);
+  border-color:var(--ak-green);
+}
 .upcoming .date{
   font-weight:900;
-  color:var(--ak-red);
+  color:var(--ak-green);
   font-size:12px;
   min-width:100px;
   font-family:var(--font-display);
@@ -303,7 +289,7 @@
 .upcoming .what{flex:1;font-size:13px}
 .upcoming .who{
   font-weight:900;
-  color:var(--ak-green);
+  color:var(--ak-gray-dark);
   font-size:11px;
   font-family:var(--font-display);
   text-transform:uppercase;
@@ -312,7 +298,7 @@
 
 /* ===== ОТЧЁТ ПО ИГРОКАМ ===== */
 .report-player{
-  border-left:5px solid var(--ak-green);
+  border:1px solid var(--ak-gray-mid);
   background:#fff;
   border-radius:6px;
   padding:14px 16px;
@@ -334,7 +320,7 @@
 }
 .report-summary .badge{
   background:var(--ak-gray-light);
-  border-left:4px solid var(--ak-green);
+  border-left:4px solid transparent;
   border-radius:4px;
   padding:6px 12px;
   font-size:12px;
@@ -368,7 +354,7 @@
 .report-progress span{
   display:block;
   height:100%;
-  background:linear-gradient(90deg,var(--ak-green),var(--ak-red));
+  background:var(--ak-green);
   border-radius:6px;
   transition:width .3s;
 }
@@ -379,13 +365,14 @@
   font-size:12px;
 }
 .report-table th{
-  background:var(--ak-green);
-  color:#fff;
+  background:var(--ak-gray-light);
+  color:var(--ak-green);
   padding:6px 8px;
   text-align:left;
   font-size:10px;
   text-transform:uppercase;
   letter-spacing:.5px;
+  border-bottom:2px solid var(--ak-gray-mid);
 }
 .report-table td{
   padding:6px 8px;
@@ -428,7 +415,7 @@
   max-height:600px;
   overflow:hidden;
   display:none;
-  border-top:5px solid var(--ak-red);
+  border:1px solid var(--ak-gray-mid);
 }
 .notif-panel.active{display:block}
 
@@ -462,7 +449,7 @@
   padding:10px 12px;
   border-radius:4px;
   margin-bottom:8px;
-  border-left:4px solid var(--ak-green);
+  border-left:4px solid transparent;
   background:var(--ak-gray-light);
   cursor:pointer;
   transition:.15s;

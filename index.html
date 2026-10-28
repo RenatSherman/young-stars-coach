@@ -45,7 +45,7 @@
       <div id="player-auth-step-fio">
         <p style="font-size:12px;color:#5a6169;margin-bottom:12px;text-align:center;">Введите вашу фамилию для входа в личный кабинет</p>
         <div class="auth-field"><label>Фамилия</label><input type="text" id="player-login-fio" placeholder="Например: Зарипов" onkeypress="if(event.key==='Enter')playerAuthStepFio()"></div>
-        <button class="btn btn-block btn-red" onclick="playerAuthStepFio()">Далее</button>
+        <button class="btn btn-block" onclick="playerAuthStepFio()">Далее</button>
       </div>
       <div id="player-auth-step-select" style="display:none"></div>
       <div id="player-auth-step-pin" style="display:none"></div>
@@ -61,7 +61,7 @@
 <!-- ШАПКА -->
 <header>
   <div class="logo" onclick="goHome()" title="К списку игроков">
-    <div>АК БАРС<small>Система развития · 1956</small></div>
+    <div>АК БАРС<small>Система развития</small></div>
   </div>
 
   <button class="burger" id="burger-btn" onclick="toggleMobileNav(event)" aria-label="Меню">☰</button>
@@ -110,8 +110,8 @@
     <div class="flex-between">
       <div><h1>Игроки</h1><p class="subtitle">Группа развития · Академия «Ак Барс»</p></div>
       <div class="btn-row" style="margin:0">
-        <button class="btn btn-ghost" onclick="openPlayerPinsModal()">🔑 PIN-коды</button>
-        <button class="btn btn-ghost" onclick="importPlayerFromExcel()">📥 Игрок из Excel</button>
+        <button class="btn" onclick="openPlayerPinsModal()">🔑 PIN-коды</button>
+        <button class="btn" onclick="importPlayerFromExcel()">📥 Игрок из Excel</button>
         <button class="btn" onclick="addPlayer()">+ Добавить игрока</button>
       </div>
     </div>
@@ -120,10 +120,10 @@
 
   <section id="screen-player" class="screen">
     <div class="btn-row no-print" id="player-actions">
-      <button class="btn-ghost btn" onclick="showScreen('players')" id="btn-back-to-list">← К списку</button>
-      <button class="btn btn-red" onclick="exportPlayerToPDF(currentPlayerId)" id="btn-pdf-full">📄 Экспорт в PDF (полный)</button>
-      <button class="btn btn-ghost" onclick="exportPlayerToShortPDF(currentPlayerId)" id="btn-pdf-short">📄 PDF (без тех/тестов/характеристики)</button>
-      <button class="btn btn-ghost" onclick="exportPlayerToExcel(currentPlayerId)" id="btn-excel">📤 Excel</button>
+      <button class="btn" onclick="showScreen('players')" id="btn-back-to-list">← К списку</button>
+      <button class="btn" onclick="exportPlayerToPDF(currentPlayerId)" id="btn-pdf-full">📄 Экспорт в PDF (полный)</button>
+      <button class="btn" onclick="exportPlayerToShortPDF(currentPlayerId)" id="btn-pdf-short">📄 PDF (без тех/тестов/характеристики)</button>
+      <button class="btn" onclick="exportPlayerToExcel(currentPlayerId)" id="btn-excel">📤 Excel</button>
       <button class="btn btn-danger" onclick="confirmDeletePlayer(currentPlayerId)" id="btn-delete-player" style="margin-left:auto">🗑 Удалить игрока</button>
     </div>
     <div id="player-card"></div>
@@ -136,7 +136,7 @@
         <p class="subtitle">Выполнение плана по каждому игроку и общий процент по группе</p>
       </div>
       <div class="btn-row" style="margin:0">
-        <button class="btn btn-red" onclick="exportReportToPDF()">📄 Экспорт отчёта в PDF</button>
+        <button class="btn" onclick="exportReportToPDF()">📄 Экспорт отчёта в PDF</button>
       </div>
     </div>
     <div class="card no-print">
@@ -159,8 +159,8 @@
         <p class="subtitle">Нажмите на блок, чтобы раскрыть список упражнений</p>
       </div>
       <div class="btn-row" style="margin:0">
-        <button class="btn btn-ghost" onclick="toggleAllAccordions()" id="toggle-all-btn">Развернуть все</button>
-        <button class="btn btn-ghost" onclick="addParent()">+ Большая группа</button>
+        <button class="btn" onclick="toggleAllAccordions()" id="toggle-all-btn">Развернуть все</button>
+        <button class="btn" onclick="addParent()">+ Большая группа</button>
       </div>
     </div>
     <div id="exercises-list"></div>
@@ -177,7 +177,7 @@
       </p>
       <div class="btn-row" style="margin:0">
         <button class="btn" onclick="openCreateSeasonModal()">+ Создать новый сезон</button>
-        <button class="btn btn-ghost" onclick="openManageSeasonsModal()">⚙ Управление сезонами</button>
+        <button class="btn" onclick="openManageSeasonsModal()">⚙ Управление сезонами</button>
       </div>
     </div>
 
@@ -188,8 +188,8 @@
       </p>
       <div class="btn-row" style="margin:0">
         <button class="btn" onclick="manualSync()">🔄 Синхронизировать сейчас</button>
-        <button class="btn btn-ghost" onclick="forceUpload()">⬆ Загрузить в облако</button>
-        <button class="btn btn-ghost" onclick="forceDownload()">⬇ Скачать из облака</button>
+        <button class="btn" onclick="forceUpload()">⬆ Загрузить в облако</button>
+        <button class="btn" onclick="forceDownload()">⬇ Скачать из облака</button>
       </div>
     </div>
 
@@ -199,7 +199,7 @@
         Загрузите файл <code>.xlsx</code>. Поддерживаются исходные файлы с листами «Карточка», «Тех», «Физ, такт, псих», так и шаблоны «Паспорт», «Техника», «ФизТактПсих».
       </p>
       <div class="btn-row" style="margin:0">
-        <button class="btn btn-ghost" onclick="downloadTemplateExcel()">📄 Скачать шаблон</button>
+        <button class="btn" onclick="downloadTemplateExcel()">📄 Скачать шаблон</button>
         <button class="btn" onclick="importPlayerFromExcel()">📥 Импорт игрока из Excel</button>
       </div>
     </div>
@@ -209,10 +209,10 @@
       <button class="btn" onclick="exportData()">💾 Экспорт в JSON</button>
     </div>
 
-    <div class="card red-top"><h3>Импорт JSON</h3>
+    <div class="card"><h3>Импорт JSON</h3>
       <p style="margin-bottom:12px;color:var(--ak-gray-dark);font-size:13px">Загрузите JSON. Текущие данные будут заменены и выгружены в облако.</p>
       <input type="file" id="import-file" accept=".json" style="margin-bottom:12px">
-      <button class="btn btn-red" onclick="importData()">📂 Импорт из JSON</button>
+      <button class="btn" onclick="importData()">📂 Импорт из JSON</button>
     </div>
 
     <div class="card"><h3>Массовый импорт игроков из CSV</h3>

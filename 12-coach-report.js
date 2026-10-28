@@ -125,7 +125,7 @@ function renderCoachReport() {
       <select id="cr-month" onchange="onCoachReportMonthChange(this.value)">
         ${months.map(m => `<option value="${m}" ${m === coachReportMonth ? 'selected' : ''}>${getMonthLabel(m)}</option>`).join('')}
       </select>
-      <button class="btn btn-red" onclick="exportCoachReportToPDF()">📄 Экспорт в PDF</button>
+      <button class="btn" onclick="exportCoachReportToPDF()">📄 Экспорт в PDF</button>
     </div>
     <div id="cr-body"></div>
   `;
@@ -144,11 +144,11 @@ function renderCoachReportBody() {
   const kpiHtml = `
     <div class="dash-grid">
       <div class="kpi"><div class="lbl">Всего блоков</div><div class="val">${stats.totalBlocks}</div><div class="sub">за ${monthLabel.toLowerCase()}</div></div>
-      <div class="kpi red"><div class="lbl">% выполнения</div><div class="val">${stats.overall}%</div><div class="sub">по всем блокам</div></div>
+      <div class="kpi"><div class="lbl">% выполнения</div><div class="val">${stats.overall}%</div><div class="sub">по всем блокам</div></div>
       <div class="kpi"><div class="lbl">Выполнено</div><div class="val" style="color:#1e7a3f">${stats.byFact['done'] || 0}</div><div class="sub">блоков</div></div>
-      <div class="kpi red"><div class="lbl">Частично</div><div class="val" style="color:#b8860b">${stats.byFact['partial'] || 0}</div><div class="sub">блоков</div></div>
+      <div class="kpi"><div class="lbl">Частично</div><div class="val" style="color:#b8860b">${stats.byFact['partial'] || 0}</div><div class="sub">блоков</div></div>
       <div class="kpi"><div class="lbl">Не выполнено</div><div class="val" style="color:var(--ak-red)">${stats.byFact['notdone'] || 0}</div><div class="sub">блоков</div></div>
-      <div class="kpi red"><div class="lbl">Среднее в день</div><div class="val">${(stats.totalBlocks / stats.daysInMonth).toFixed(1)}</div><div class="sub">блоков в день</div></div>
+      <div class="kpi"><div class="lbl">Среднее в день</div><div class="val">${(stats.totalBlocks / stats.daysInMonth).toFixed(1)}</div><div class="sub">блоков в день</div></div>
     </div>
   `;
 
@@ -186,8 +186,8 @@ function renderCompletionMatrix(stats) {
       <table class="cr-matrix">
         <thead>
           <tr>
-            <th style="min-width:150px; position:sticky; left:0; z-index:2; background:var(--ak-green);">Игрок</th>
-            ${days.map(d => `<th style="text-align:center; width:26px; padding:4px; background:${d.dow>=5?'#2a2a2a':'var(--ak-green)'};">${d.d}</th>`).join('')}
+            <th style="min-width:150px; position:sticky; left:0; z-index:2; background:var(--ak-gray-light); color:var(--ak-green);">Игрок</th>
+            ${days.map(d => `<th style="text-align:center; width:26px; padding:4px; background:${d.dow>=5?'var(--ak-gray-mid)':'var(--ak-gray-light)'};">${d.d}</th>`).join('')}
           </tr>
         </thead>
         <tbody>
@@ -273,8 +273,8 @@ async function exportCoachReportToPDF() {
   await new Promise(r => setTimeout(r, 200));
   const stage = document.getElementById('pdf-stage');
   stage.innerHTML = `
-    <div style="border-top:6px solid #C8102E;padding-top:10px;margin-bottom:14px">
-      <div style="font-size:18px;font-weight:900;color:#154734;letter-spacing:1px;text-transform:uppercase">АК БАРС · Отчёт тренера</div>
+    <div style="border-top:6px solid var(--ak-green);padding-top:10px;margin-bottom:14px">
+      <div style="font-size:18px;font-weight:900;color:var(--ak-green);letter-spacing:1px;text-transform:uppercase">АК БАРС · Отчёт тренера</div>
       <div style="font-size:11px;color:#5a6169;margin-top:4px">Месяц: ${getMonthLabel(coachReportMonth)} · Сформировано: ${new Date().toLocaleString('ru-RU')}</div>
     </div>
     <div id="cr-print-body"></div>`;

@@ -75,7 +75,7 @@ function renderPlayerCalendarContentInner(el, p, months, currentMonth, year, mon
         <div class="cc-month-title">${MONTH_NAMES_RU[month - 1]} ${year}</div>
         <button class="cc-nav-btn" onclick="playerCalShiftMonth('${p.id}', 1)">›</button>
       </div>
-      <button class="btn btn-sm btn-ghost" onclick="playerCalGoToday('${p.id}')">Текущий месяц</button>
+      <button class="btn btn-sm" onclick="playerCalGoToday('${p.id}')">Текущий месяц</button>
       <select class="player-cal-month-select" onchange="onPlayerCalMonthChange('${p.id}', this.value)">
         ${selectMonths.map(m => `<option value="${m}" ${m === playerCalMonth ? 'selected' : ''}>${monthLabelFromKeyLocal(m)}</option>`).join('')}
       </select>
@@ -258,7 +258,7 @@ function openPlayerDaySessions(pid, ds) {
     openModal(`<h3>${escapeHtml(title)}</h3>
       <p class="subtitle" style="text-align:center;padding:20px 0">На этот день блоков нет.</p>
       <div class="btn-row" style="margin-top:16px">
-        <button class="btn-ghost btn" onclick="closeModal()">Закрыть</button>
+        <button class="btn" onclick="closeModal()">Закрыть</button>
       </div>`);
     return;
   }
@@ -323,7 +323,7 @@ function openPlayerDaySessions(pid, ds) {
     <div class="pde-list">${rowsHtml}</div>
     <div class="btn-row" style="margin-top:16px">
       ${hasEditableBlocks ? `<button class="btn" onclick="savePlayerDayFact()">Сохранить факт</button>` : ''}
-      <button class="btn-ghost btn" onclick="closeModal()">Закрыть</button>
+      <button class="btn" onclick="closeModal()">Закрыть</button>
     </div>`);
 }
 

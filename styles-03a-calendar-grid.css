@@ -16,7 +16,6 @@
    ============================================================ */
 .cc-toolbar-card{
   padding:14px 18px;
-  border-top-color:var(--ak-red);
   margin-bottom:12px;
 }
 .cc-toolbar{
@@ -42,7 +41,7 @@
   transition:.15s;
   line-height:1;
 }
-.cc-nav-btn:hover{background:var(--ak-green);color:#fff;border-color:var(--ak-green)}
+.cc-nav-btn:hover{background:var(--ak-gray-light);border-color:var(--ak-green)}
 .cc-month-title{
   font-family:var(--font-display);
   font-size:16px;
@@ -77,8 +76,8 @@
   margin-bottom:2px;
 }
 .cc-dow-head{
-  background:#000;
-  color:#fff;
+  background:var(--ak-gray-light);
+  color:var(--ak-green);
   padding:10px 4px;
   text-align:center;
   font-family:var(--font-display);
@@ -90,7 +89,7 @@
   white-space:nowrap;
   overflow:hidden;
 }
-.cc-dow-head.weekend{background:#2a2a2a}
+.cc-dow-head.weekend{background:var(--ak-gray-mid)}
 .cc-month-grid{
   display:grid;
   grid-template-columns:repeat(7,minmax(0,1fr));
@@ -111,11 +110,11 @@
   position:relative;
   overflow:hidden;
 }
-.cc-day:hover{background:#f7f9f8;border-color:var(--ak-green)}
+.cc-day:hover{background:var(--ak-gray-light);border-color:var(--ak-green)}
 .cc-day.other-month{background:#fafbfb;color:var(--ak-gray);opacity:.55}
 .cc-day.weekend{background:#fcfcfd}
 .cc-day.today{
-  outline:2px solid var(--ak-red);
+  outline:2px solid var(--ak-green);
   outline-offset:-2px;
   z-index:1;
 }
@@ -135,7 +134,7 @@
 }
 .cc-day.other-month .cc-day-num{color:var(--ak-gray-dark)}
 .cc-day-num.today-badge{
-  background:var(--ak-red);
+  background:var(--ak-green);
   color:#fff;
   width:24px;
   height:24px;
@@ -147,8 +146,9 @@
   margin:-2px;
 }
 .cc-day-total{
-  background:var(--ak-green);
-  color:#fff;
+  background:var(--ak-gray-light);
+  color:var(--ak-green);
+  border:1px solid var(--ak-gray-mid);
   font-size:9px;
   font-weight:900;
   padding:1px 6px;
@@ -201,7 +201,7 @@
   padding:10px 14px;
   background:var(--ak-gray-light);
   border-radius:6px;
-  border-left:4px solid var(--ak-red);
+  border:1px solid var(--ak-gray-mid);
 }
 .player-cal-month-select{
   padding:9px 12px;

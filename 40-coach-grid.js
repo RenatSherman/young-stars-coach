@@ -22,7 +22,7 @@ function renderCoachCalendar() {
           <div class="cc-month-title">${MONTH_NAMES_RU[month - 1]} ${year}</div>
           <button class="cc-nav-btn" onclick="coachCalShiftMonth(1)" title="Следующий месяц">›</button>
         </div>
-        <button class="btn btn-sm btn-ghost" onclick="coachCalToday()">Текущий месяц</button>
+        <button class="btn btn-sm" onclick="coachCalToday()">Текущий месяц</button>
         <button class="btn btn-sm" onclick="openNewSessionForDate(localDateStr(new Date()))">+ Добавить</button>
         <div class="cc-legend">
           <span><span class="cc-dot cc-dot-self"></span> Самостоятельная</span>

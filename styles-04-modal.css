@@ -24,7 +24,7 @@
   max-height:88vh;
   overflow:auto;
   box-shadow:var(--shadow-lg);
-  border-top:5px solid var(--ak-red);
+  border-top:5px solid var(--ak-green);
 }
 
 .modal h3{
@@ -66,7 +66,7 @@
   margin-top: -6px;
 }
 .modal-close-x:hover {
-  color: var(--ak-red);
+  color: var(--ak-green);
 }
 
 /* ============================================================
@@ -100,14 +100,14 @@
   height:18px;
   min-width:18px;
   margin:2px 0 0 0;
-  accent-color:var(--ak-red);
+  accent-color:var(--ak-green);
   cursor:pointer;
   flex-shrink:0;
 }
 .ui-choice-row:has(input[type=radio]:checked){
   background:#fff;
-  border-color:var(--ak-red);
-  box-shadow:0 0 0 3px rgba(200,16,46,.08);
+  border-color:var(--ak-green);
+  box-shadow:0 0 0 3px rgba(21,71,52,.08);
 }
 
 .ui-choice-text{
@@ -124,7 +124,7 @@
   line-height:1.3;
 }
 .ui-choice-row:has(input[type=radio]:checked) .ui-choice-label{
-  color:var(--ak-red);
+  color:var(--ak-green);
   font-weight:900;
 }
 .ui-choice-hint{
@@ -203,7 +203,7 @@
   border-radius:4px;
   overflow:hidden;
   background:#fff;
-  border-left:3px solid var(--ak-green);
+  border:1px solid var(--ak-gray-mid);
 }
 .group-team-head{
   display:flex;
@@ -223,20 +223,21 @@
 .group-team-head:hover{background:var(--ak-gray-mid)}
 .group-team-head .arrow{
   font-size:10px;
-  color:var(--ak-red);
+  color:var(--ak-gray-dark);
   transition:transform .2s;
   display:inline-block;
 }
-.group-team.open .group-team-head .arrow{transform:rotate(90deg)}
+.group-team.open .group-team-head .arrow{transform:rotate(90deg); color:var(--ak-green)}
 .group-team-head .count{
   font-size:10px;
   font-weight:900;
   padding:1px 8px;
   border-radius:20px;
-  background:var(--ak-green);
-  color:#fff;
+  background:var(--ak-gray-mid);
+  color:var(--ak-gray-dark);
   margin-left:auto;
 }
+.group-team.open .group-team-head .count{background:var(--ak-green); color:#fff;}
 .group-team-body{
   display:none;
   padding:4px 8px 6px 8px;
@@ -254,12 +255,9 @@
 .group-team-body label:hover{background:var(--ak-gray-light)}
 .group-team-body input[type=checkbox]{width:auto;margin:0}
 
-/* 
- * Вложенные подгруппы (команды) 
- * Убираем лишние отступы и делаем их визуально отличными
- */
+/* Вложенные подгруппы (команды) */
 .group-team-body .group-team {
-  border-left: 3px solid var(--ak-red);
+  border: 1px solid var(--ak-gray-mid);
   margin-bottom: 4px;
 }
 .group-team-body .group-team-head {
@@ -277,7 +275,7 @@
   position:fixed;
   inset:0;
   z-index:5000;
-  background:linear-gradient(135deg,var(--ak-green) 0%,var(--ak-green-dark) 100%);
+  background:var(--ak-green-dark);
   align-items:center;
   justify-content:center;
   padding:20px;
@@ -285,13 +283,7 @@
 }
 #auth-screen.active{display:flex}
 #auth-screen::before{
-  content:'';
-  position:absolute;
-  inset:0;
-  background-image:
-    repeating-linear-gradient(90deg,transparent 0 40px,rgba(200,16,46,.08) 40px 42px),
-    repeating-linear-gradient(0deg,transparent 0 40px,rgba(200,16,46,.05) 40px 42px);
-  pointer-events:none;
+  display:none; /* Убрали красную сетку на фоне */
 }
 
 .auth-card{
@@ -300,9 +292,9 @@
   padding:40px 36px;
   max-width:420px;
   width:100%;
-  box-shadow:0 24px 64px rgba(0,0,0,.4);
+  box-shadow:var(--shadow-lg);
   position:relative;
-  border-top:6px solid var(--ak-red);
+  border-top:6px solid var(--ak-green);
   z-index:1;
 }
 
@@ -338,7 +330,7 @@
 .auth-tabs{
   display:flex;
   gap:0;
-  border-bottom:3px solid var(--ak-green);
+  border-bottom:2px solid var(--ak-gray-mid);
   margin-bottom:24px;
 }
 .auth-tabs button{
@@ -351,16 +343,16 @@
   font-weight:900;
   color:var(--ak-gray-dark);
   border-bottom:3px solid transparent;
-  margin-bottom:-3px;
+  margin-bottom:-2px;
   font-family:var(--font-display);
   letter-spacing:.5px;
   text-transform:uppercase;
   transition:.15s;
 }
 .auth-tabs button.active{
-  color:#fff;
-  background:var(--ak-red);
-  border-bottom-color:var(--ak-red);
+  color:var(--ak-green);
+  background:transparent;
+  border-bottom-color:var(--ak-green);
 }
 
 .auth-field{margin-bottom:16px}
@@ -425,7 +417,7 @@
   width:32px;
   height:32px;
   border:3px solid var(--ak-gray-mid);
-  border-top-color:var(--ak-red);
+  border-top-color:var(--ak-green);
   border-radius:50%;
   animation:spin 1s linear infinite;
   margin:0 auto 10px;
