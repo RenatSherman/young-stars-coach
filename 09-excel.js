@@ -3,9 +3,6 @@
    Excel (экспорт игрока, шаблон, импорт), JSON (экспорт/импорт),
    CSV (массовый импорт), очистка данных.
    Загружается после 08-pdf.js.
-
-   В файле лист «ФизТактПсих» имеет заголовки «Начало / Середина / Конец»,
-   но данные в объекте игрока хранятся в start/plan/fact.
    ============================================================ */
 
 /* ===== Экспорт одного игрока в Excel ===== */
@@ -110,6 +107,10 @@ function importPlayerFromExcel() {
 
         const finishImport = () => {
           DB.players.push(parsed);
+          if (DB.seasons && currentSeason && DB.seasons[currentSeason]) {
+            DB.seasons[currentSeason].players = DB.players;
+          }
+          touchMeta('players');
           saveDB();
 
           const report = [
@@ -396,7 +397,9 @@ function importData() {
         if (typeof __ensurePlayerPin === 'function') __ensurePlayerPin(p);
         if (!Array.isArray(p.developmentPlans)) p.developmentPlans = [];
       });
-
+      if (typeof ensureSeasonState === 'function') ensureSeasonState();
+      
+      touchMeta('players');
       saveDB();
       pushToCloud();
       uiAlert('Импорт завершён', () => {
@@ -449,6 +452,10 @@ function importCSVFile() {
         added++;
       }
 
+      if (DB.seasons && currentSeason && DB.seasons[currentSeason]) {
+        DB.seasons[currentSeason].players = DB.players;
+      }
+      touchMeta('players');
       saveDB();
       uiAlert(`Добавлено игроков: ${added}.\nНе забудьте раздать PIN'ы через раздел «PIN-коды».`, () => {
         renderPlayers();

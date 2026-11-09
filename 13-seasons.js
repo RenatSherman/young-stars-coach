@@ -1,12 +1,6 @@
 /* ============================================================
    13-seasons.js
    Ядро системы сезонов + UI.
-
-   Приоритет currentSeason: localStorage > облако > календарь.
-   switchSeason() сохраняет выбор в localStorage.
-   В режиме игрока (isPlayerMode) — все операции редактирования
-   сезонов заблокированы, switchSeason переключает только
-   его собственный календарь/тесты.
    ============================================================ */
 
 /* ============================================================
@@ -92,7 +86,6 @@ function switchSeason(key) {
       currentTab = 'calendar';
     }
 
-    // Не вызываем saveDB (это триггерит push в облако) — только локально.
     if (typeof saveDBNow === 'function') saveDBNow();
 
     updateSeasonSelector();
@@ -101,7 +94,6 @@ function switchSeason(key) {
     showScreen('player');
 
     if (found) {
-      // renderPlayerCard вызовется из showScreen (см. 04-ui.js)
       toast('Сезон: ' + formatSeasonLabel(key));
     } else {
       setTimeout(() => {
@@ -174,6 +166,11 @@ function createSeason(opts) {
 }
 
 function copyPlayerForNewSeason(p, copy) {
+  // При копировании берём структуру навыков у игрока (она актуальна для его сезона).
+  // Если навыков нет, берём глобальную или дефолтную.
+  let techStructure = Array.isArray(p.techDetail) && p.techDetail.length ? p.techDetail : (DB.techStructure || defaultTechDetail());
+  let otherStructure = Array.isArray(p.otherDetail) && p.otherDetail.length ? p.otherDetail : (DB.otherStructure || defaultOtherDetail());
+
   const np = {
     id: uid('p'),
     fio: p.fio || '',
@@ -187,13 +184,9 @@ function copyPlayerForNewSeason(p, copy) {
     firstSchool: p.firstSchool || '',
     position: p.position || 'Нападающий',
     grip: p.grip || 'Правый',
-
     photo: copy && copy.photo ? (p.photo || '') : '',
     characteristic: copy && copy.characteristic ? (p.characteristic || '') : '',
-
-    techDetail: defaultTechDetail(),
-    otherDetail: defaultOtherDetail(),
-
+    accessPin: p.accessPin || '', // Сохраняем PIN (он привязан к человеку, не к сезону)
     stats: [],
     tests: [],
     calendar: {},
@@ -201,26 +194,27 @@ function copyPlayerForNewSeason(p, copy) {
     plans: {}
   };
 
-  if (copy && copy.tech && Array.isArray(p.techDetail)) {
-    np.techDetail = p.techDetail.map(r => ({
+  if (copy && copy.tech) {
+    np.techDetail = techStructure.map(r => ({
       group: r.group || '', sub: r.sub || '', name: r.name || '',
       start: null, mid: null, end: null
     }));
+  } else {
+    np.techDetail = defaultTechDetail();
+    np.techDetail.forEach(r => { r.start = null; r.mid = null; r.end = null; });
   }
-  if (copy && copy.other && Array.isArray(p.otherDetail)) {
-    np.otherDetail = p.otherDetail.map(r => ({
+
+  if (copy && copy.other) {
+    np.otherDetail = otherStructure.map(r => ({
       group: r.group || '', sub: r.sub || '', name: r.name || '',
       start: null, plan: null, fact: null
     }));
+  } else {
+    np.otherDetail = defaultOtherDetail();
+    np.otherDetail.forEach(r => { r.start = null; r.plan = null; r.fact = null; });
   }
 
   return np;
-}
-
-function deepClone(obj) {
-  if (obj == null) return obj;
-  try { return JSON.parse(JSON.stringify(obj)); }
-  catch (e) { console.warn('deepClone error', e); return obj; }
 }
 
 /* ============================================================
@@ -366,7 +360,6 @@ function updateArchiveBadge() {
     return;
   }
 
-  // Игрок: только просмотр, без кнопки разблокировки.
   if (isPlayerMode) {
     el.style.display = 'flex';
     el.className = 'archive-badge';
@@ -422,8 +415,8 @@ function openCreateSeasonModal() {
     copy: {
       photo: true,
       characteristic: true,
-      tech: false,
-      other: false
+      tech: true,  // По умолчанию копируем структуру
+      other: true
     }
   };
 

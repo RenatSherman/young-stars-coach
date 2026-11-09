@@ -17,7 +17,7 @@ function renderSkillsTab(p) {
         <p class="subtitle" style="margin:0">Оценки по разделам. Нажмите на раздел, чтобы раскрыть.</p>
       </div>
       <div class="btn-row no-print" style="margin:0">
-        <button class="btn btn-sm btn-ghost" id="skills-toggle-all-btn" onclick="toggleAllSkillsAccordions('${p.id}')">Развернуть все</button>
+        <button class="btn btn-sm" id="skills-toggle-all-btn" onclick="toggleAllSkillsAccordions('${p.id}')">Развернуть все</button>
       </div>
     </div>
     <div id="skills-content"></div>
@@ -162,8 +162,9 @@ function renderGroupedTechTable(rows, pid, subName) {
       <td><input class="cell sk-cell" type="number" min="1" max="10" value="${r.start ?? ''}" onchange="updateTech('${pid}',${globalIdx},'start',this.value)"></td>
       <td><input class="cell sk-cell" type="number" min="1" max="10" value="${r.mid ?? ''}" onchange="updateTech('${pid}',${globalIdx},'mid',this.value)"></td>
       <td><input class="cell sk-cell" type="number" min="1" max="10" value="${r.end ?? ''}" onchange="updateTech('${pid}',${globalIdx},'end',this.value)"></td>
-      <td class="no-print" style="text-align:center;">
+      <td class="no-print" style="text-align:center;white-space:nowrap;">
         <button type="button" class="btn-icon" title="Редактировать" onclick="editTechName('${pid}',${globalIdx})">✎</button>
+        <button type="button" class="btn-icon red" title="Удалить" onclick="deleteTechCriterion('${pid}', '${globalIdx}')">🗑</button>
       </td>
     </tr>`;
   }).join('');
@@ -177,7 +178,7 @@ function renderGroupedTechTable(rows, pid, subName) {
           <th style="width:84px">Начало</th>
           <th style="width:84px">Середина</th>
           <th style="width:84px">Конец</th>
-          <th style="width:40px" class="no-print"></th>
+          <th style="width:60px" class="no-print"></th>
         </tr>
       </thead>
       <tbody>${html}</tbody>
@@ -205,8 +206,9 @@ function renderFlatTable(rows, pid, kind) {
       <td><input class="cell sk-cell" type="number" min="1" max="10" value="${r.start ?? ''}" onchange="updateOther('${pid}',${globalIdx},'start',this.value)"></td>
       <td><input class="cell sk-cell" type="number" min="1" max="10" value="${r.plan ?? ''}" onchange="updateOther('${pid}',${globalIdx},'plan',this.value)"></td>
       <td><input class="cell sk-cell" type="number" min="1" max="10" value="${r.fact ?? ''}" onchange="updateOther('${pid}',${globalIdx},'fact',this.value)"></td>
-      <td class="no-print" style="text-align:center;">
+      <td class="no-print" style="text-align:center;white-space:nowrap;">
         <button type="button" class="btn-icon" title="Редактировать" onclick="editOtherRow('${pid}',${globalIdx})">✎</button>
+        <button type="button" class="btn-icon red" title="Удалить" onclick="deleteOtherCriterion('${pid}', '${globalIdx}')">🗑</button>
       </td>
     </tr>`;
   }).join('');
@@ -220,7 +222,7 @@ function renderFlatTable(rows, pid, kind) {
           <th style="width:84px">Начало</th>
           <th style="width:84px">Середина</th>
           <th style="width:84px">Конец</th>
-          <th style="width:40px" class="no-print"></th>
+          <th style="width:60px" class="no-print"></th>
         </tr>
       </thead>
       <tbody>${html}</tbody>
@@ -292,20 +294,90 @@ function updateSkillsToggleAllBtn(p) {
 }
 
 /* ============================================================
+   Удаление критериев (ТОЛЬКО В ТЕКУЩЕМ СЕЗОНЕ)
+   ============================================================ */
+
+function deleteTechCriterion(pid, idx) {
+  const p = DB.players.find(x => x.id === pid);
+  if (!p || !p.techDetail || !p.techDetail[idx]) return;
+  const r = p.techDetail[idx];
+
+  uiConfirm(
+    `Удалить навык «${r.name}»?\n\nВНИМАНИЕ: Навык и все оценки по нему будут удалены у ВСЕХ игроков ТЕКУЩЕГО СЕЗОНА. В архивных сезонах данные сохранятся.`,
+    () => {
+      let affected = 0;
+      DB.players.forEach(player => {
+        if (!Array.isArray(player.techDetail)) return;
+        const initialLen = player.techDetail.length;
+        player.techDetail = player.techDetail.filter(item => !(item.sub === r.sub && item.name === r.name));
+        if (player.techDetail.length < initialLen) affected++;
+      });
+
+      if (affected > 0) {
+        touchMeta('players');
+        saveDB();
+        renderPlayerCard(p);
+        toast(`Навык удалён в текущем сезоне (затронуто игроков: ${affected})`);
+      }
+    },
+    () => {}
+  );
+}
+
+function deleteOtherCriterion(pid, idx) {
+  const p = DB.players.find(x => x.id === pid);
+  if (!p || !p.otherDetail || !p.otherDetail[idx]) return;
+  const r = p.otherDetail[idx];
+
+  uiConfirm(
+    `Удалить критерий «${r.name}»?\n\nВНИМАНИЕ: Критерий и все оценки по нему будут удалены у ВСЕХ игроков ТЕКУЩЕГО СЕЗОНА. В архивных сезонах данные сохранятся.`,
+    () => {
+      let affected = 0;
+      DB.players.forEach(player => {
+        if (!Array.isArray(player.otherDetail)) return;
+        const initialLen = player.otherDetail.length;
+        player.otherDetail = player.otherDetail.filter(item => !(item.group === r.group && item.name === r.name));
+        if (player.otherDetail.length < initialLen) affected++;
+      });
+
+      if (affected > 0) {
+        touchMeta('players');
+        saveDB();
+        renderPlayerCard(p);
+        toast(`Критерий удалён в текущем сезоне (затронуто игроков: ${affected})`);
+      }
+    },
+    () => {}
+  );
+}
+
+/* ============================================================
    Модалка для редактирования критериев
    ============================================================ */
 
 function editTechName(pid, idx) {
   const p = DB.players.find(x => x.id === pid);
   if (!p || !p.techDetail || !p.techDetail[idx]) return;
-  
+
+  const oldName = p.techDetail[idx].name;
+  const subName = p.techDetail[idx].sub;
+
   uiPrompt(
     'Введите новое название критерия:',
-    p.techDetail[idx].name,
+    oldName,
     (newName) => {
       const trimmed = (newName || '').trim();
-      if (!trimmed || trimmed === p.techDetail[idx].name) return;
-      p.techDetail[idx].name = trimmed;
+      if (!trimmed || trimmed === oldName) return;
+
+      DB.players.forEach(player => {
+        (player.techDetail || []).forEach(item => {
+          if (item.sub === subName && item.name === oldName) {
+            item.name = trimmed;
+          }
+        });
+      });
+
+      touchMeta('players');
       saveDB();
       renderPlayerCard(p);
     },
@@ -331,7 +403,7 @@ function editOtherRow(pid, idx) {
     </div>
     <div class="btn-row" style="margin-top:16px">
       <button class="btn" onclick="saveOtherRow('${pid}', ${idx})">Сохранить</button>
-      <button class="btn-ghost btn" onclick="closeModal()">Отмена</button>
+      <button class="btn" onclick="closeModal()">Отмена</button>
     </div>
   `);
 }
@@ -339,7 +411,7 @@ function editOtherRow(pid, idx) {
 function saveOtherRow(pid, idx) {
   const p = DB.players.find(x => x.id === pid);
   if (!p || !p.otherDetail || !p.otherDetail[idx]) return;
-  
+
   const subInput = document.getElementById(`edit-sub-${idx}`);
   const nameInput = document.getElementById(`edit-name-${idx}`);
   if (!subInput || !nameInput) return;
@@ -352,16 +424,27 @@ function saveOtherRow(pid, idx) {
     return;
   }
 
-  p.otherDetail[idx].sub = newSub;
-  p.otherDetail[idx].name = newName;
-  
+  const oldSub = p.otherDetail[idx].sub || '';
+  const oldName = p.otherDetail[idx].name || '';
+  const group = p.otherDetail[idx].group;
+
+  DB.players.forEach(player => {
+    (player.otherDetail || []).forEach(item => {
+      if (item.group === group && item.name === oldName && (item.sub || '') === oldSub) {
+        item.sub = newSub;
+        item.name = newName;
+      }
+    });
+  });
+
+  touchMeta('players');
   saveDB();
   closeModal();
   renderPlayerCard(p);
 }
 
 /* ============================================================
-   Переименование разделов / добавление (без изменений)
+   Переименование разделов / добавление
    ============================================================ */
 
 function renameTechSubgroup(pid, oldSub) {
@@ -402,11 +485,12 @@ function applyTechSubRename(oldSub, newSub) {
   if (affected === 0) return;
 
   uiConfirm(
-    `Переименовать подраздел «${oldSub}» → «${newSub}»?\nБудет затронуто игроков: ${affected}.`,
+    `Переименовать подраздел «${oldSub}» → «${newSub}»?\nБудет затронуто игроков в текущем сезоне: ${affected}.`,
     () => {
       if (!DB.meta.skillStructure) DB.meta.skillStructure = { tech: {}, other: {} };
       if (!DB.meta.skillStructure.tech) DB.meta.skillStructure.tech = {};
       DB.meta.skillStructure.tech[oldSub] = newSub;
+      touchMeta('players');
       saveDB();
       if (currentPlayerId) {
         const cur = DB.players.find(x => x.id === currentPlayerId);
@@ -456,11 +540,12 @@ function applyOtherGroupRename(oldGroup, newGroup) {
   if (affected === 0) return;
 
   uiConfirm(
-    `Переименовать раздел «${oldGroup}» → «${newGroup}»?\nБудет затронуто игроков: ${affected}.`,
+    `Переименовать раздел «${oldGroup}» → «${newGroup}»?\nБудет затронуто игроков в текущем сезоне: ${affected}.`,
     () => {
       if (!DB.meta.skillStructure) DB.meta.skillStructure = { tech: {}, other: {} };
       if (!DB.meta.skillStructure.other) DB.meta.skillStructure.other = {};
       DB.meta.skillStructure.other[oldGroup] = newGroup;
+      touchMeta('players');
       saveDB();
       if (currentPlayerId) {
         const cur = DB.players.find(x => x.id === currentPlayerId);
@@ -477,7 +562,7 @@ function addTechSubgroup(pid) {
   if (!p) return;
 
   uiPrompt(
-    'Название нового подраздела техники (например: «Вбрасывание»).\nБудет добавлено ко всем игрокам сезона.',
+    'Название нового подраздела техники (например: «Вбрасывание»).\nБудет добавлено ко всем игрокам текущего сезона.',
     '',
     (newName) => {
       const trimmed = (newName || '').trim();
@@ -498,6 +583,7 @@ function addTechSubgroup(pid) {
         affected++;
       });
 
+      touchMeta('players');
       saveDB();
       SKILLS_OPEN.add('tech:' + trimmed);
       if (currentPlayerId) {
@@ -516,7 +602,7 @@ function addTechCriterion(pid, subName) {
   if (!p) return;
 
   uiPrompt(
-    `Название нового навыка в подразделе «${subName}».\nБудет добавлено всем игрокам сезона.`,
+    `Название нового навыка в подразделе «${subName}».\nБудет добавлено всем игрокам текущего сезона.`,
     '',
     (newName) => {
       const trimmed = (newName || '').trim();
@@ -539,6 +625,7 @@ function addTechCriterion(pid, subName) {
         affected++;
       });
 
+      touchMeta('players');
       saveDB();
       if (currentPlayerId) {
         const cur = DB.players.find(x => x.id === currentPlayerId);
@@ -556,7 +643,7 @@ function addOtherCriterion(pid, groupName) {
   if (!p) return;
 
   uiPrompt(
-    `Название нового критерия в разделе «${groupName}».\nБудет добавлено всем игрокам сезона.`,
+    `Название нового критерия в разделе «${groupName}».\nБудет добавлено всем игрокам текущего сезона.`,
     '',
     (newName) => {
       const trimmed = (newName || '').trim();
@@ -583,6 +670,7 @@ function addOtherCriterion(pid, groupName) {
             affected++;
           });
 
+          touchMeta('players');
           saveDB();
           if (currentPlayerId) {
             const cur = DB.players.find(x => x.id === currentPlayerId);

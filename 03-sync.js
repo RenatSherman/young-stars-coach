@@ -1,11 +1,11 @@
 /* ============================================================
    03-sync.js
-   Supabase: авторизация, синхронизация.
-   Регистрация тренера через UI отключена (аккаунт тренера один).
+   Supabase: авторизация, синхронизация, Realtime.
    ============================================================ */
 
 let isPlayerMode = false;
 let __authTab = 'login';
+let realtimeChannel = null;
 
 function setSyncStatus(status, text) {
   const el = document.getElementById('sync-status');
@@ -122,6 +122,8 @@ async function pullFromCloud(force = false) {
     const cloudMeta = unpacked.updatedAt || {};
     const localMeta = (DB.meta && DB.meta.updatedAt) ? DB.meta.updatedAt : {};
 
+    const parseTime = (t) => { const v = Date.parse(t); return isNaN(v) ? 0 : v; };
+
     const cmp = (section, cloudTs, localTs, cloudCount, localCount) => {
       if (force) return cloudCount > 0;
       if (cloudTs > localTs) return cloudCount > 0;
@@ -129,10 +131,10 @@ async function pullFromCloud(force = false) {
       return false;
     };
 
-    const applyExercises = cmp('exercises', Date.parse(cloudMeta.exercises||0), Date.parse(localMeta.exercises||0), Array.isArray(data.exercises)?data.exercises.length:0, (DB.exercises||[]).length);
-    const applyPlayers   = cmp('players',   Date.parse(cloudMeta.players||0),   Date.parse(localMeta.players||0),   unpacked.players.length, (DB.players||[]).length);
-    const applyTemplates = cmp('templates', Date.parse(cloudMeta.templates||0), Date.parse(localMeta.templates||0), unpacked.templates?unpacked.templates.length:0, (DB.templates||[]).length);
-    const applySeasons   = cmp('seasons',   Date.parse(cloudMeta.seasons||0),   Date.parse(localMeta.seasons||0),   unpacked.seasons?Object.keys(unpacked.seasons).length:0, DB.seasons?Object.keys(DB.seasons).length:0);
+    const applyExercises = cmp('exercises', parseTime(cloudMeta.exercises), parseTime(localMeta.exercises), Array.isArray(data.exercises)?data.exercises.length:0, (DB.exercises||[]).length);
+    const applyPlayers   = cmp('players',   parseTime(cloudMeta.players),   parseTime(localMeta.players),   unpacked.players.length, (DB.players||[]).length);
+    const applyTemplates = cmp('templates', parseTime(cloudMeta.templates), parseTime(localMeta.templates), unpacked.templates?unpacked.templates.length:0, (DB.templates||[]).length);
+    const applySeasons   = cmp('seasons',   parseTime(cloudMeta.seasons),   parseTime(localMeta.seasons),   unpacked.seasons?Object.keys(unpacked.seasons).length:0, DB.seasons?Object.keys(DB.seasons).length:0);
 
     const applied = { exercises: false, players: false, templates: false, seasons: false };
 
@@ -184,10 +186,10 @@ async function pullFromCloud(force = false) {
     });
 
     const localNewer =
-      (Date.parse(localMeta.exercises||0) > Date.parse(cloudMeta.exercises||0)) ||
-      (Date.parse(localMeta.players||0) > Date.parse(cloudMeta.players||0)) ||
-      (Date.parse(localMeta.templates||0) > Date.parse(cloudMeta.templates||0)) ||
-      (Date.parse(localMeta.seasons||0) > Date.parse(cloudMeta.seasons||0));
+      (parseTime(localMeta.exercises) > parseTime(cloudMeta.exercises)) ||
+      (parseTime(localMeta.players) > parseTime(cloudMeta.players)) ||
+      (parseTime(localMeta.templates) > parseTime(cloudMeta.templates)) ||
+      (parseTime(localMeta.seasons) > parseTime(cloudMeta.seasons));
 
     saveDBNow();
 
@@ -203,6 +205,35 @@ async function pullFromCloud(force = false) {
     setSyncStatus('error', 'Ошибка загрузки');
     return { applied: {}, pushed: false };
   }
+}
+
+/* ============================================================
+   REALTIME (Мгновенная синхронизация)
+   ============================================================ */
+function setupRealtimeSync() {
+  if (!sb) return;
+  const coachId = isPlayerMode ? localStorage.getItem('coach_id') : (currentUser ? currentUser.id : null);
+  if (!coachId) return;
+
+  if (realtimeChannel) {
+    sb.removeChannel(realtimeChannel);
+    realtimeChannel = null;
+  }
+
+  realtimeChannel = sb.channel('coach_data_changes')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'coach_data', filter: `user_id=eq.${coachId}` }, payload => {
+      console.log('Realtime sync triggered', payload);
+      pullFromCloud().then(() => {
+        if (typeof renderPlayers === 'function') renderPlayers();
+        if (typeof renderCoachCalendar === 'function' && !isPlayerMode) renderCoachCalendar();
+        if (currentPlayerId) {
+          const p = DB.players.find(x => x.id === currentPlayerId);
+          if (p && typeof renderPlayerCard === 'function') renderPlayerCard(p);
+        }
+        if (typeof updateNotifBadge === 'function') updateNotifBadge();
+      });
+    })
+    .subscribe();
 }
 
 async function manualSync() {
@@ -410,12 +441,12 @@ function showPlayerAuthSelectStep() {
   sel.innerHTML = `
     <p style="font-size:12px;color:#5a6169;margin-bottom:12px;text-align:center;">Найдено несколько игроков. Выберите себя:</p>
     ${ctx.matches.map((m, i) => `
-      <button class="btn btn-block btn-ghost" style="margin-bottom:8px;text-align:left;justify-content:flex-start" onclick="showPlayerAuthPinStep(${i})">
+      <button class="btn btn-block" style="margin-bottom:8px;text-align:left;justify-content:flex-start" onclick="showPlayerAuthPinStep(${i})">
         <strong>${escapeHtml(m.player.fio || '')}</strong>
         <span style="font-size:11px;color:#5a6169;margin-left:8px">${escapeHtml(m.player.position || '')}${m.player.birthYear ? ' · ' + escapeHtml(m.player.birthYear) : ''}${m.player.team ? ' · ' + escapeHtml(m.player.team) : ''}</span>
       </button>
     `).join('')}
-    <button class="btn btn-ghost btn-block" style="margin-top:8px" onclick="playerAuthReset()">← Назад</button>
+    <button class="btn btn-block" style="margin-top:8px" onclick="playerAuthReset()">← Назад</button>
   `;
 }
 
@@ -451,8 +482,8 @@ function showPlayerAuthPinStep(idx) {
              onkeypress="if(event.key==='Enter')doPlayerPinLogin()"
              style="text-align:center;font-size:20px;letter-spacing:6px;">
     </div>
-    <button class="btn btn-block btn-red" onclick="doPlayerPinLogin()">Войти</button>
-    <button class="btn btn-ghost btn-block" style="margin-top:8px" onclick="playerAuthReset()">← Ввести другую фамилию</button>
+    <button class="btn btn-block" onclick="doPlayerPinLogin()">Войти</button>
+    <button class="btn btn-block" style="margin-top:8px" onclick="playerAuthReset()">← Ввести другую фамилию</button>
   `;
   setTimeout(() => document.getElementById('player-login-pin')?.focus(), 100);
 }
@@ -572,6 +603,8 @@ function applyPlayerSession(m, unpacked, allSeasons, cloudCurSeason) {
   if (typeof updateSeasonSelector === 'function') updateSeasonSelector();
   if (typeof updateArchiveBadge === 'function')   updateArchiveBadge();
 
+  if (typeof setupRealtimeSync === 'function') setupRealtimeSync();
+
   showScreen('player');
   renderPlayerCard(matchedPlayer);
 }
@@ -579,6 +612,10 @@ function applyPlayerSession(m, unpacked, allSeasons, cloudCurSeason) {
 async function doLogout() {
   uiConfirm('Выйти из аккаунта?', async () => {
       saveDBNow();
+      if (realtimeChannel) {
+        sb.removeChannel(realtimeChannel);
+        realtimeChannel = null;
+      }
       if (!isPlayerMode) {
           await sb.auth.signOut();
       }
@@ -612,6 +649,8 @@ async function onAuthorized() {
   if (typeof showScreen === 'function') showScreen('coach-calendar');
   if (typeof renderPlayers === 'function') renderPlayers();
   if (typeof updateNotifBadge === 'function') updateNotifBadge();
+
+  if (typeof setupRealtimeSync === 'function') setupRealtimeSync();
 
   pullFromCloud().then(() => {
     if (typeof seedDemoData === 'function') seedDemoData();
