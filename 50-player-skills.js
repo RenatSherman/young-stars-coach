@@ -352,6 +352,65 @@ function deleteOtherCriterion(pid, idx) {
 }
 
 /* ============================================================
+   СИНХРОНИЗАЦИЯ СТРУКТУРЫ (ХЕЛПЕРЫ)
+   ============================================================ */
+
+// Прокатывает структуру techDetail от игрока-эталона по всем остальным в текущем сезоне.
+// Сохраняет оценки по индексу (если навык не удалён).
+function syncTechStructure(sourcePlayer) {
+  const newStructure = sourcePlayer.techDetail || [];
+  
+  DB.players.forEach(p => {
+    if (p.id === sourcePlayer.id) return; // пропускаем эталон
+
+    const oldMap = {};
+    (p.techDetail || []).forEach((item, i) => {
+      oldMap[item.sub + '|||' + item.name] = item;
+    });
+
+    p.techDetail = newStructure.map(item => {
+      const key = item.sub + '|||' + item.name;
+      const existing = oldMap[key];
+      return {
+        group: item.group,
+        sub: item.sub,
+        name: item.name,
+        start: existing ? existing.start : null,
+        mid: existing ? existing.mid : null,
+        end: existing ? existing.end : null
+      };
+    });
+  });
+}
+
+// Аналогично для otherDetail
+function syncOtherStructure(sourcePlayer) {
+  const newStructure = sourcePlayer.otherDetail || [];
+  
+  DB.players.forEach(p => {
+    if (p.id === sourcePlayer.id) return;
+
+    const oldMap = {};
+    (p.otherDetail || []).forEach((item, i) => {
+      oldMap[item.group + '|||' + item.name] = item;
+    });
+
+    p.otherDetail = newStructure.map(item => {
+      const key = item.group + '|||' + item.name;
+      const existing = oldMap[key];
+      return {
+        group: item.group,
+        sub: item.sub || '',
+        name: item.name,
+        start: existing ? existing.start : null,
+        plan: existing ? existing.plan : null,
+        fact: existing ? existing.fact : null
+      };
+    });
+  });
+}
+
+/* ============================================================
    Модалка для редактирования критериев
    ============================================================ */
 
@@ -359,8 +418,9 @@ function editTechName(pid, idx) {
   const p = DB.players.find(x => x.id === pid);
   if (!p || !p.techDetail || !p.techDetail[idx]) return;
 
-  const oldName = p.techDetail[idx].name;
-  const subName = p.techDetail[idx].sub;
+  const oldItem = p.techDetail[idx];
+  const oldName = oldItem.name;
+  const subName = oldItem.sub;
 
   uiPrompt(
     'Введите новое название критерия:',
@@ -369,13 +429,11 @@ function editTechName(pid, idx) {
       const trimmed = (newName || '').trim();
       if (!trimmed || trimmed === oldName) return;
 
-      DB.players.forEach(player => {
-        (player.techDetail || []).forEach(item => {
-          if (item.sub === subName && item.name === oldName) {
-            item.name = trimmed;
-          }
-        });
-      });
+      // 1. Меняем в эталоне
+      p.techDetail[idx].name = trimmed;
+
+      // 2. Синхронизируем структуру со всеми
+      syncTechStructure(p);
 
       touchMeta('players');
       saveDB();
@@ -389,17 +447,17 @@ function editTechName(pid, idx) {
 function editOtherRow(pid, idx) {
   const p = DB.players.find(x => x.id === pid);
   if (!p || !p.otherDetail || !p.otherDetail[idx]) return;
-  const r = p.otherDetail[idx];
+  const oldItem = p.otherDetail[idx];
 
   openModal(`
     <h3>Редактировать критерий</h3>
     <div class="field">
       <label>Подраздел</label>
-      <input type="text" id="edit-sub-${idx}" value="${escapeAttr(r.sub || '')}" placeholder="Оставьте пустым, если не нужен">
+      <input type="text" id="edit-sub-${idx}" value="${escapeAttr(oldItem.sub || '')}" placeholder="Оставьте пустым, если не нужен">
     </div>
     <div class="field">
       <label>Критерий</label>
-      <input type="text" id="edit-name-${idx}" value="${escapeAttr(r.name || '')}" autofocus>
+      <input type="text" id="edit-name-${idx}" value="${escapeAttr(oldItem.name || '')}" autofocus>
     </div>
     <div class="btn-row" style="margin-top:16px">
       <button class="btn" onclick="saveOtherRow('${pid}', ${idx})">Сохранить</button>
@@ -424,18 +482,12 @@ function saveOtherRow(pid, idx) {
     return;
   }
 
-  const oldSub = p.otherDetail[idx].sub || '';
-  const oldName = p.otherDetail[idx].name || '';
-  const group = p.otherDetail[idx].group;
+  // 1. Меняем в эталоне
+  p.otherDetail[idx].sub = newSub;
+  p.otherDetail[idx].name = newName;
 
-  DB.players.forEach(player => {
-    (player.otherDetail || []).forEach(item => {
-      if (item.group === group && item.name === oldName && (item.sub || '') === oldSub) {
-        item.sub = newSub;
-        item.name = newName;
-      }
-    });
-  });
+  // 2. Синхронизируем структуру
+  syncOtherStructure(p);
 
   touchMeta('players');
   saveDB();
@@ -457,48 +509,29 @@ function renameTechSubgroup(pid, oldSub) {
     (newName) => {
       const trimmed = (newName || '').trim();
       if (!trimmed || trimmed === oldSub) return;
+      
       const hasExisting = (p.techDetail || []).some(r => r.sub === trimmed);
       if (hasExisting) {
         uiConfirm(
           `У игрока уже есть подраздел «${trimmed}». Объединить с ним?`,
-          () => { applyTechSubRename(oldSub, trimmed); },
+          () => { 
+            p.techDetail.forEach(r => { if (r.sub === oldSub) r.sub = trimmed; });
+            syncTechStructure(p);
+            touchMeta('players'); saveDB(); renderPlayerCard(p);
+          },
           () => {}
         );
         return;
       }
-      applyTechSubRename(oldSub, trimmed);
+      
+      p.techDetail.forEach(r => { if (r.sub === oldSub) r.sub = trimmed; });
+      syncTechStructure(p);
+      touchMeta('players');
+      saveDB();
+      renderPlayerCard(p);
     },
     () => {},
     { title: 'Переименовать подраздел', placeholder: oldSub, okLabel: 'Переименовать' }
-  );
-}
-
-function applyTechSubRename(oldSub, newSub) {
-  let affected = 0;
-  DB.players.forEach(p => {
-    let touched = false;
-    (p.techDetail || []).forEach(r => {
-      if (r.sub === oldSub) { r.sub = newSub; touched = true; }
-    });
-    if (touched) affected++;
-  });
-  if (affected === 0) return;
-
-  uiConfirm(
-    `Переименовать подраздел «${oldSub}» → «${newSub}»?\nБудет затронуто игроков в текущем сезоне: ${affected}.`,
-    () => {
-      if (!DB.meta.skillStructure) DB.meta.skillStructure = { tech: {}, other: {} };
-      if (!DB.meta.skillStructure.tech) DB.meta.skillStructure.tech = {};
-      DB.meta.skillStructure.tech[oldSub] = newSub;
-      touchMeta('players');
-      saveDB();
-      if (currentPlayerId) {
-        const cur = DB.players.find(x => x.id === currentPlayerId);
-        if (cur) renderPlayerCard(cur);
-      }
-      toast(`Подраздел переименован: ${affected} игроков`);
-    },
-    () => {}
   );
 }
 
@@ -512,48 +545,29 @@ function renameOtherGroup(pid, oldGroup) {
     (newName) => {
       const trimmed = (newName || '').trim();
       if (!trimmed || trimmed === oldGroup) return;
+      
       const hasExisting = (p.otherDetail || []).some(r => r.group === trimmed);
       if (hasExisting) {
         uiConfirm(
           `У игрока уже есть раздел «${trimmed}». Объединить с ним?`,
-          () => { applyOtherGroupRename(oldGroup, trimmed); },
+          () => { 
+            p.otherDetail.forEach(r => { if (r.group === oldGroup) r.group = trimmed; });
+            syncOtherStructure(p);
+            touchMeta('players'); saveDB(); renderPlayerCard(p);
+          },
           () => {}
         );
         return;
       }
-      applyOtherGroupRename(oldGroup, trimmed);
+
+      p.otherDetail.forEach(r => { if (r.group === oldGroup) r.group = trimmed; });
+      syncOtherStructure(p);
+      touchMeta('players');
+      saveDB();
+      renderPlayerCard(p);
     },
     () => {},
     { title: 'Переименовать раздел', placeholder: oldGroup, okLabel: 'Переименовать' }
-  );
-}
-
-function applyOtherGroupRename(oldGroup, newGroup) {
-  let affected = 0;
-  DB.players.forEach(p => {
-    let touched = false;
-    (p.otherDetail || []).forEach(r => {
-      if (r.group === oldGroup) { r.group = newGroup; touched = true; }
-    });
-    if (touched) affected++;
-  });
-  if (affected === 0) return;
-
-  uiConfirm(
-    `Переименовать раздел «${oldGroup}» → «${newGroup}»?\nБудет затронуто игроков в текущем сезоне: ${affected}.`,
-    () => {
-      if (!DB.meta.skillStructure) DB.meta.skillStructure = { tech: {}, other: {} };
-      if (!DB.meta.skillStructure.other) DB.meta.skillStructure.other = {};
-      DB.meta.skillStructure.other[oldGroup] = newGroup;
-      touchMeta('players');
-      saveDB();
-      if (currentPlayerId) {
-        const cur = DB.players.find(x => x.id === currentPlayerId);
-        if (cur) renderPlayerCard(cur);
-      }
-      toast(`Раздел переименован: ${affected} игроков`);
-    },
-    () => {}
   );
 }
 
@@ -571,26 +585,19 @@ function addTechSubgroup(pid) {
       const hasExisting = (p.techDetail || []).some(r => r.sub === trimmed);
       if (hasExisting) { uiAlert(`Подраздел «${trimmed}» уже существует.`); return; }
 
-      let affected = 0;
-      DB.players.forEach(player => {
-        if (!Array.isArray(player.techDetail)) player.techDetail = [];
-        player.techDetail.push({
-          group: 'Катание',
-          sub: trimmed,
-          name: 'Новый навык',
-          start: null, mid: null, end: null
-        });
-        affected++;
+      p.techDetail.push({
+        group: 'Катание',
+        sub: trimmed,
+        name: 'Новый навык',
+        start: null, mid: null, end: null
       });
+      syncTechStructure(p);
 
       touchMeta('players');
       saveDB();
       SKILLS_OPEN.add('tech:' + trimmed);
-      if (currentPlayerId) {
-        const cur = DB.players.find(x => x.id === currentPlayerId);
-        if (cur) renderPlayerCard(cur);
-      }
-      toast(`Подраздел «${trimmed}» добавлен: ${affected} игроков`);
+      renderPlayerCard(p);
+      toast(`Подраздел «${trimmed}» добавлен`);
     },
     () => {},
     { title: 'Новый подраздел', placeholder: 'Вбрасывание', okLabel: 'Создать' }
@@ -611,27 +618,21 @@ function addTechCriterion(pid, subName) {
       const hasExisting = (p.techDetail || []).some(r => r.sub === subName && r.name === trimmed);
       if (hasExisting) { uiAlert(`Навык «${trimmed}» уже существует в этом подразделе.`); return; }
 
-      let affected = 0;
-      DB.players.forEach(player => {
-        if (!Array.isArray(player.techDetail)) player.techDetail = [];
-        const existing = player.techDetail.find(r => r.sub === subName);
-        const group = existing ? existing.group : 'Катание';
-        player.techDetail.push({
-          group: group,
-          sub: subName,
-          name: trimmed,
-          start: null, mid: null, end: null
-        });
-        affected++;
+      const existing = p.techDetail.find(r => r.sub === subName);
+      const group = existing ? existing.group : 'Катание';
+      
+      p.techDetail.push({
+        group: group,
+        sub: subName,
+        name: trimmed,
+        start: null, mid: null, end: null
       });
+      syncTechStructure(p);
 
       touchMeta('players');
       saveDB();
-      if (currentPlayerId) {
-        const cur = DB.players.find(x => x.id === currentPlayerId);
-        if (cur) renderPlayerCard(cur);
-      }
-      toast(`Навык «${trimmed}» добавлен: ${affected} игроков`);
+      renderPlayerCard(p);
+      toast(`Навык «${trimmed}» добавлен`);
     },
     () => {},
     { title: 'Новый навык', placeholder: 'Например: Виражи спиной', okLabel: 'Создать' }
@@ -657,26 +658,19 @@ function addOtherCriterion(pid, groupName) {
         '',
         (subName) => {
           const finalSub = (subName || '').trim();
-          let affected = 0;
-
-          DB.players.forEach(player => {
-            if (!Array.isArray(player.otherDetail)) player.otherDetail = [];
-            player.otherDetail.push({
-              group: groupName,
-              sub: finalSub,
-              name: trimmed,
-              start: null, plan: null, fact: null
-            });
-            affected++;
+          
+          p.otherDetail.push({
+            group: groupName,
+            sub: finalSub,
+            name: trimmed,
+            start: null, plan: null, fact: null
           });
+          syncOtherStructure(p);
 
           touchMeta('players');
           saveDB();
-          if (currentPlayerId) {
-            const cur = DB.players.find(x => x.id === currentPlayerId);
-            if (cur) renderPlayerCard(cur);
-          }
-          toast(`Критерий «${trimmed}» добавлен: ${affected} игроков`);
+          renderPlayerCard(p);
+          toast(`Критерий «${trimmed}» добавлен`);
         },
         () => {},
         { title: 'Подраздел', placeholder: 'Необязательно', okLabel: 'Добавить' }

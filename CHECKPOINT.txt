@@ -10,56 +10,47 @@ Git: коммит и пуш выполняет пользователь лока
 01-config.js -> 02-utils.js -> 03-sync.js -> 04-ui.js -> 05a-player-core.js -> 05b-player-calendar.js -> 06-plan.js -> 06b-report.js -> 07-calendar.js -> 08-pdf.js -> 09-excel.js -> 10-init.js -> 11-dashboard-calendar.js -> 12-coach-report.js -> 13-seasons.js -> 40-coach-grid.js -> 41-coach-day-modal.js -> 42-coach-fact-editor.js -> 43-coach-session-editor.js -> 44-coach-complex-picker.js -> 45-coach-repeat-block.js -> 46-coach-players-picker.js -> 47-coach-delete.js -> 48-coach-templates.js -> 50-player-skills.js -> 51-player-stats.js -> 52-player-tests.js -> 53-player-radars.js
 
 3. ПОДРОБНОЕ ОПИСАНИЕ МОДУЛЕЙ
-- 01-config.js: Ключи Supabase, глобальный DB, константы. PIN-константы (PIN_LENGTH=4, PIN_ATTEMPTS_MAX=3, PIN_BLOCK_SECONDS=60, PIN_STORAGE_KEY='akbars_pin_attempts'), generatePin().
+- 01-config.js: Ключи Supabase, глобальный DB, константы. PIN-константы, generatePin().
 - 02-utils.js: Модалки, даты, возраст.
 - 03-sync.js: Авторизация, синхронизация, isPlayerMode.
-  * Вход тренера: doLogin — email+пароль. Регистрация через UI отключена.
-  * Вход игрока: playerAuthStepFio -> выбор при совпадениях -> doPlayerPinLogin.
+  * Вход тренера: doLogin — email+пароль. Регистрация отключена.
+  * Вход игрока: playerAuthStepFio -> выбор -> doPlayerPinLogin.
   * getPinAttempts/savePinAttempts/clearPinAttempts/playerAuthReset.
   * setupRealtimeSync(): Подписка на Supabase Realtime. Мгновенно вызывает pullFromCloud() и перерисовывает UI.
-  * parseTime() в pullFromCloud() для безопасного сравнения дат.
+  * parseTime() в pullFromCloud().
   * packPlayersForCloud: не перезаписывает currentSeason тренера из режима игрока.
 - 04-ui.js: Навигация, уведомления, рендер игроков, PIN-администрирование.
-  * bindNavigation(): onclick на всех кнопках [data-screen].
+  * bindNavigation(): onclick на кнопках [data-screen].
   * openPlayerPinsModal, generatePinsForAll, regeneratePlayerPin, syncPinsAcrossSeasons.
-  * Гварды isPlayerMode.
 - 05a-player-core.js: Карточка игрока.
-  * __ensurePlayerPin, personPinKey, автогенерация PIN при создании, PIN в паспорте.
+  * __ensurePlayerPin, personPinKey, автогенерация PIN.
   * saveNewPlayer: обновляет DB.seasons[currentSeason] и touchMeta('players').
-- 05b-player-calendar.js: Календарь игрока. Кнопка "Текущий месяц" — класс .btn.
-- 09-excel.js: Excel/JSON/CSV.
-  * importPlayerFromExcel / importCSVFile / importData: обновляют DB.seasons и touchMeta('players').
+- 05b-player-calendar.js: Календарь игрока.
+- 09-excel.js: Excel/JSON/CSV. Обновляют DB.seasons и touchMeta('players').
 - 10-init.js: Точка входа.
-- 11-dashboard-calendar.js: Хелперы для календаря тренера.
-- 12-coach-report.js: Отчёт тренера. Все KPI и кнопки переведены на .btn.
-- 13-seasons.js: switchSeason для игрока — только карточка. Гварды isPlayerMode. 
-  * createSeason / copyPlayerForNewSeason: при создании нового сезона структура навыков копируется из текущего игрока (если стоит галочка "tech/other"), а не из дефолтной структуры.
-- 40-coach-grid.js: Месячная сетка тренера. Кнопка "Текущий месяц" — класс .btn.
+- 11-dashboard-calendar.js: Хелперы календаря тренера.
+- 12-coach-report.js: Отчёт тренера.
+- 13-seasons.js: switchSeason для игрока, createSeason, copyPlayerForNewSeason (структура навыков копируется из текущего игрока).
+- 40-coach-grid.js: Месячная сетка тренера.
 - 41-48: Модули календаря тренера.
 - 50-player-skills.js: Вкладка «Навыки» в карточке.
-  * Добавлена кнопка удаления (🗑) для каждого навыка.
+  * **ИСПРАВЛЕН БАГ С РАСИНХРОНОМ:** При редактировании, добавлении или удалении навыка структура синхронизируется по всем игрокам текущего сезона (через syncTechStructure и syncOtherStructure). Это исключает дубли и сбивание оценок.
   * Удаление затрагивает ТОЛЬКО текущий сезон. Архивные сезоны не изменяются.
-  * Добавление/редактирование критериев также затрагивает только текущий сезон.
-- 51-player-stats.js: карточка (только тренер).
+- 51-player-stats.js: карточка.
 - 52-player-tests.js: тесты. Гварды isPlayerMode.
 - 53-player-radars.js: радары.
 
 4. ТЕХНИЧЕСКИЕ ПРАВИЛА
-- Supabase RLS: "Allow anon read" на coach_data. ID тренера — localStorage('coach_id'). «Сезон тренера» — localStorage('coach_default_season').
+- Supabase RLS: "Allow anon read" на coach_data.
 - Realtime: Включен через `sb.channel().on('postgres_changes')`.
-- Аутентификация игрока: ФИО -> выбор -> PIN, p.accessPin.
-- PIN: 4 цифры, хранится открыто (см. оговорку). Rate-limit: 3 попытки -> блок 60 сек.
-- Синхронизация PIN между сезонами по personPinKey (ФИО+год рождения).
+- PIN: 4 цифры, хранится открыто. Rate-limit: 3 попытки -> блок 60 сек.
 - Навигация: onclick прямо в HTML + bindNavigation().
 - Гвард isPlayerMode в начале любой функции изменения.
 - Функции для onclick — глобальные.
 - Сброс кэша: Ctrl+F5.
-- Git: коммит/пуш — на стороне пользователя. `git status` -> `git add .` -> `git commit` -> `git push`. Если VS Code просит сохранить файл — "Don't Save".
+- Git: коммит/пуш — на стороне пользователя. `git status` -> `git add .` -> `git commit` -> `git push`.
 - Дизайн: сдержанный стиль «белый + тёмно-зелёная рамка». Убрано «1956». Дни недели в календаре — с зелёной рамкой.
-
-Оговорка про безопасность PIN:
-- От «сосед набрал мою фамилию» — защищает (нужен PIN).
-- НЕ защищает от пользователя с F12 (coach_data читается анонимно). Для полной защиты — Вариант Б.
+- Синхронизация структуры навыков: при изменении навыка у одного игрока он обновляется у всех через `syncTechStructure()` и `syncOtherStructure()`. Сравнение идёт по связке "раздел + название".
 
 5. ПРАВИЛА РАБОТЫ
 1. Пользователь НЕ пишет код. Выдавай ПОЛНЫЙ код файла целиком.
@@ -74,21 +65,19 @@ Git: коммит и пуш выполняет пользователь лока
 6. СТАТУС
 - СДЕЛАНО:
   * Гостевой доступ (вход по фамилии + PIN).
-  * Регистрация через UI отключена.
+  * Регистрация отключена.
   * Исправлен баг «меню не кликается после входа тренера».
   * Настроен RLS.
   * При входе игрока сразу открывается вкладка «Календарь».
-  * Исправлен баг «игрок проваливался в тренерский календарь» через селектор сезона.
+  * Исправлен баг «игрок проваливался в тренерский календарь».
   * Игрок при логине ищется по всем сезонам.
   * Система PIN-кодов.
-  * Гварды isPlayerMode в 05b-player-calendar.js и 52-player-tests.js.
+  * Гварды isPlayerMode в 05b и 52.
   * Завершён редизайн CSS.
-  * Добавлен Supabase Realtime (мгновенная синхронизация между устройствами).
-  * Исправлены импорты из Excel/CSV (обновляют метки времени для пуша).
-  * В 50-player-skills.js добавлена кнопка удаления навыка (только для текущего сезона, архив защищён).
-  * В 13-seasons.js при создании нового сезона структура навыков копируется из текущего.
-- СЛЕДУЮЩАЯ ЗАДАЧА: Проверить удаление навыка и создание нового сезона.
-- НА КОНТРОЛЕ:
-  * Удалить навык в текущем сезоне. Проверить, что в архивном сезоне он остался.
-  * Создать новый сезон, скопировать игроков. Проверить, что навыки совпадают с последней версией текущего сезона.
-- БУДУЩАЯ ЗАДАЧА (по запросу): Вариант Б (Supabase Auth на каждого игрока) для 100% защиты PIN.
+  * Добавлен Supabase Realtime.
+  * Исправлены импорты из Excel/CSV.
+  * В 50-player-skills.js добавлена кнопка удаления навыка (только текущий сезон).
+  * В 13-seasons.js структура навыков копируется из текущего.
+  * **УСТРАНЕН БАГ С ДУБЛЯМИ И РАСИНХРОНОМ:** переписан 50-player-skills.js (добавлены syncTechStructure и syncOtherStructure, которые прокатывают изменения по всем игрокам текущего сезона).
+- СЛЕДУЮЩАЯ ЗАДАЧА: Тестирование синхронизации навыков (изменение/добавление у одного игрока должно отражаться у всех без дублей).
+- БУДУЩАЯ ЗАДАЧА: Улучшения интерфейса (Поиск по игрокам, Массовые действия, PWA).
