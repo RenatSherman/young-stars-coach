@@ -105,6 +105,12 @@ async function pushToCloud() {
   }
 }
 
+function parseTime(t) {
+  if (!t) return 0;
+  const v = Date.parse(t);
+  return isNaN(v) ? 0 : v;
+}
+
 async function pullFromCloud(force = false) {
   if (!currentUser && !isPlayerMode) return { applied: {}, pushed: false };
   setSyncStatus('saving', 'Загрузка…');
@@ -122,10 +128,8 @@ async function pullFromCloud(force = false) {
     const cloudMeta = unpacked.updatedAt || {};
     const localMeta = (DB.meta && DB.meta.updatedAt) ? DB.meta.updatedAt : {};
 
-    const parseTime = (t) => { const v = Date.parse(t); return isNaN(v) ? 0 : v; };
-
     const cmp = (section, cloudTs, localTs, cloudCount, localCount) => {
-      if (force) return cloudCount > 0;
+      if (force) return cloudCount > 0; // Принудительно применяем, если Realtime
       if (cloudTs > localTs) return cloudCount > 0;
       if (cloudTs === 0 && localTs === 0) return localCount === 0 && cloudCount > 0;
       return false;
@@ -141,7 +145,7 @@ async function pullFromCloud(force = false) {
     if (applySeasons && unpacked.seasons) {
       DB.seasons = unpacked.seasons;
       if (!DB.meta.updatedAt) DB.meta.updatedAt = {};
-      DB.meta.updatedAt.seasons = cloudMeta.seasons || new Date().toISOString();
+      if (cloudMeta.seasons) DB.meta.updatedAt.seasons = cloudMeta.seasons;
       applied.seasons = true;
     }
 
@@ -154,21 +158,21 @@ async function pullFromCloud(force = false) {
         DB.players = unpacked.players;
       }
       if (!DB.meta.updatedAt) DB.meta.updatedAt = {};
-      DB.meta.updatedAt.players = cloudMeta.players || new Date().toISOString();
+      if (cloudMeta.players) DB.meta.updatedAt.players = cloudMeta.players;
       applied.players = true;
     }
 
     if (applyExercises && Array.isArray(data.exercises) && data.exercises.length > 0) {
       DB.exercises = data.exercises;
       if (!DB.meta.updatedAt) DB.meta.updatedAt = {};
-      DB.meta.updatedAt.exercises = cloudMeta.exercises || new Date().toISOString();
+      if (cloudMeta.exercises) DB.meta.updatedAt.exercises = cloudMeta.exercises;
       applied.exercises = true;
     }
 
     if (applyTemplates && Array.isArray(unpacked.templates)) {
       DB.templates = unpacked.templates;
       if (!DB.meta.updatedAt) DB.meta.updatedAt = {};
-      DB.meta.updatedAt.templates = cloudMeta.templates || new Date().toISOString();
+      if (cloudMeta.templates) DB.meta.updatedAt.templates = cloudMeta.templates;
       applied.templates = true;
     }
 
@@ -193,7 +197,7 @@ async function pullFromCloud(force = false) {
 
     saveDBNow();
 
-    if (localNewer) {
+    if (localNewer && !force) {
       setSyncStatus('local-newer', 'Отправляю…');
       await pushToCloud();
       return { applied, pushed: true };
@@ -223,7 +227,8 @@ function setupRealtimeSync() {
   realtimeChannel = sb.channel('coach_data_changes')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'coach_data', filter: `user_id=eq.${coachId}` }, payload => {
       console.log('Realtime sync triggered', payload);
-      pullFromCloud().then(() => {
+      // Принудительно применяем облачные данные (force = true), чтобы избежать конфликтов времени
+      pullFromCloud(true).then(() => {
         if (typeof renderPlayers === 'function') renderPlayers();
         if (typeof renderCoachCalendar === 'function' && !isPlayerMode) renderCoachCalendar();
         if (currentPlayerId) {

@@ -689,6 +689,7 @@ function updateTech(pid, i, f, v) {
   const p = DB.players.find(x => x.id === pid);
   if (!p || !p.techDetail || !p.techDetail[i]) return;
   p.techDetail[i][f] = v === '' ? null : Number(v);
+  touchMeta('players'); // <--- ДОБАВЛЕНО: критически важно для синхронизации
   saveDB();
   refreshProfile(pid);
 }
@@ -697,6 +698,7 @@ function updateOther(pid, i, f, v) {
   const p = DB.players.find(x => x.id === pid);
   if (!p || !p.otherDetail || !p.otherDetail[i]) return;
   p.otherDetail[i][f] = v === '' ? null : Number(v);
+  touchMeta('players'); // <--- ДОБАВЛЕНО: критически важно для синхронизации
   saveDB();
   refreshProfile(pid);
 }
