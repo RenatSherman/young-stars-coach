@@ -702,3 +702,83 @@ function updateOther(pid, i, f, v) {
   saveDB();
   refreshProfile(pid);
 }
+
+/* ============================================================
+   ГЛОБАЛЬНАЯ СИНХРОНИЗАЦИЯ (Восстановление порядка)
+   ============================================================ */
+
+function forceSyncAllPlayersSkills() {
+  if (isPlayerMode) return;
+  
+  if (!DB.players || DB.players.length < 2) {
+    uiAlert('Нужно минимум 2 игрока для синхронизации.');
+    return;
+  }
+
+  uiConfirm(
+    'ВНИМАНИЕ! Это действие возьмёт список навыков у ПЕРВОГО игрока в списке и применит его ко ВСЕМ остальным игрокам текущего сезона.\n\nУ навыков, которых нет у первого игрока, оценки будут удалены. Продолжить?',
+    () => {
+      const etalon = DB.players[0];
+      const targetTech = etalon.techDetail || [];
+      const targetOther = etalon.otherDetail || [];
+
+      let updatedCount = 0;
+
+      DB.players.forEach((p, index) => {
+        if (index === 0) return; // Пропускаем эталона
+
+        // Синхронизация техники
+        const oldTechMap = {};
+        (p.techDetail || []).forEach(item => {
+          oldTechMap[item.sub + '|||' + item.name] = item;
+        });
+
+        p.techDetail = targetTech.map(item => {
+          const key = item.sub + '|||' + item.name;
+          const existing = oldTechMap[key];
+          return {
+            group: item.group,
+            sub: item.sub,
+            name: item.name,
+            start: existing ? existing.start : null,
+            mid: existing ? existing.mid : null,
+            end: existing ? existing.end : null
+          };
+        });
+
+        // Синхронизация остальных
+        const oldOtherMap = {};
+        (p.otherDetail || []).forEach(item => {
+          oldOtherMap[item.group + '|||' + item.name] = item;
+        });
+
+        p.otherDetail = targetOther.map(item => {
+          const key = item.group + '|||' + item.name;
+          const existing = oldOtherMap[key];
+          return {
+            group: item.group,
+            sub: item.sub || '',
+            name: item.name,
+            start: existing ? existing.start : null,
+            plan: existing ? existing.plan : null,
+            fact: existing ? existing.fact : null
+          };
+        });
+
+        updatedCount++;
+      });
+
+      touchMeta('players');
+      saveDB();
+      
+      toast(`Навыки синхронизированы у ${updatedCount} игроков`);
+      
+      // Перерисовать, если открыта карточка игрока
+      if (currentPlayerId) {
+        const cur = DB.players.find(x => x.id === currentPlayerId);
+        if (cur && typeof renderPlayerCard === 'function') renderPlayerCard(cur);
+      }
+    },
+    () => {}
+  );
+}
