@@ -1,6 +1,7 @@
 /* ============================================================
    03-sync.js
    Supabase: авторизация, синхронизация, Realtime.
+   Внедрено "Умное слияние" (Smart Merge) для защиты от откатов.
    ============================================================ */
 
 let isPlayerMode = false;
@@ -111,6 +112,69 @@ function parseTime(t) {
   return isNaN(v) ? 0 : v;
 }
 
+// Функция глубокого слияния игроков (Smart Merge)
+function mergePlayers(localPlayers, cloudPlayers) {
+  const resultMap = new Map();
+  
+  // Берем всех облачных
+  cloudPlayers.forEach(p => resultMap.set(p.id, p));
+  
+  // Накатываем локальных
+  localPlayers.forEach(lp => {
+    if (!resultMap.has(lp.id)) {
+      resultMap.set(lp.id, lp); // Если игрока нет в облаке, добавляем
+    } else {
+      // Если есть — сливаем данные
+      const cp = resultMap.get(lp.id);
+      
+      // 1. Слияние базовых полей (приоритет у локальных, если они не пустые)
+      const merged = { ...cp };
+      Object.keys(lp).forEach(key => {
+        if (['techDetail', 'otherDetail', 'calendar', 'tests', 'stats', 'developmentPlans'].includes(key)) return;
+        if (lp[key] !== null && lp[key] !== undefined && lp[key] !== '') {
+          merged[key] = lp[key];
+        }
+      });
+
+      // 2. Слияние техники и остальных навыков
+      const mergeDetails = (localArr, cloudArr) => {
+        if (!cloudArr || !cloudArr.length) return localArr;
+        if (!localArr || !localArr.length) return cloudArr;
+        
+        return cloudArr.map(cItem => {
+          const lItem = localArr.find(x => x.sub === cItem.sub && x.name === cItem.name);
+          if (lItem) {
+            return {
+              ...cItem,
+              start: lItem.start !== null && lItem.start !== undefined ? lItem.start : cItem.start,
+              mid: lItem.mid !== null && lItem.mid !== undefined ? lItem.mid : cItem.mid,
+              plan: lItem.plan !== null && lItem.plan !== undefined ? lItem.plan : cItem.plan,
+              end: lItem.end !== null && lItem.end !== undefined ? lItem.end : cItem.end,
+              fact: lItem.fact !== null && lItem.fact !== undefined ? lItem.fact : cItem.fact,
+            };
+          }
+          return cItem;
+        });
+      };
+
+      merged.techDetail = mergeDetails(lp.techDetail, cp.techDetail);
+      merged.otherDetail = mergeDetails(lp.otherDetail, cp.otherDetail);
+
+      // 3. Слияние календаря (объединяем дни)
+      if (lp.calendar) {
+        merged.calendar = merged.calendar || {};
+        Object.keys(lp.calendar).forEach(date => {
+          merged.calendar[date] = lp.calendar[date]; // Если локально есть день - берем локальный
+        });
+      }
+
+      resultMap.set(lp.id, merged);
+    }
+  });
+
+  return Array.from(resultMap.values());
+}
+
 async function pullFromCloud(force = false) {
   if (!currentUser && !isPlayerMode) return { applied: {}, pushed: false };
   setSyncStatus('saving', 'Загрузка…');
@@ -125,55 +189,33 @@ async function pullFromCloud(force = false) {
     if (!data) { if (!isPlayerMode) await pushToCloud(); return { applied: {}, pushed: true }; }
 
     const unpacked = unpackPlayersFromCloud(data.players);
-    const cloudMeta = unpacked.updatedAt || {};
-    const localMeta = (DB.meta && DB.meta.updatedAt) ? DB.meta.updatedAt : {};
-
-    const cmp = (section, cloudTs, localTs, cloudCount, localCount) => {
-      if (force) return cloudCount > 0; // Принудительно применяем, если Realtime
-      if (cloudTs > localTs) return cloudCount > 0;
-      if (cloudTs === 0 && localTs === 0) return localCount === 0 && cloudCount > 0;
-      return false;
-    };
-
-    const applyExercises = cmp('exercises', parseTime(cloudMeta.exercises), parseTime(localMeta.exercises), Array.isArray(data.exercises)?data.exercises.length:0, (DB.exercises||[]).length);
-    const applyPlayers   = cmp('players',   parseTime(cloudMeta.players),   parseTime(localMeta.players),   unpacked.players.length, (DB.players||[]).length);
-    const applyTemplates = cmp('templates', parseTime(cloudMeta.templates), parseTime(localMeta.templates), unpacked.templates?unpacked.templates.length:0, (DB.templates||[]).length);
-    const applySeasons   = cmp('seasons',   parseTime(cloudMeta.seasons),   parseTime(localMeta.seasons),   unpacked.seasons?Object.keys(unpacked.seasons).length:0, DB.seasons?Object.keys(DB.seasons).length:0);
-
-    const applied = { exercises: false, players: false, templates: false, seasons: false };
-
-    if (applySeasons && unpacked.seasons) {
-      DB.seasons = unpacked.seasons;
-      if (!DB.meta.updatedAt) DB.meta.updatedAt = {};
-      if (cloudMeta.seasons) DB.meta.updatedAt.seasons = cloudMeta.seasons;
-      applied.seasons = true;
-    }
-
-    if (applyPlayers && unpacked.players.length > 0) {
-      const targetSeason = unpacked.currentSeason || currentSeason;
-      if (DB.seasons && targetSeason && DB.seasons[targetSeason]) {
-        DB.seasons[targetSeason].players = unpacked.players;
+    
+    // Если принудительно, просто берем облако. Если нет, то применяем Smart Merge.
+    if (unpacked.players && unpacked.players.length > 0) {
+      if (force && isPlayerMode) {
+        // В режиме игрока force заменяет локальные данные на облачные
         DB.players = unpacked.players;
+        if (DB.seasons && unpacked.currentSeason && DB.seasons[unpacked.currentSeason]) {
+           DB.seasons[unpacked.currentSeason].players = unpacked.players;
+        }
       } else {
-        DB.players = unpacked.players;
+        // УМНОЕ СЛИЯНИЕ ДЛЯ ТРЕНЕРА
+        DB.players = mergePlayers(DB.players || [], unpacked.players);
+        if (DB.seasons && currentSeason && DB.seasons[currentSeason]) {
+          DB.seasons[currentSeason].players = DB.players;
+        }
       }
-      if (!DB.meta.updatedAt) DB.meta.updatedAt = {};
-      if (cloudMeta.players) DB.meta.updatedAt.players = cloudMeta.players;
-      applied.players = true;
     }
 
-    if (applyExercises && Array.isArray(data.exercises) && data.exercises.length > 0) {
+    if (unpacked.seasons) {
+      DB.seasons = Object.assign({}, unpacked.seasons, DB.seasons);
+      if (currentSeason && DB.seasons[currentSeason]) {
+        DB.seasons[currentSeason].players = DB.players;
+      }
+    }
+
+    if (Array.isArray(data.exercises) && data.exercises.length > 0) {
       DB.exercises = data.exercises;
-      if (!DB.meta.updatedAt) DB.meta.updatedAt = {};
-      if (cloudMeta.exercises) DB.meta.updatedAt.exercises = cloudMeta.exercises;
-      applied.exercises = true;
-    }
-
-    if (applyTemplates && Array.isArray(unpacked.templates)) {
-      DB.templates = unpacked.templates;
-      if (!DB.meta.updatedAt) DB.meta.updatedAt = {};
-      if (cloudMeta.templates) DB.meta.updatedAt.templates = cloudMeta.templates;
-      applied.templates = true;
     }
 
     if (unpacked.playerGroups && (!DB.playerGroups || force)) {
@@ -181,7 +223,7 @@ async function pullFromCloud(force = false) {
     }
 
     if (typeof migrateAllExercises === 'function') migrateAllExercises();
-    if (typeof ensureSeasonState === 'function')   ensureSeasonState(unpacked.currentSeason || null);
+    if (typeof ensureSeasonState === 'function') ensureSeasonState(unpacked.currentSeason || null);
 
     (DB.players || []).forEach(p => {
       if (typeof migrateCalendar === 'function') migrateCalendar(p);
@@ -189,31 +231,19 @@ async function pullFromCloud(force = false) {
       if (!Array.isArray(p.developmentPlans)) p.developmentPlans = [];
     });
 
-    const localNewer =
-      (parseTime(localMeta.exercises) > parseTime(cloudMeta.exercises)) ||
-      (parseTime(localMeta.players) > parseTime(cloudMeta.players)) ||
-      (parseTime(localMeta.templates) > parseTime(cloudMeta.templates)) ||
-      (parseTime(localMeta.seasons) > parseTime(cloudMeta.seasons));
+    if (!DB.meta) DB.meta = {};
+    if (!DB.meta.updatedAt) DB.meta.updatedAt = {};
+    DB.meta.updatedAt.players = data.updated_at;
 
     saveDBNow();
-
-    if (localNewer && !force) {
-      setSyncStatus('local-newer', 'Отправляю…');
-      await pushToCloud();
-      return { applied, pushed: true };
-    }
-
     setSyncStatus('ok', 'Загружено');
-    return { applied, pushed: false };
+    return { applied: {}, pushed: false };
   } catch (err) {
     setSyncStatus('error', 'Ошибка загрузки');
     return { applied: {}, pushed: false };
   }
 }
 
-/* ============================================================
-   REALTIME (Мгновенная синхронизация)
-   ============================================================ */
 function setupRealtimeSync() {
   if (!sb) return;
   const coachId = isPlayerMode ? localStorage.getItem('coach_id') : (currentUser ? currentUser.id : null);
@@ -226,9 +256,7 @@ function setupRealtimeSync() {
 
   realtimeChannel = sb.channel('coach_data_changes')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'coach_data', filter: `user_id=eq.${coachId}` }, payload => {
-      console.log('Realtime sync triggered', payload);
-      // Принудительно применяем облачные данные (force = true), чтобы избежать конфликтов времени
-      pullFromCloud(true).then(() => {
+      pullFromCloud().then(() => {
         if (typeof renderPlayers === 'function') renderPlayers();
         if (typeof renderCoachCalendar === 'function' && !isPlayerMode) renderCoachCalendar();
         if (currentPlayerId) {
@@ -352,10 +380,6 @@ async function doLogin() {
     showAuthError(human);
   }
 }
-
-/* ============================================================
-   ВХОД ИГРОКА (многошаговый, с PIN)
-   ============================================================ */
 
 let __playerAuthCtx = null;
 
